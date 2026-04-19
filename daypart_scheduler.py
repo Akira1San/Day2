@@ -246,7 +246,6 @@ class ScheduleGenerator:
 
         final = []
         rand_idx = 0
-        current = 0
         custom_sorted = sorted(custom_tags, key=lambda t: Tag.qtime_to_minutes(t.start_time))
 
         for ct in custom_sorted:
@@ -257,50 +256,26 @@ class ScheduleGenerator:
 
             while rand_idx < len(random_entries) and random_entries[rand_idx].end_minutes <= start:
                 final.append(random_entries[rand_idx])
-                current = random_entries[rand_idx].end_minutes
                 rand_idx += 1
 
-            if rand_idx < len(random_entries) and current < start < random_entries[rand_idx].end_minutes:
-                partial_end = min(start, random_entries[rand_idx].end_minutes)
-                final.append(ScheduleEntry(1, current, partial_end, random_entries[rand_idx].video_name))
-                current = partial_end
-                if partial_end >= start:
-                    rand_idx += 1
+            if rand_idx < len(random_entries) and random_entries[rand_idx].start_minutes < start:
+                final.append(random_entries[rand_idx])
+                rand_idx += 1
 
             final.append(ScheduleEntry(1, start, end, ct.name))
-            current = end
 
-            while rand_idx < len(random_entries) and random_entries[rand_idx].start_minutes < current:
-                if random_entries[rand_idx].end_minutes > current:
-                    new_end = min(random_entries[rand_idx].end_minutes, 24 * 60)
-                    final.append(ScheduleEntry(1, current, new_end, random_entries[rand_idx].video_name))
-                    current = new_end
+            while rand_idx < len(random_entries) and random_entries[rand_idx].start_minutes < end:
                 rand_idx += 1
-                if current >= 24 * 60:
-                    break
 
         while rand_idx < len(random_entries):
             final.append(random_entries[rand_idx])
             rand_idx += 1
 
-        while current < 24 * 60:
-            remaining = 24 * 60 - current
-            dur = min(90, remaining)
-            final.append(ScheduleEntry(1, current, current + dur, f"Fill {current//60}:{current%60:02d}"))
-            current += dur
-
         final.sort(key=lambda e: e.start_minutes)
         return final
 
     def apply_approximate(self) -> List[ScheduleEntry]:
-        cached = self.tag_manager.get_cached_random_entries()
-        if cached is None:
-            cached = self.apply_custom_tags(use_cache=True)
-            if cached is None:
-                cached = self.generate_random_fill(24 * 60)
-                self.tag_manager.set_cached_random_entries(cached)
-
-        base_entries = list(cached)
+        base_entries = self.generate_random_fill(24 * 60)
 
         custom_tags = self.tag_manager.get_custom_tags()
         if not custom_tags:
@@ -309,77 +284,54 @@ class ScheduleGenerator:
         custom_sorted = sorted(custom_tags, key=lambda t: Tag.qtime_to_minutes(t.start_time))
 
         final = []
-        current_min = 0
+        rand_idx = 0
+        current_pos = 0
+        next_custom_pos = 0
 
         for ct in custom_sorted:
-            start = Tag.qtime_to_minutes(ct.start_time)
-            end = Tag.qtime_to_minutes(ct.end_time)
-            if start >= end or start >= 24 * 60:
-                continue
+            original_start = Tag.qtime_to_minutes(ct.start_time)
+            original_end = Tag.qtime_to_minutes(ct.end_time)
 
-            # Fill gap if there's space between current_min and custom start
-            gap_before_custom = start - current_min
-            if gap_before_custom > 0:
-                for e in base_entries:
-                    if e.video_name in [c.name for c in custom_tags]:
-                        continue
-                    if e.start_minutes >= current_min:
-                        dur = min(90, gap_before_custom)
-                        e_end = current_min + dur
-                        final.append(ScheduleEntry(1, current_min, e_end, e.video_name))
-                        current_min = e_end
-                        gap_before_custom = start - current_min
-                        if gap_before_custom <= 0:
-                            break
+            custom_start = max(original_start, next_custom_pos)
+            custom_end = custom_start + (original_end - original_start)
 
-            for e in base_entries:
-                if e.video_name in [c.name for c in custom_tags]:
-                    continue
-                if e.end_minutes <= start:
-                    check_dist = start - e.end_minutes
-                    if check_dist <= APPROXIMATE_THRESHOLD_MINUTES:
-                        current_min = start
-                        break
-                    if e.start_minutes >= current_min or current_min == 0:
-                        final.append(ScheduleEntry(1, e.start_minutes, e.end_minutes, e.video_name))
-                        current_min = e.end_minutes
+            while current_pos < custom_start and rand_idx < len(base_entries):
+                dur = min(90, base_entries[rand_idx].end_minutes - base_entries[rand_idx].start_minutes)
+                final.append(ScheduleEntry(1, current_pos, current_pos + dur, base_entries[rand_idx].video_name))
+                current_pos += dur
+                rand_idx += 1
 
-            final.append(ScheduleEntry(1, start, end, ct.name))
-            current_min = end
+            if rand_idx < len(base_entries) and base_entries[rand_idx].start_minutes < original_start < base_entries[rand_idx].end_minutes:
+                dur = base_entries[rand_idx].end_minutes - base_entries[rand_idx].start_minutes
+                final.append(ScheduleEntry(1, current_pos, current_pos + dur, base_entries[rand_idx].video_name))
+                current_pos += dur
+                rand_idx += 1
+                
+                custom_start = current_pos
+                custom_end = custom_start + (original_end - original_start)
+                final.append(ScheduleEntry(1, custom_start, custom_end, ct.name))
+                current_pos = custom_end
+            else:
+                if custom_start < current_pos:
+                    custom_start = current_pos
+                    custom_end = custom_start + (original_end - original_start)
+                final.append(ScheduleEntry(1, custom_start, custom_end, ct.name))
+                current_pos = custom_end
 
-        used_videos = set()
-        for e in final:
-            used_videos.add(e.video_name)
+            next_custom_pos = current_pos
 
-        # Add remaining videos in order (by their original start time, but adjusted to current position)
-        for e in base_entries:
-            if e.video_name in [c.name for c in custom_tags]:
-                continue
-            if e.video_name in used_videos:
-                continue
-            if current_min >= 24 * 60:
-                break
-            dur = min(90, 24 * 60 - current_min)
-            final.append(ScheduleEntry(1, current_min, current_min + dur, e.video_name))
-            current_min += dur
-            used_videos.add(e.video_name)
+            while rand_idx < len(base_entries) and base_entries[rand_idx].start_minutes < current_pos:
+                rand_idx += 1
 
-        # Only add unused videos, not fillers
-        if current_min < 24 * 60:
-            for e in base_entries:
-                if e.video_name in [c.name for c in custom_tags]:
-                    continue
-                if e.video_name in used_videos:
-                    continue
-                if current_min >= 24 * 60:
-                    break
-                dur = min(90, 24 * 60 - current_min)
-                final.append(ScheduleEntry(1, current_min, current_min + dur, e.video_name))
-                current_min += dur
+        while rand_idx < len(base_entries):
+            dur = base_entries[rand_idx].end_minutes - base_entries[rand_idx].start_minutes
+            if current_pos + dur <= 24 * 60:
+                final.append(ScheduleEntry(1, current_pos, current_pos + dur, base_entries[rand_idx].video_name))
+                current_pos += dur
+            rand_idx += 1
 
         final.sort(key=lambda e: e.start_minutes)
         return final
-
 
 class TagDialog(QDialog):
     def __init__(self, parent=None, tag: Optional[Tag] = None):
