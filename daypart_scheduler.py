@@ -8,7 +8,8 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QListWidget, QListWidgetItem, QPushButton, QDialog, QLineEdit,
-    QLabel, QTimeEdit, QMessageBox, QScrollArea, QCheckBox, QRadioButton, QButtonGroup
+    QLabel, QTimeEdit, QMessageBox, QScrollArea, QCheckBox, QRadioButton, QButtonGroup,
+    QFileDialog
 )
 from PySide6.QtCore import Qt, QTime, QTimer
 from PySide6.QtGui import QClipboard, QColor, QFont
@@ -28,12 +29,14 @@ APPROXIMATE_THRESHOLD_MINUTES = 40
 class Tag:
     def __init__(self, tag_type: str, name: str = "Random Fill",
                  start_time: Optional[QTime] = None,
-                 end_time: Optional[QTime] = None):
+                 end_time: Optional[QTime] = None,
+                 collection_videos: Optional[List[dict]] = None):
         self.tag_type = tag_type
         self.name = name
         self.start_time = start_time or QTime(0, 0)
         self.end_time = end_time or QTime(0, 0)
         self.is_random_fill = False
+        self.collection_videos = collection_videos or []
 
     def to_display_string(self) -> str:
         if self.tag_type == "random":
@@ -101,16 +104,19 @@ class TagManager:
         random.shuffle(self.videos)
 
     def save_tags(self, filepath: str = "tags.ini"):
+        import json
         config = configparser.ConfigParser()
         config['Tags'] = {}
         for i, tag in enumerate(self.tags):
             key = f"tag{i}"
             is_random = "1" if getattr(tag, 'is_random_fill', False) else "0"
-            config['Tags'][key] = f"{tag.tag_type}|{tag.name}|{tag.start_time.toString('HH:mm')}|{tag.end_time.toString('HH:mm')}|{is_random}"
+            videos_json = json.dumps(tag.collection_videos) if tag.collection_videos else ""
+            config['Tags'][key] = f"{tag.tag_type}|{tag.name}|{tag.start_time.toString('HH:mm')}|{tag.end_time.toString('HH:mm')}|{is_random}|{videos_json}"
         with open(filepath, 'w') as f:
             config.write(f)
 
     def load_tags(self, filepath: str = "tags.ini"):
+        import json
         if not Path(filepath).exists():
             return False
         config = configparser.ConfigParser()
@@ -122,13 +128,19 @@ class TagManager:
             parts = config['Tags'][key].split('|')
             if len(parts) >= 4:
                 tag_type, name, start, end = parts[0], parts[1], parts[2], parts[3]
-                is_random_fill = len(parts) == 5 and parts[4] == "1"
+                is_random_fill = len(parts) >= 5 and parts[4] == "1"
+                collection_videos = []
+                if len(parts) >= 6 and parts[5]:
+                    try:
+                        collection_videos = json.loads(parts[5])
+                    except:
+                        collection_videos = []
                 if tag_type == 'random' or is_random_fill:
-                    tag = Tag('random', name, QTime.fromString(start, 'HH:mm'), QTime.fromString(end, 'HH:mm'))
+                    tag = Tag('random', name, QTime.fromString(start, 'HH:mm'), QTime.fromString(end, 'HH:mm'), collection_videos)
                     tag.is_random_fill = is_random_fill
                     self.tags.append(tag)
                 else:
-                    self.tags.append(Tag('custom', name, QTime.fromString(start, 'HH:mm'), QTime.fromString(end, 'HH:mm')))
+                    self.tags.append(Tag('custom', name, QTime.fromString(start, 'HH:mm'), QTime.fromString(end, 'HH:mm'), collection_videos))
         return True
 
     def add_tag(self, tag: Tag):
@@ -348,6 +360,7 @@ class TagDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Edit Tag" if tag else "Add Custom Tag")
         self.setModal(True)
+        self.collection_videos = []
         self.setup_ui()
         if tag:
             self.name_input.setText(tag.name)
@@ -355,6 +368,13 @@ class TagDialog(QDialog):
             self.end_time_edit.setTime(tag.end_time)
             if hasattr(tag, 'is_random_fill') and tag.is_random_fill:
                 self.random_fill_check.setChecked(True)
+            if tag.collection_videos:
+                self.collection_videos = tag.collection_videos.copy()
+                for video in self.collection_videos:
+                    path = video.get('path', '')
+                    duration = video.get('duration', 0)
+                    display_name = path.split('/')[-1] if '/' in path else path
+                    self.videos_list.addItem(f"{display_name} ({int(duration)}s)")
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
@@ -367,17 +387,36 @@ class TagDialog(QDialog):
         self.name_input = QLineEdit()
         layout.addWidget(self.name_input)
 
-        layout.addWidget(QLabel("Start Time:"))
+        collection_layout = QHBoxLayout()
+        collection_layout.addWidget(QLabel("Collection:"))
+        self.collection_path = QLineEdit()
+        self.collection_path.setPlaceholderText("Select collections_name.json...")
+        self.collection_path.setReadOnly(True)
+        collection_layout.addWidget(self.collection_path)
+
+        browse_btn = QPushButton("Browse")
+        browse_btn.clicked.connect(self.browse_collection)
+        collection_layout.addWidget(browse_btn)
+        layout.addLayout(collection_layout)
+
+        layout.addWidget(QLabel("Videos in Collection:"))
+        self.videos_list = QListWidget()
+        self.videos_list.setMinimumHeight(150)
+        layout.addWidget(self.videos_list)
+
+        time_layout = QHBoxLayout()
+        time_layout.addWidget(QLabel("Start Time:"))
         self.start_time_edit = QTimeEdit()
         self.start_time_edit.setDisplayFormat("HH:mm")
         self.start_time_edit.setTime(QTime(0, 0))
-        layout.addWidget(self.start_time_edit)
+        time_layout.addWidget(self.start_time_edit)
 
-        layout.addWidget(QLabel("End Time:"))
+        time_layout.addWidget(QLabel("End Time:"))
         self.end_time_edit = QTimeEdit()
         self.end_time_edit.setDisplayFormat("HH:mm")
         self.end_time_edit.setTime(QTime(1, 0))
-        layout.addWidget(self.end_time_edit)
+        time_layout.addWidget(self.end_time_edit)
+        layout.addLayout(time_layout)
 
         btn_layout = QHBoxLayout()
         save_btn = QPushButton("Save")
@@ -388,6 +427,35 @@ class TagDialog(QDialog):
         btn_layout.addWidget(cancel_btn)
         layout.addLayout(btn_layout)
 
+    def browse_collection(self):
+        from PySide6.QtWidgets import QFileDialog
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Select Collection File", "",
+            "JSON Files (*.json);;All Files (*)"
+        )
+        if file_path:
+            self.load_collection(file_path)
+
+    def load_collection(self, file_path: str):
+        import json
+        try:
+            with open(file_path, 'r') as f:
+                data = json.load(f)
+            self.collection_path.setText(file_path)
+            self.videos_list.clear()
+            self.collection_videos.clear()
+
+            collections = data.get('collections', [])
+            for collection in collections:
+                for video in collection.get('videos', []):
+                    path = video.get('path', '')
+                    duration = video.get('duration', 0)
+                    self.collection_videos.append({'path': path, 'duration': duration})
+                    display_name = path.split('/')[-1] if '/' in path else path
+                    self.videos_list.addItem(f"{display_name} ({int(duration)}s)")
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Failed to load collection: {e}")
+
     def get_tag(self) -> Tag:
         is_random = self.random_fill_check.isChecked()
         if is_random:
@@ -395,7 +463,8 @@ class TagDialog(QDialog):
                 tag_type="random",
                 name="Random Fill" if not self.name_input.text() else self.name_input.text(),
                 start_time=self.start_time_edit.time(),
-                end_time=self.end_time_edit.time()
+                end_time=self.end_time_edit.time(),
+                collection_videos=self.collection_videos.copy()
             )
             tag.is_random_fill = True
         else:
@@ -403,7 +472,8 @@ class TagDialog(QDialog):
                 tag_type="custom",
                 name=self.name_input.text() or "Custom Video",
                 start_time=self.start_time_edit.time(),
-                end_time=self.end_time_edit.time()
+                end_time=self.end_time_edit.time(),
+                collection_videos=self.collection_videos.copy()
             )
         return tag
 
@@ -458,15 +528,25 @@ class MainWindow(QMainWindow):
         self.delete_btn.clicked.connect(self.delete_tag)
         btn_layout.addWidget(self.delete_btn)
 
-        self.save_btn = QPushButton("Save")
+        self.save_btn = QPushButton("Save All")
         self.save_btn.clicked.connect(self.save_tags)
         btn_layout.addWidget(self.save_btn)
 
-        self.load_btn = QPushButton("Load")
+        self.load_btn = QPushButton("Load All")
         self.load_btn.clicked.connect(self.load_tags)
         btn_layout.addWidget(self.load_btn)
 
         tags_layout.addLayout(btn_layout)
+
+        single_btn_layout = QHBoxLayout()
+        self.save_single_btn = QPushButton("Save Tag")
+        self.save_single_btn.clicked.connect(self.save_single_tag)
+        single_btn_layout.addWidget(self.save_single_btn)
+
+        self.load_single_btn = QPushButton("Load Tag")
+        self.load_single_btn.clicked.connect(self.load_single_tag)
+        single_btn_layout.addWidget(self.load_single_btn)
+        tags_layout.addLayout(single_btn_layout)
 
         main_layout.addWidget(self.tags_panel)
 
@@ -735,6 +815,64 @@ class MainWindow(QMainWindow):
         self.preview_list.clear()
         for entry in self.schedule_entries:
             self.preview_list.addItem(entry.to_display_string())
+
+    def save_single_tag(self):
+        current_row = self.tags_list.currentRow()
+        if current_row < 0:
+            QMessageBox.warning(self, "No Selection", "Please select a tag to save.")
+            return
+
+        tag = self.tag_manager.tags[current_row]
+        if tag.tag_type == "random":
+            QMessageBox.warning(self, "Cannot Save", "Cannot save the random fill tag.")
+            return
+
+        file_path, _ = QFileDialog.getSaveFileName(self, "Save Tag", "", "INI Files (*.ini);;All Files (*)")
+        if file_path:
+            import json
+            config = configparser.ConfigParser()
+            is_random = "1" if getattr(tag, 'is_random_fill', False) else "0"
+            videos_json = json.dumps(tag.collection_videos) if tag.collection_videos else ""
+            config['Tag'] = {'data': f"{tag.tag_type}|{tag.name}|{tag.start_time.toString('HH:mm')}|{tag.end_time.toString('HH:mm')}|{is_random}|{videos_json}"}
+            with open(file_path, 'w') as f:
+                config.write(f)
+            self.statusBar().showMessage(f"Tag saved to {file_path}")
+
+    def load_single_tag(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Load Tag", "", "INI Files (*.ini);;All Files (*)")
+        if not file_path:
+            return
+
+        import json
+        if not Path(file_path).exists():
+            QMessageBox.warning(self, "Error", "File not found.")
+            return
+
+        config = configparser.ConfigParser()
+        config.read(file_path)
+        if 'Tag' not in config:
+            QMessageBox.warning(self, "Error", "Invalid tag file.")
+            return
+
+        parts = config['Tag']['data'].split('|')
+        if len(parts) >= 4:
+            tag_type, name, start, end = parts[0], parts[1], parts[2], parts[3]
+            is_random_fill = len(parts) >= 5 and parts[4] == "1"
+            collection_videos = []
+            if len(parts) >= 6 and parts[5]:
+                try:
+                    collection_videos = json.loads(parts[5])
+                except:
+                    collection_videos = []
+
+            tag = Tag(tag_type, name, QTime.fromString(start, 'HH:mm'), QTime.fromString(end, 'HH:mm'), collection_videos)
+            if is_random_fill:
+                tag.is_random_fill = True
+
+            self.tag_manager.add_tag(tag)
+            self.refresh_tags_list()
+            self.refresh_preview()
+            self.statusBar().showMessage(f"Tag loaded from {file_path}")
 
 
 def main():
