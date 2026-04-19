@@ -25,12 +25,13 @@ class Tag:
                  collection_videos: Optional[List[dict]] = None,
                  collection_path: str = "",
                  randomize_videos: bool = False,
-                 video_count: int = 1):
+                 video_count: int = 1,
+                 is_random_fill: bool = False):
         self.tag_type = tag_type
         self.name = name
         self.start_time = start_time or QTime(0, 0)
         self.end_time = end_time or QTime(0, 0)
-        self.is_random_fill = False
+        self.is_random_fill = is_random_fill
         self.collection_videos = collection_videos or []
         self.collection_path = collection_path
         self.randomize_videos = randomize_videos
@@ -658,10 +659,15 @@ class RandomFillDialog(QDialog):
         self.start_time_edit.setTime(QTime(0, 0))
         time_layout.addWidget(self.start_time_edit)
 
+        self.calc_btn = QPushButton("Auto Calc")
+        self.calc_btn.clicked.connect(self.auto_calc_end_time)
+        time_layout.addWidget(self.calc_btn)
+        
         time_layout.addWidget(QLabel("End Time:"))
         self.end_time_edit = QTimeEdit()
         self.end_time_edit.setDisplayFormat("HH:mm")
         self.end_time_edit.setTime(QTime(1, 0))
+        self.end_time_edit.setReadOnly(True)
         time_layout.addWidget(self.end_time_edit)
         layout.addLayout(time_layout)
 
@@ -702,7 +708,23 @@ class RandomFillDialog(QDialog):
         except Exception as e:
             QMessageBox.warning(self, "Error", f"Failed to load collection: {e}")
 
+    def auto_calc_end_time(self):
+        if not self.collection_videos:
+            QMessageBox.warning(self, "No Videos", "Please load a collection first.")
+            return
+        
+        total_duration = sum(v.get('duration', 0) for v in self.collection_videos)
+        total_mins = int(total_duration // 60)
+        
+        start_time = self.start_time_edit.time()
+        start_mins = start_time.hour() * 60 + start_time.minute()
+        end_mins = start_mins + total_mins
+        end_mins = end_mins % (24 * 60)
+        
+        self.end_time_edit.setTime(QTime(end_mins // 60, end_mins % 60))
+
     def get_tag(self) -> Tag:
+        self.auto_calc_end_time()
         tag = Tag(
             tag_type="random",
             name=self.name_input.text() or "Random Fill",
