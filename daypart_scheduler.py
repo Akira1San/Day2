@@ -8,7 +8,7 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QListWidget, QListWidgetItem, QPushButton, QDialog, QLineEdit,
-    QLabel, QTimeEdit, QMessageBox, QScrollArea, QCheckBox
+    QLabel, QTimeEdit, QMessageBox, QScrollArea, QCheckBox, QRadioButton, QButtonGroup
 )
 from PySide6.QtCore import Qt, QTime, QTimer
 from PySide6.QtGui import QClipboard, QColor, QFont
@@ -484,6 +484,19 @@ class MainWindow(QMainWindow):
         preview_layout.addWidget(scroll)
 
         bottom_btn_layout = QHBoxLayout()
+        
+        self.view_group = QButtonGroup(self)
+        self.daily_radio = QRadioButton("Daily")
+        self.daily_radio.setChecked(True)
+        self.weekly_radio = QRadioButton("Weekly (7 days)")
+        self.monthly_radio = QRadioButton("Calendar (30 days)")
+        self.view_group.addButton(self.daily_radio)
+        self.view_group.addButton(self.weekly_radio)
+        self.view_group.addButton(self.monthly_radio)
+        bottom_btn_layout.addWidget(self.daily_radio)
+        bottom_btn_layout.addWidget(self.weekly_radio)
+        bottom_btn_layout.addWidget(self.monthly_radio)
+        
         self.copy_btn = QPushButton("Copy Preview")
         self.copy_btn.clicked.connect(self.copy_preview)
         bottom_btn_layout.addWidget(self.copy_btn)
@@ -583,7 +596,63 @@ class MainWindow(QMainWindow):
     def generate_new_preview(self):
         self.tag_manager.clear_cache()
         self.tag_manager.shuffle_videos()
-        self.refresh_preview()
+        
+        if self.weekly_radio.isChecked():
+            self.generate_weekly_preview()
+        elif self.monthly_radio.isChecked():
+            self.generate_monthly_preview()
+        else:
+            self.refresh_preview()
+
+    def generate_weekly_preview(self):
+        self.preview_list.clear()
+        self.preview_title.setText("Weekly Schedule Preview (7 Days)")
+        
+        from datetime import date
+        start_date = date.today()
+        days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        
+        for day_offset in range(7):
+            current_date = start_date + timedelta(days=day_offset)
+            day_name = days[current_date.weekday()]
+            self.preview_list.addItem(f"=== {current_date} - {day_name} ===")
+            self.tag_manager.clear_cache()
+            self.tag_manager.shuffle_videos()
+            entries = self.schedule_generator.apply_custom_tags() if not self.approximate_enabled else self.schedule_generator.apply_approximate()
+            for entry in entries:
+                start_h = (entry.start_minutes // 60) % 24
+                start_m = entry.start_minutes % 60
+                end_h = (entry.end_minutes // 60) % 24
+                end_m = entry.end_minutes % 60
+                if entry.start_minutes == 0:
+                    self.preview_list.addItem(f"Day {day_offset + 1}\n{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {entry.video_name}")
+                else:
+                    self.preview_list.addItem(f"{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {entry.video_name}")
+
+    def generate_monthly_preview(self):
+        self.preview_list.clear()
+        self.preview_title.setText("Calendar Schedule Preview (30 Days)")
+        
+        from datetime import date
+        start_date = date.today()
+        days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        
+        for day_offset in range(30):
+            current_date = start_date + timedelta(days=day_offset)
+            day_name = days[current_date.weekday()]
+            self.preview_list.addItem(f"=== {current_date} - {day_name} ===")
+            self.tag_manager.clear_cache()
+            self.tag_manager.shuffle_videos()
+            entries = self.schedule_generator.apply_custom_tags() if not self.approximate_enabled else self.schedule_generator.apply_approximate()
+            for entry in entries:
+                start_h = (entry.start_minutes // 60) % 24
+                start_m = entry.start_minutes % 60
+                end_h = (entry.end_minutes // 60) % 24
+                end_m = entry.end_minutes % 60
+                if entry.start_minutes == 0:
+                    self.preview_list.addItem(f"Day {day_offset + 1}\n{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {entry.video_name}")
+                else:
+                    self.preview_list.addItem(f"{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {entry.video_name}")
 
     def save_tags(self):
         self.tag_manager.save_tags("tags.ini")
