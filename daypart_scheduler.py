@@ -60,13 +60,23 @@ class ScheduleEntry:
     def format_time(self, minutes: int, day: int) -> str:
         hours = (minutes // 60) % 24
         mins = minutes % 60
-        return f"Day {day} {hours:02d}:{mins:02d}"
+        return f"Day {day}\n{hours:02d}:{mins:02d}"
 
     def to_display_string(self) -> str:
-        return f"{self.format_time(self.start_minutes, self.day)} - {self.format_time(self.end_minutes, self.day)} - {self.video_name}"
+        start_h = (self.start_minutes // 60) % 24
+        start_m = self.start_minutes % 60
+        end_h = (self.end_minutes // 60) % 24
+        end_m = self.end_minutes % 60
+        if self.start_minutes == 0:
+            return f"Day {self.day}\n{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {self.video_name}"
+        return f"{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {self.video_name}"
 
     def to_copy_string(self) -> str:
-        return f"{self.format_time(self.start_minutes, self.day)} - {self.format_time(self.end_minutes, self.day)} - {self.video_name}"
+        start_h = (self.start_minutes // 60) % 24
+        start_m = self.start_minutes % 60
+        end_h = (self.end_minutes // 60) % 24
+        end_m = self.end_minutes % 60
+        return f"Day {self.day} {start_h:02d}:{start_m:02d} - Day {self.day} {end_h:02d}:{end_m:02d} - {self.video_name}"
 
 
 class TagManager:
