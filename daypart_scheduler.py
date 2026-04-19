@@ -15,14 +15,6 @@ from PySide6.QtCore import Qt, QTime, QTimer
 from PySide6.QtGui import QClipboard, QColor, QFont
 
 
-VIDEOS = [
-    "Superman", "Batman", "Spiderman", "Wonder Woman", "Iron Man",
-    "Thor", "Hulk", "Captain America", "Black Panther", "Aquaman",
-    "Flash", "Green Lantern", "Cyborg", "Supergirl", "Batgirl",
-    "Robin", "Nightwing", "Joker", "Loki", "Thanos",
-    "Doctor Strange", "Scarlet Witch", "Ant-Man", "Wonder Man"
-]
-
 APPROXIMATE_THRESHOLD_MINUTES = 40
 
 
@@ -93,8 +85,6 @@ class ScheduleEntry:
 class TagManager:
     def __init__(self):
         self.tags: List[Tag] = []
-        self.videos = VIDEOS.copy()
-        random.shuffle(self.videos)
         self._cached_random_entries: Optional[List[ScheduleEntry]] = None
 
     def get_cached_random_entries(self) -> List[ScheduleEntry]:
@@ -107,9 +97,6 @@ class TagManager:
 
     def clear_cache(self):
         self._cached_random_entries = None
-
-    def shuffle_videos(self):
-        random.shuffle(self.videos)
 
     def save_tags(self, filepath: str = "tags.ini"):
         import json
@@ -162,22 +149,19 @@ class TagManager:
 
     def remove_tag(self, index: int):
         if index >= 0 and index < len(self.tags):
-            if self.tags[index].tag_type == "random":
-                return False
             self.tags.pop(index)
             return True
         return False
 
     def edit_tag(self, index: int, name: str, start_time: QTime, end_time: QTime,
                  collection_videos: List[dict] = None, collection_path: str = "",
-                 randomize_videos: bool = False, video_count: int = 1):
+                 video_count: int = 1):
         if index >= 0 and index < len(self.tags):
             self.tags[index].name = name
             self.tags[index].start_time = start_time
             self.tags[index].end_time = end_time
             self.tags[index].collection_videos = collection_videos or []
             self.tags[index].collection_path = collection_path
-            self.tags[index].randomize_videos = randomize_videos
             self.tags[index].video_count = video_count
             return True
         return False
@@ -197,16 +181,27 @@ class ScheduleGenerator:
         self.tag_manager = tag_manager
 
     def generate_random_fill(self, remaining_minutes: int = 24 * 60) -> List[ScheduleEntry]:
+        all_tags = self.tag_manager.get_all_tags()
+        collection_videos = []
+        for tag in all_tags:
+            if tag.collection_videos:
+                collection_videos.extend(tag.collection_videos)
+        
+        if not collection_videos:
+            return []
+        
         entries = []
-        videos = self.tag_manager.videos.copy()
-        random.shuffle(videos)
+        random.shuffle(collection_videos)
         video_index = 0
         current_minute = 0
         current_day = 1
 
         while current_minute < remaining_minutes:
-            video_name = videos[video_index % len(videos)]
-            duration = 90
+            video = collection_videos[video_index % len(collection_videos)]
+            video_name = video.get('path', 'Unknown').split('/')[-1]
+            duration = int(video.get('duration', 90)) // 60
+            if duration < 1:
+                duration = 90
             end_minute = current_minute + duration
 
             if end_minute > remaining_minutes:
@@ -219,13 +214,19 @@ class ScheduleGenerator:
         return entries
 
     def apply_custom_tags(self, use_cache: bool = True) -> List[ScheduleEntry]:
+        all_tags = self.tag_manager.get_all_tags()
+        
         cached = self.tag_manager.get_cached_random_entries()
         if use_cache and cached is not None:
             return self._inject_custom_tags(cached)
 
-        all_tags = self.tag_manager.get_all_tags()
         custom_tags = [t for t in all_tags if t.tag_type == "custom"]
         random_fill_tags = [t for t in all_tags if t.tag_type == "random" or t.is_random_fill]
+
+        collection_videos = []
+        for tag in all_tags:
+            if tag.collection_videos:
+                collection_videos.extend(tag.collection_videos)
 
         if not custom_tags and not random_fill_tags:
             entries = self.generate_random_fill(24 * 60)
@@ -233,48 +234,94 @@ class ScheduleGenerator:
             return entries
 
         custom_sorted = sorted(custom_tags + random_fill_tags, key=lambda t: Tag.qtime_to_minutes(t.start_time))
-
-        custom_entries = []
+        
         occupied = set()
+        custom_entries = []
+        random_videos_entries = []
+        
         for ct in custom_sorted:
             start_min = Tag.qtime_to_minutes(ct.start_time)
             end_min = Tag.qtime_to_minutes(ct.end_time)
             if start_min >= end_min:
                 continue
-            if start_min < 24 * 60 and end_min <= 24 * 60:
+            if start_min >= 24 * 60 or end_min > 24 * 60:
+                continue
+                
+            if ct.collection_videos:
+                for m in range(start_min, end_min):
+                    occupied.add(m)
+                video_count = getattr(ct, 'video_count', 1)
+                videos = ct.collection_videos.copy()
+                random.shuffle(videos)
+                pos = start_min
+                vid_idx = 0
+                while pos < end_min and vid_idx < video_count and vid_idx < len(videos):
+                    video = videos[vid_idx % len(videos)]
+                    video_name = video.get('path', 'Unknown').split('/')[-1]
+                    duration = int(video.get('duration', 90)) // 60
+                    if duration < 1:
+                        duration = 1
+                    if pos + duration > end_min:
+                        duration = end_min - pos
+                    if duration < 1:
+                        break
+                    random_videos_entries.append((pos, pos + duration, video_name))
+                    pos += duration
+                    vid_idx += 1
+            else:
                 custom_entries.append((start_min, end_min, ct.name))
                 for m in range(start_min, end_min):
                     occupied.add(m)
 
         gaps = []
         current = 0
-        for start, end, name in custom_entries:
-            if current < start:
-                gaps.append((current, start))
-            current = end
-        if current < 24 * 60:
-            gaps.append((current, 24 * 60))
+        if not custom_entries and not random_videos_entries:
+            gaps.append((0, 24 * 60))
+        else:
+            for start, end, name in custom_entries:
+                if current < start:
+                    gaps.append((current, start))
+                current = end
+            for start, end, name in random_videos_entries:
+                if current < start:
+                    gaps.append((current, start))
+                current = end
+            if current < 24 * 60:
+                gaps.append((current, 24 * 60))
 
         entries = []
-        videos = self.tag_manager.videos.copy()
+        if collection_videos:
+            random.shuffle(collection_videos)
         video_idx = 0
 
         for gap_start, gap_end in gaps:
             pos = gap_start
             while pos < gap_end:
                 gap_size = gap_end - pos
-                video = videos[video_idx % len(videos)]
-                if gap_size >= 90:
-                    e_end = pos + 90
+                if collection_videos:
+                    video = collection_videos[video_idx % len(collection_videos)]
+                    video_name = video.get('path', 'Unknown').split('/')[-1]
+                    duration = int(video.get('duration', 90)) // 60
+                    if duration < 1:
+                        duration = 90
+                else:
+                    video_name = "No videos loaded"
+                    duration = 90
+                if gap_size >= duration:
+                    e_end = pos + duration
                 else:
                     e_end = pos + gap_size
-                entries.append(ScheduleEntry(1, pos, e_end, video))
+                    duration = gap_size
+                entries.append(ScheduleEntry(1, pos, e_end, video_name))
                 pos = e_end
                 video_idx += 1
-                if video_idx > len(videos) * 2:
+                if collection_videos and video_idx > len(collection_videos) * 2:
                     break
 
         for start, end, name in custom_entries:
+            entries.append(ScheduleEntry(1, start, end, name))
+
+        for start, end, name in random_videos_entries:
             entries.append(ScheduleEntry(1, start, end, name))
 
         entries.sort(key=lambda e: e.start_minutes)
@@ -304,7 +351,27 @@ class ScheduleGenerator:
                 final.append(random_entries[rand_idx])
                 rand_idx += 1
 
-            final.append(ScheduleEntry(1, start, end, ct.name))
+            if ct.collection_videos and getattr(ct, 'randomize_videos', False):
+                video_count = getattr(ct, 'video_count', 1)
+                videos = ct.collection_videos.copy()
+                random.shuffle(videos)
+                pos = start
+                vid_idx = 0
+                while pos < end and vid_idx < video_count and vid_idx < len(videos):
+                    video = videos[vid_idx % len(videos)]
+                    video_name = video.get('path', 'Unknown').split('/')[-1]
+                    duration = int(video.get('duration', 90)) // 60
+                    if duration < 1:
+                        duration = 1
+                    if pos + duration > end:
+                        duration = end - pos
+                    if duration < 1:
+                        break
+                    final.append(ScheduleEntry(1, pos, pos + duration, video_name))
+                    pos += duration
+                    vid_idx += 1
+            else:
+                final.append(ScheduleEntry(1, start, end, ct.name))
 
             while rand_idx < len(random_entries) and random_entries[rand_idx].start_minutes < end:
                 rand_idx += 1
@@ -386,8 +453,6 @@ class TagDialog(QDialog):
             self.name_input.setText(tag.name)
             self.start_time_edit.setTime(tag.start_time)
             self.end_time_edit.setTime(tag.end_time)
-            if hasattr(tag, 'is_random_fill') and tag.is_random_fill:
-                self.random_fill_check.setChecked(True)
             if tag.collection_videos:
                 self.collection_videos = tag.collection_videos.copy()
                 for video in self.collection_videos:
@@ -413,11 +478,7 @@ class TagDialog(QDialog):
     def setup_ui(self):
         layout = QVBoxLayout(self)
 
-        self.random_fill_check = QCheckBox("Random Fill (auto-generate videos)")
-        self.random_fill_check.stateChanged.connect(self.on_random_fill_changed)
-        layout.addWidget(self.random_fill_check)
-
-        layout.addWidget(QLabel("Video Name:"))
+        layout.addWidget(QLabel("Name:"))
         self.name_input = QLineEdit()
         layout.addWidget(self.name_input)
 
@@ -509,33 +570,15 @@ class TagDialog(QDialog):
             QMessageBox.warning(self, "Error", f"Failed to load collection: {e}")
 
     def get_tag(self) -> Tag:
-        is_random = self.random_fill_check.isChecked()
-        randomize = self.randomize_videos_check.isChecked()
-        count = self.video_count_spin.value()
-        collection_path = self.collection_path.text()
-        if is_random:
-            tag = Tag(
-                tag_type="random",
-                name="Random Fill" if not self.name_input.text() else self.name_input.text(),
-                start_time=self.start_time_edit.time(),
-                end_time=self.end_time_edit.time(),
-                collection_videos=self.collection_videos.copy(),
-                collection_path=collection_path,
-                randomize_videos=randomize,
-                video_count=count
-            )
-            tag.is_random_fill = True
-        else:
-            tag = Tag(
-                tag_type="custom",
-                name=self.name_input.text() or "Custom Video",
-                start_time=self.start_time_edit.time(),
-                end_time=self.end_time_edit.time(),
-                collection_videos=self.collection_videos.copy(),
-                collection_path=collection_path,
-                randomize_videos=randomize,
-                video_count=count
-            )
+        tag = Tag(
+            tag_type="custom",
+            name=self.name_input.text() or "Custom Video",
+            start_time=self.start_time_edit.time(),
+            end_time=self.end_time_edit.time(),
+            collection_videos=self.collection_videos.copy(),
+            collection_path=self.collection_path.text(),
+            video_count=self.video_count_spin.value()
+        )
         return tag
 
     def auto_calc_end_time(self):
@@ -562,11 +605,114 @@ class TagDialog(QDialog):
         end_mins = end_mins % (24 * 60)
         self.end_time_edit.setTime(QTime(end_mins // 60, end_mins % 60))
 
-    def on_random_fill_changed(self, state):
-        if state == Qt.Checked:
-            self.name_input.setEnabled(False)
-        else:
-            self.name_input.setEnabled(True)
+
+class RandomFillDialog(QDialog):
+    def __init__(self, parent=None, tag: Optional[Tag] = None):
+        super().__init__(parent)
+        self.setWindowTitle("Add Random Fill Tag" if not tag else "Edit Random Fill Tag")
+        self.setModal(True)
+        self.collection_videos = []
+        self.setup_ui()
+        if tag:
+            self.name_input.setText(tag.name)
+            self.start_time_edit.setTime(tag.start_time)
+            self.end_time_edit.setTime(tag.end_time)
+            if tag.collection_videos:
+                self.collection_videos = tag.collection_videos.copy()
+                for video in tag.collection_videos:
+                    path = video.get('path', '')
+                    duration = video.get('duration', 0)
+                    display_name = path.split('/')[-1] if '/' in path else path
+                    self.videos_list.addItem(f"{display_name} ({int(duration)}s)")
+            if hasattr(tag, 'collection_path') and tag.collection_path:
+                self.collection_path.setText(tag.collection_path)
+
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+
+        layout.addWidget(QLabel("Name:"))
+        self.name_input = QLineEdit()
+        layout.addWidget(self.name_input)
+
+        collection_layout = QHBoxLayout()
+        collection_layout.addWidget(QLabel("Collection:"))
+        self.collection_path = QLineEdit()
+        self.collection_path.setPlaceholderText("Select collections_name.json...")
+        self.collection_path.setReadOnly(True)
+        collection_layout.addWidget(self.collection_path)
+
+        browse_btn = QPushButton("Browse")
+        browse_btn.clicked.connect(self.browse_collection)
+        collection_layout.addWidget(browse_btn)
+        layout.addLayout(collection_layout)
+
+        layout.addWidget(QLabel("Videos in Collection:"))
+        self.videos_list = QListWidget()
+        self.videos_list.setMinimumHeight(150)
+        layout.addWidget(self.videos_list)
+
+        time_layout = QHBoxLayout()
+        time_layout.addWidget(QLabel("Start Time:"))
+        self.start_time_edit = QTimeEdit()
+        self.start_time_edit.setDisplayFormat("HH:mm")
+        self.start_time_edit.setTime(QTime(0, 0))
+        time_layout.addWidget(self.start_time_edit)
+
+        time_layout.addWidget(QLabel("End Time:"))
+        self.end_time_edit = QTimeEdit()
+        self.end_time_edit.setDisplayFormat("HH:mm")
+        self.end_time_edit.setTime(QTime(1, 0))
+        time_layout.addWidget(self.end_time_edit)
+        layout.addLayout(time_layout)
+
+        btn_layout = QHBoxLayout()
+        save_btn = QPushButton("Save")
+        save_btn.clicked.connect(self.accept)
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.reject)
+        btn_layout.addWidget(save_btn)
+        btn_layout.addWidget(cancel_btn)
+        layout.addLayout(btn_layout)
+
+    def browse_collection(self):
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Select Collection File", "",
+            "JSON Files (*.json);;All Files (*)"
+        )
+        if file_path:
+            self.load_collection(file_path)
+
+    def load_collection(self, file_path: str):
+        import json
+        try:
+            with open(file_path, 'r') as f:
+                data = json.load(f)
+            self.collection_path.setText(file_path)
+            self.videos_list.clear()
+            self.collection_videos.clear()
+
+            collections = data.get('collections', [])
+            for collection in collections:
+                for video in collection.get('videos', []):
+                    path = video.get('path', '')
+                    duration = video.get('duration', 0)
+                    self.collection_videos.append({'path': path, 'duration': duration})
+                    display_name = path.split('/')[-1] if '/' in path else path
+                    self.videos_list.addItem(f"{display_name} ({int(duration)}s)")
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Failed to load collection: {e}")
+
+    def get_tag(self) -> Tag:
+        tag = Tag(
+            tag_type="random",
+            name=self.name_input.text() or "Random Fill",
+            start_time=self.start_time_edit.time(),
+            end_time=self.end_time_edit.time(),
+            collection_videos=self.collection_videos.copy(),
+            collection_path=self.collection_path.text(),
+            is_random_fill=True
+        )
+        return tag
 
 
 class MainWindow(QMainWindow):
@@ -601,9 +747,13 @@ class MainWindow(QMainWindow):
         tags_layout.addWidget(self.tags_list)
 
         btn_layout = QHBoxLayout()
-        self.add_btn = QPushButton("Add")
-        self.add_btn.clicked.connect(self.add_tag)
+        self.add_btn = QPushButton("Add Custom")
+        self.add_btn.clicked.connect(self.add_custom_tag)
         btn_layout.addWidget(self.add_btn)
+
+        self.add_random_btn = QPushButton("Add Random Fill")
+        self.add_random_btn.clicked.connect(self.add_random_fill_tag)
+        btn_layout.addWidget(self.add_random_btn)
 
         self.edit_btn = QPushButton("Edit")
         self.edit_btn.clicked.connect(self.edit_tag)
@@ -613,25 +763,25 @@ class MainWindow(QMainWindow):
         self.delete_btn.clicked.connect(self.delete_tag)
         btn_layout.addWidget(self.delete_btn)
 
+        tags_layout.addLayout(btn_layout)
+
+        save_load_layout = QHBoxLayout()
         self.save_btn = QPushButton("Save All")
         self.save_btn.clicked.connect(self.save_tags)
-        btn_layout.addWidget(self.save_btn)
+        save_load_layout.addWidget(self.save_btn)
 
         self.load_btn = QPushButton("Load All")
         self.load_btn.clicked.connect(self.load_tags)
-        btn_layout.addWidget(self.load_btn)
+        save_load_layout.addWidget(self.load_btn)
 
-        tags_layout.addLayout(btn_layout)
-
-        single_btn_layout = QHBoxLayout()
         self.save_single_btn = QPushButton("Save Tag")
         self.save_single_btn.clicked.connect(self.save_single_tag)
-        single_btn_layout.addWidget(self.save_single_btn)
+        save_load_layout.addWidget(self.save_single_btn)
 
         self.load_single_btn = QPushButton("Load Tag")
         self.load_single_btn.clicked.connect(self.load_single_tag)
-        single_btn_layout.addWidget(self.load_single_btn)
-        tags_layout.addLayout(single_btn_layout)
+        save_load_layout.addWidget(self.load_single_btn)
+        tags_layout.addLayout(save_load_layout)
 
         main_layout.addWidget(self.tags_panel)
 
@@ -732,25 +882,12 @@ class MainWindow(QMainWindow):
         self.tags_list.setFocusPolicy(Qt.StrongFocus)
 
     def load_default_tags(self):
-        random_tag = Tag(tag_type="random", name="Random Fill")
-        self.tag_manager.add_tag(random_tag)
-
-        custom_tag = Tag(
-            tag_type="custom",
-            name="My Custom Video",
-            start_time=QTime(13, 0),
-            end_time=QTime(15, 0)
-        )
-        self.tag_manager.add_tag(custom_tag)
-
         self.refresh_tags_list()
 
     def refresh_tags_list(self):
         self.tags_list.clear()
         for tag in self.tag_manager.tags:
             item = QListWidgetItem(tag.to_display_string())
-            if tag.tag_type == "random":
-                item.setBackground(QColor("#3a3a4e"))
             self.tags_list.addItem(item)
 
     def refresh_preview(self):
@@ -774,7 +911,6 @@ class MainWindow(QMainWindow):
 
     def generate_new_preview(self):
         self.tag_manager.clear_cache()
-        self.tag_manager.shuffle_videos()
         
         if self.weekly_radio.isChecked():
             self.generate_weekly_preview()
@@ -796,7 +932,6 @@ class MainWindow(QMainWindow):
             day_name = days[current_date.weekday()]
             self.preview_list.addItem(f"=== {current_date} - {day_name} ===")
             self.tag_manager.clear_cache()
-            self.tag_manager.shuffle_videos()
             entries = self.schedule_generator.apply_custom_tags() if not self.approximate_enabled else self.schedule_generator.apply_approximate()
             for entry in entries:
                 start_h = (entry.start_minutes // 60) % 24
@@ -821,7 +956,6 @@ class MainWindow(QMainWindow):
             day_name = days[current_date.weekday()]
             self.preview_list.addItem(f"=== {current_date} - {day_name} ===")
             self.tag_manager.clear_cache()
-            self.tag_manager.shuffle_videos()
             entries = self.schedule_generator.apply_custom_tags() if not self.approximate_enabled else self.schedule_generator.apply_approximate()
             for entry in entries:
                 start_h = (entry.start_minutes // 60) % 24
@@ -853,6 +987,22 @@ class MainWindow(QMainWindow):
             self.refresh_tags_list()
             self.refresh_preview()
 
+    def add_custom_tag(self):
+        dialog = TagDialog(self)
+        if dialog.exec():
+            tag = dialog.get_tag()
+            self.tag_manager.add_tag(tag)
+            self.refresh_tags_list()
+            self.refresh_preview()
+
+    def add_random_fill_tag(self):
+        dialog = RandomFillDialog(self)
+        if dialog.exec():
+            tag = dialog.get_tag()
+            self.tag_manager.add_tag(tag)
+            self.refresh_tags_list()
+            self.refresh_preview()
+
     def edit_tag(self):
         current_row = self.tags_list.currentRow()
         if current_row < 0:
@@ -861,10 +1011,10 @@ class MainWindow(QMainWindow):
 
         tag = self.tag_manager.tags[current_row]
         if tag.tag_type == "random":
-            QMessageBox.warning(self, "Cannot Edit", "Cannot edit the random fill tag.")
-            return
-
-        dialog = TagDialog(self, tag)
+            dialog = RandomFillDialog(self, tag)
+        else:
+            dialog = TagDialog(self, tag)
+        
         if dialog.exec():
             new_tag = dialog.get_tag()
             self.tag_manager.edit_tag(
@@ -872,7 +1022,6 @@ class MainWindow(QMainWindow):
                 new_tag.start_time, new_tag.end_time,
                 new_tag.collection_videos,
                 new_tag.collection_path,
-                new_tag.randomize_videos,
                 new_tag.video_count
             )
             self.refresh_tags_list()
@@ -882,11 +1031,6 @@ class MainWindow(QMainWindow):
         current_row = self.tags_list.currentRow()
         if current_row < 0:
             QMessageBox.warning(self, "No Selection", "Please select a tag to delete.")
-            return
-
-        tag = self.tag_manager.tags[current_row]
-        if tag.tag_type == "random":
-            QMessageBox.warning(self, "Cannot Delete", "Cannot delete the random fill tag.")
             return
 
         reply = QMessageBox.question(self, "Confirm Delete",
@@ -928,10 +1072,6 @@ class MainWindow(QMainWindow):
             return
 
         tag = self.tag_manager.tags[current_row]
-        if tag.tag_type == "random":
-            QMessageBox.warning(self, "Cannot Save", "Cannot save the random fill tag.")
-            return
-
         file_path, _ = QFileDialog.getSaveFileName(self, "Save Tag", "", "INI Files (*.ini);;All Files (*)")
         if file_path:
             import json
