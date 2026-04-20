@@ -119,12 +119,23 @@ class TagManager:
         config['Tags'] = {}
         for i, tag in enumerate(self.tags):
             key = f"tag{i}"
-            is_random = "1" if getattr(tag, 'is_random_fill', False) else "0"
-            randomize = "1" if getattr(tag, 'randomize_videos', False) else "0"
-            video_count = str(getattr(tag, 'video_count', 1))
-            collection_path = getattr(tag, 'collection_path', '')
-            blacklist_path = getattr(tag, 'blacklist_path', '')
-            config['Tags'][key] = f"{tag.tag_type}|{tag.name}|{tag.start_time.toString('HH:mm')}|{tag.end_time.toString('HH:mm')}|{is_random}|{randomize}|{video_count}|{collection_path}|{blacklist_path}"
+            
+            if getattr(tag, 'is_series', False):
+                tag_type = "series"
+                start_season = str(getattr(tag, 'start_season', 1))
+                start_episode = str(getattr(tag, 'start_episode', 1))
+                play_mode = getattr(tag, 'play_mode', 'sequence')
+                config['Tags'][key] = f"{tag_type}|{tag.name}|{tag.start_time.toString('HH:mm')}|{tag.end_time.toString('HH:mm')}|{start_season}|{start_episode}|{play_mode}"
+            elif getattr(tag, 'is_random_fill', False):
+                tag_type = "random"
+                blacklist_path = getattr(tag, 'blacklist_path', '')
+                config['Tags'][key] = f"{tag_type}|{tag.name}|{tag.start_time.toString('HH:mm')}|{tag.end_time.toString('HH:mm')}|{getattr(tag, 'collection_path', '')}|{blacklist_path}"
+            else:
+                tag_type = "custom"
+                is_random = "1" if getattr(tag, 'randomize_videos', False) else "0"
+                video_count = str(getattr(tag, 'video_count', 1))
+                collection_path = getattr(tag, 'collection_path', '')
+                config['Tags'][key] = f"{tag_type}|{tag.name}|{tag.start_time.toString('HH:mm')}|{tag.end_time.toString('HH:mm')}|{is_random}|{video_count}|{collection_path}"
         with open(filepath, 'w') as f:
             config.write(f)
 
@@ -139,17 +150,28 @@ class TagManager:
         self.tags.clear()
         for key in config['Tags']:
             parts = config['Tags'][key].split('|')
-            if len(parts) >= 4:
-                tag_type, name, start, end = parts[0], parts[1], parts[2], parts[3]
-                is_random_fill = len(parts) >= 5 and parts[4] == "1"
-                randomize_videos = len(parts) >= 6 and parts[5] == "1"
-                video_count = int(parts[6]) if len(parts) >= 7 and parts[6].isdigit() else 1
-                collection_path = parts[7] if len(parts) >= 8 else ""
-                blacklist_path = parts[8] if len(parts) >= 9 else ""
-                
-                collection_videos = []
-                blacklist = []
-                blacklist_data = []
+            if len(parts) < 4:
+                continue
+            
+            tag_type = parts[0]
+            name = parts[1]
+            start = parts[2]
+            end = parts[3]
+            
+            collection_videos = []
+            collection_path = ""
+            blacklist = []
+            blacklist_path = ""
+            
+            if tag_type == 'series':
+                start_season = int(parts[4]) if len(parts) >= 5 and parts[4].isdigit() else 1
+                start_episode = int(parts[5]) if len(parts) >= 6 and parts[5].isdigit() else 1
+                play_mode = parts[6] if len(parts) >= 7 else "sequence"
+                tag = Tag('custom', name, QTime.fromString(start, 'HH:mm'), QTime.fromString(end, 'HH:mm'), collection_videos, collection_path, video_count=1, is_series=True, start_season=start_season, start_episode=start_episode, play_mode=play_mode)
+                self.tags.append(tag)
+            elif tag_type == 'random':
+                collection_path = parts[4] if len(parts) >= 5 else ""
+                blacklist_path = parts[5] if len(parts) >= 6 else ""
                 
                 if collection_path and Path(collection_path).exists():
                     try:
@@ -164,6 +186,7 @@ class TagManager:
                 
                 if blacklist_path and Path(blacklist_path).exists():
                     try:
+                        blacklist_data = []
                         if blacklist_path.endswith('.ini'):
                             bc = configparser.ConfigParser()
                             bc.read(blacklist_path)
@@ -180,12 +203,25 @@ class TagManager:
                     except:
                         pass
                 
-                if tag_type == 'random' or is_random_fill:
-                    tag = Tag('random', name, QTime.fromString(start, 'HH:mm'), QTime.fromString(end, 'HH:mm'), collection_videos, collection_path, randomize_videos, video_count, blacklist=blacklist, blacklist_path=blacklist_path)
-                    tag.is_random_fill = is_random_fill
-                    self.tags.append(tag)
-                else:
-                    self.tags.append(Tag('custom', name, QTime.fromString(start, 'HH:mm'), QTime.fromString(end, 'HH:mm'), collection_videos, collection_path, randomize_videos, video_count))
+                tag = Tag('random', name, QTime.fromString(start, 'HH:mm'), QTime.fromString(end, 'HH:mm'), collection_videos, collection_path, is_random_fill=True, blacklist=blacklist, blacklist_path=blacklist_path)
+                self.tags.append(tag)
+            else:
+                is_random_videos = len(parts) >= 5 and parts[4] == "1"
+                video_count = int(parts[5]) if len(parts) >= 6 and parts[5].isdigit() else 1
+                collection_path = parts[6] if len(parts) >= 7 else ""
+                
+                if collection_path and Path(collection_path).exists():
+                    try:
+                        with open(collection_path, 'r') as f:
+                            data = json.load(f)
+                        collections = data.get('collections', [])
+                        for collection in collections:
+                            for video in collection.get('videos', []):
+                                collection_videos.append(video)
+                    except:
+                        pass
+                
+                self.tags.append(Tag('custom', name, QTime.fromString(start, 'HH:mm'), QTime.fromString(end, 'HH:mm'), collection_videos, collection_path, is_random_videos, video_count))
         return True
 
     def add_tag(self, tag: Tag):
@@ -1243,7 +1279,9 @@ class SeriesDialog(QDialog):
     def auto_calc_end_time(self):
         if not self.collection_videos:
             return
-        total_duration = sum(v.get('duration', 0) for v in self.collection_videos)
+        video_count = self.video_count_spin.value()
+        videos_to_use = self.collection_videos[:video_count]
+        total_duration = sum(v.get('duration', 0) for v in videos_to_use)
         total_mins = int(total_duration // 60)
 
         start_time = self.start_time_edit.time()
@@ -1587,8 +1625,10 @@ class MainWindow(QMainWindow):
             return
 
         tag = self.tag_manager.tags[current_row]
-        if tag.tag_type == "random":
+        if tag.is_random_fill:
             dialog = RandomFillDialog(self, tag)
+        elif tag.is_series:
+            dialog = SeriesDialog(self, tag)
         else:
             dialog = TagDialog(self, tag)
         
@@ -1653,14 +1693,25 @@ class MainWindow(QMainWindow):
         if file_path:
             import json
             config = configparser.ConfigParser()
-            is_random = "1" if getattr(tag, 'is_random_fill', False) else "0"
-            randomize = "1" if getattr(tag, 'randomize_videos', False) else "0"
-            video_count = str(getattr(tag, 'video_count', 1))
-            collection_path = getattr(tag, 'collection_path', '')
-            blacklist_path = getattr(tag, 'blacklist_path', '')
-            videos_json = json.dumps(tag.collection_videos) if tag.collection_videos else ""
-            blacklist_json = json.dumps(tag.blacklist) if getattr(tag, 'blacklist', None) else ""
-            config['Tag'] = {'data': f"{tag.tag_type}|{tag.name}|{tag.start_time.toString('HH:mm')}|{tag.end_time.toString('HH:mm')}|{is_random}|{randomize}|{video_count}|{collection_path}|{blacklist_path}|{videos_json}|{blacklist_json}"}
+            
+            if getattr(tag, 'is_series', False):
+                tag_type = "series"
+                start_season = str(getattr(tag, 'start_season', 1))
+                start_episode = str(getattr(tag, 'start_episode', 1))
+                play_mode = getattr(tag, 'play_mode', 'sequence')
+                collection_path = getattr(tag, 'collection_path', '')
+                config['Tag'] = {'data': f"{tag_type}|{tag.name}|{tag.start_time.toString('HH:mm')}|{tag.end_time.toString('HH:mm')}|{start_season}|{start_episode}|{play_mode}|{collection_path}"}
+            elif getattr(tag, 'is_random_fill', False):
+                tag_type = "random"
+                collection_path = getattr(tag, 'collection_path', '')
+                blacklist_path = getattr(tag, 'blacklist_path', '')
+                config['Tag'] = {'data': f"{tag_type}|{tag.name}|{tag.start_time.toString('HH:mm')}|{tag.end_time.toString('HH:mm')}|{collection_path}|{blacklist_path}"}
+            else:
+                tag_type = "custom"
+                is_random = "1" if getattr(tag, 'randomize_videos', False) else "0"
+                video_count = str(getattr(tag, 'video_count', 1))
+                collection_path = getattr(tag, 'collection_path', '')
+                config['Tag'] = {'data': f"{tag_type}|{tag.name}|{tag.start_time.toString('HH:mm')}|{tag.end_time.toString('HH:mm')}|{is_random}|{video_count}|{collection_path}"}
             with open(file_path, 'w') as f:
                 config.write(f)
             self.statusBar().showMessage(f"Tag saved to {file_path}")
@@ -1682,35 +1733,76 @@ class MainWindow(QMainWindow):
             return
 
         parts = config['Tag']['data'].split('|')
-        if len(parts) >= 4:
-            tag_type, name, start, end = parts[0], parts[1], parts[2], parts[3]
-            is_random_fill = len(parts) >= 5 and parts[4] == "1"
-            randomize_videos = len(parts) >= 6 and parts[5] == "1"
-            video_count = int(parts[6]) if len(parts) >= 7 and parts[6].isdigit() else 1
+        if len(parts) < 4:
+            return
+        
+        tag_type = parts[0]
+        name = parts[1]
+        start = parts[2]
+        end = parts[3]
+        
+        collection_videos = []
+        collection_path = ""
+        
+        if tag_type == 'series':
+            start_season = int(parts[4]) if len(parts) >= 5 and parts[4].isdigit() else 1
+            start_episode = int(parts[5]) if len(parts) >= 6 and parts[5].isdigit() else 1
+            play_mode = parts[6] if len(parts) >= 7 else "sequence"
             collection_path = parts[7] if len(parts) >= 8 else ""
-            blacklist_path = parts[8] if len(parts) >= 9 else ""
-            collection_videos = []
-            if len(parts) >= 10 and parts[9]:
+            
+            if collection_path and Path(collection_path).exists():
                 try:
-                    collection_videos = json.loads(parts[9])
+                    with open(collection_path, 'r') as f:
+                        data = json.load(f)
+                    collections = data.get('collections', [])
+                    for collection in collections:
+                        for video in collection.get('videos', []):
+                            collection_videos.append(video)
                 except:
-                    collection_videos = []
-            blacklist = []
-            if len(parts) >= 11 and parts[10]:
-                try:
-                    blacklist = json.loads(parts[10])
-                except:
-                    blacklist = []
-
-            tag = Tag(tag_type, name, QTime.fromString(start, 'HH:mm'), QTime.fromString(end, 'HH:mm'), collection_videos, collection_path, randomize_videos, video_count, is_random_fill, blacklist)
-            tag.blacklist_path = blacklist_path
-            if is_random_fill:
-                tag.is_random_fill = True
-
+                    pass
+            
+            tag = Tag('custom', name, QTime.fromString(start, 'HH:mm'), QTime.fromString(end, 'HH:mm'), collection_videos, collection_path, video_count=1, is_series=True, start_season=start_season, start_episode=start_episode, play_mode=play_mode)
             self.tag_manager.add_tag(tag)
-            self.refresh_tags_list()
-            self.refresh_preview()
-            self.statusBar().showMessage(f"Tag loaded from {file_path}")
+        elif tag_type == 'random':
+            collection_path = parts[4] if len(parts) >= 5 else ""
+            blacklist_path = parts[5] if len(parts) >= 6 else ""
+            
+            if collection_path and Path(collection_path).exists():
+                try:
+                    with open(collection_path, 'r') as f:
+                        data = json.load(f)
+                    collections = data.get('collections', [])
+                    for collection in collections:
+                        for video in collection.get('videos', []):
+                            collection_videos.append(video)
+                except:
+                    pass
+            
+            tag = Tag('random', name, QTime.fromString(start, 'HH:mm'), QTime.fromString(end, 'HH:mm'), collection_videos, collection_path, is_random_fill=True)
+            tag.blacklist_path = blacklist_path
+            self.tag_manager.add_tag(tag)
+        else:
+            is_random_videos = len(parts) >= 5 and parts[4] == "1"
+            video_count = int(parts[5]) if len(parts) >= 6 and parts[5].isdigit() else 1
+            collection_path = parts[6] if len(parts) >= 7 else ""
+            
+            if collection_path and Path(collection_path).exists():
+                try:
+                    with open(collection_path, 'r') as f:
+                        data = json.load(f)
+                    collections = data.get('collections', [])
+                    for collection in collections:
+                        for video in collection.get('videos', []):
+                            collection_videos.append(video)
+                except:
+                    pass
+            
+            tag = Tag('custom', name, QTime.fromString(start, 'HH:mm'), QTime.fromString(end, 'HH:mm'), collection_videos, collection_path, is_random_videos, video_count)
+            self.tag_manager.add_tag(tag)
+
+        self.refresh_tags_list()
+        self.refresh_preview()
+        self.statusBar().showMessage(f"Tag loaded from {file_path}")
 
 
 def main():
