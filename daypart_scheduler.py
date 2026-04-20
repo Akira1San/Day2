@@ -113,8 +113,8 @@ class TagManager:
             randomize = "1" if getattr(tag, 'randomize_videos', False) else "0"
             video_count = str(getattr(tag, 'video_count', 1))
             collection_path = getattr(tag, 'collection_path', '')
-            videos_json = json.dumps(tag.collection_videos) if tag.collection_videos else ""
-            config['Tags'][key] = f"{tag.tag_type}|{tag.name}|{tag.start_time.toString('HH:mm')}|{tag.end_time.toString('HH:mm')}|{is_random}|{randomize}|{video_count}|{collection_path}|{videos_json}"
+            blacklist_path = getattr(tag, 'blacklist_path', '')
+            config['Tags'][key] = f"{tag.tag_type}|{tag.name}|{tag.start_time.toString('HH:mm')}|{tag.end_time.toString('HH:mm')}|{is_random}|{randomize}|{video_count}|{collection_path}|{blacklist_path}"
         with open(filepath, 'w') as f:
             config.write(f)
 
@@ -135,14 +135,43 @@ class TagManager:
                 randomize_videos = len(parts) >= 6 and parts[5] == "1"
                 video_count = int(parts[6]) if len(parts) >= 7 and parts[6].isdigit() else 1
                 collection_path = parts[7] if len(parts) >= 8 else ""
+                blacklist_path = parts[8] if len(parts) >= 9 else ""
+                
                 collection_videos = []
-                if len(parts) >= 9 and parts[8]:
+                blacklist = []
+                blacklist_data = []
+                
+                if collection_path and Path(collection_path).exists():
                     try:
-                        collection_videos = json.loads(parts[8])
+                        with open(collection_path, 'r') as f:
+                            data = json.load(f)
+                        collections = data.get('collections', [])
+                        for collection in collections:
+                            for video in collection.get('videos', []):
+                                collection_videos.append(video)
                     except:
-                        collection_videos = []
+                        pass
+                
+                if blacklist_path and Path(blacklist_path).exists():
+                    try:
+                        if blacklist_path.endswith('.ini'):
+                            bc = configparser.ConfigParser()
+                            bc.read(blacklist_path)
+                            if 'Blacklist' in bc:
+                                for key in bc['Blacklist']:
+                                    value = bc['Blacklist'][key]
+                                    paths = [p.strip() for p in value.split('\n') if p.strip()]
+                                    for path in paths:
+                                        blacklist_data.append({'path': path})
+                        else:
+                            with open(blacklist_path, 'r') as bf:
+                                blacklist_data = json.load(bf).get('blacklist', [])
+                        blacklist = blacklist_data
+                    except:
+                        pass
+                
                 if tag_type == 'random' or is_random_fill:
-                    tag = Tag('random', name, QTime.fromString(start, 'HH:mm'), QTime.fromString(end, 'HH:mm'), collection_videos, collection_path, randomize_videos, video_count)
+                    tag = Tag('random', name, QTime.fromString(start, 'HH:mm'), QTime.fromString(end, 'HH:mm'), collection_videos, collection_path, randomize_videos, video_count, blacklist=blacklist, blacklist_path=blacklist_path)
                     tag.is_random_fill = is_random_fill
                     self.tags.append(tag)
                 else:
@@ -619,6 +648,7 @@ class RandomFillDialog(QDialog):
         self.collection_videos = []
         self.added_videos = []
         self.blacklist = []
+        self.blacklist_path = ""
         self.setup_ui()
         
         if tag:
@@ -971,6 +1001,7 @@ class RandomFillDialog(QDialog):
                 blacklist_data = json.load(bf).get('blacklist', [])
         
         self.blacklist = blacklist_data
+        self.blacklist_path = file_path
         
         self.added_videos = [v for v in self.added_videos 
                            if v.get('path', '') not in [b.get('path', '') for b in self.blacklist]]
@@ -1021,6 +1052,7 @@ class RandomFillDialog(QDialog):
             collection_videos=self.added_videos.copy(),
             collection_path=self.collection_path.text(),
             blacklist=self.blacklist.copy(),
+            blacklist_path=self.blacklist_path,
             is_random_fill=True
         )
         return tag
@@ -1310,6 +1342,8 @@ class MainWindow(QMainWindow):
         dialog = RandomFillDialog(self)
         if dialog.exec():
             tag = dialog.get_tag()
+            if tag is None:
+                return
             self.tag_manager.add_tag(tag)
             self.refresh_tags_list()
             self.refresh_preview()
