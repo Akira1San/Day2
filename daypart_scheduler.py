@@ -254,8 +254,8 @@ class ScheduleGenerator:
         if use_cache and cached is not None:
             return self._inject_custom_tags(cached)
 
-        custom_tags = [t for t in all_tags if t.tag_type == "custom"]
-        random_fill_tags = [t for t in all_tags if t.tag_type == "random" or t.is_random_fill]
+        custom_tags = [t for t in all_tags if t.tag_type == "custom" and not t.is_random_fill]
+        random_fill_tags = [t for t in all_tags if t.is_random_fill]
 
         collection_videos = []
         for tag in all_tags:
@@ -267,13 +267,10 @@ class ScheduleGenerator:
             self.tag_manager.set_cached_random_entries(entries)
             return entries
 
-        custom_sorted = sorted(custom_tags + random_fill_tags, key=lambda t: Tag.qtime_to_minutes(t.start_time))
-        
         occupied = set()
         custom_entries = []
-        random_videos_entries = []
         
-        for ct in custom_sorted:
+        for ct in custom_tags:
             start_min = Tag.qtime_to_minutes(ct.start_time)
             end_min = Tag.qtime_to_minutes(ct.end_time)
             if start_min >= end_min:
@@ -299,65 +296,50 @@ class ScheduleGenerator:
                         duration = end_min - pos
                     if duration < 1:
                         break
-                    random_videos_entries.append((pos, pos + duration, video_name))
+                    custom_entries.append(ScheduleEntry(1, pos, pos + duration, video_name))
                     pos += duration
                     vid_idx += 1
             else:
-                custom_entries.append((start_min, end_min, ct.name))
+                custom_entries.append(ScheduleEntry(1, start_min, end_min, ct.name))
                 for m in range(start_min, end_min):
                     occupied.add(m)
 
-        gaps = []
-        current = 0
-        if not custom_entries and not random_videos_entries:
-            gaps.append((0, 24 * 60))
-        else:
-            for start, end, name in custom_entries:
-                if current < start:
-                    gaps.append((current, start))
-                current = end
-            for start, end, name in random_videos_entries:
-                if current < start:
-                    gaps.append((current, start))
-                current = end
-            if current < 24 * 60:
-                gaps.append((current, 24 * 60))
-
-        entries = []
-        if collection_videos:
-            random.shuffle(collection_videos)
-        video_idx = 0
-
-        for gap_start, gap_end in gaps:
-            pos = gap_start
-            while pos < gap_end:
-                gap_size = gap_end - pos
-                if collection_videos:
-                    video = collection_videos[video_idx % len(collection_videos)]
-                    video_name = video.get('path', 'Unknown').split('/')[-1]
-                    duration = int(video.get('duration', 90)) // 60
-                    if duration < 1:
-                        duration = 90
-                else:
-                    video_name = "No videos loaded"
-                    duration = 90
-                if gap_size >= duration:
-                    e_end = pos + duration
-                else:
-                    e_end = pos + gap_size
-                    duration = gap_size
-                entries.append(ScheduleEntry(1, pos, e_end, video_name))
-                pos = e_end
-                video_idx += 1
-                if collection_videos and video_idx > len(collection_videos) * 2:
+        fill_entries = []
+        rf_sorted = sorted(random_fill_tags, key=lambda t: Tag.qtime_to_minutes(t.start_time))
+        
+        for rf in rf_sorted:
+            rf_start = Tag.qtime_to_minutes(rf.start_time)
+            rf_end = Tag.qtime_to_minutes(rf.end_time)
+            if rf_start >= rf_end:
+                continue
+            if rf_start >= 24 * 60 or rf_end > 24 * 60:
+                continue
+            
+            rf_videos = rf.collection_videos.copy() if rf.collection_videos else []
+            
+            pos = rf_start
+            if rf_videos:
+                random.shuffle(rf_videos)
+            vid_idx = 0
+            
+            while pos < rf_end:
+                if not rf_videos:
+                    fill_entries.append(ScheduleEntry(1, pos, rf_end, "No videos"))
                     break
+                video = rf_videos[vid_idx % len(rf_videos)]
+                video_name = video.get('path', 'Unknown').split('/')[-1]
+                duration = int(video.get('duration', 90)) // 60
+                if duration < 1:
+                    duration = 1
+                if pos + duration > rf_end:
+                    duration = rf_end - pos
+                if duration < 1:
+                    break
+                fill_entries.append(ScheduleEntry(1, pos, pos + duration, video_name))
+                pos += duration
+                vid_idx += 1
 
-        for start, end, name in custom_entries:
-            entries.append(ScheduleEntry(1, start, end, name))
-
-        for start, end, name in random_videos_entries:
-            entries.append(ScheduleEntry(1, start, end, name))
-
+        entries = custom_entries + fill_entries
         entries.sort(key=lambda e: e.start_minutes)
         self.tag_manager.set_cached_random_entries(entries)
         return entries
