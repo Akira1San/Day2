@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QListWidget, QListWidgetItem, QPushButton, QDialog, QLineEdit,
     QLabel, QTimeEdit, QMessageBox, QScrollArea, QCheckBox, QRadioButton, QButtonGroup,
-    QFileDialog, QSpinBox
+    QFileDialog, QSpinBox, QComboBox
 )
 from PySide6.QtCore import Qt, QTime, QTimer
 from PySide6.QtGui import QClipboard, QColor, QFont
@@ -28,7 +28,11 @@ class Tag:
                  video_count: int = 1,
                  is_random_fill: bool = False,
                  blacklist: List[dict] = None,
-                 blacklist_path: str = ""):
+                 blacklist_path: str = "",
+                 is_series: bool = False,
+                 start_season: int = 1,
+                 start_episode: int = 1,
+                 play_mode: str = "sequence"):
         self.tag_type = tag_type
         self.name = name
         self.start_time = start_time or QTime(0, 0)
@@ -40,12 +44,18 @@ class Tag:
         self.video_count = video_count
         self.blacklist = blacklist or []
         self.blacklist_path = blacklist_path
+        self.is_series = is_series
+        self.start_season = start_season
+        self.start_episode = start_episode
+        self.play_mode = play_mode
 
     def to_display_string(self) -> str:
         if self.tag_type == "random":
             return f"[R] {self.name}"
         if self.is_random_fill:
             return f"[R] {self.name} ({self.start_time.toString('HH:mm')}-{self.end_time.toString('HH:mm')})"
+        if self.is_series:
+            return f"[S] {self.name} ({self.start_time.toString('HH:mm')}-{self.end_time.toString('HH:mm')})"
         if self.randomize_videos:
             return f"[C] {self.name} ({self.start_time.toString('HH:mm')}-{self.end_time.toString('HH:mm')}) x{self.video_count}"
         return f"[C] {self.name} ({self.start_time.toString('HH:mm')}-{self.end_time.toString('HH:mm')})"
@@ -201,7 +211,10 @@ class TagManager:
         return False
 
     def get_custom_tags(self) -> List[Tag]:
-        return [t for t in self.tags if t.tag_type == "custom"]
+        return [t for t in self.tags if t.tag_type == "custom" and not t.is_series]
+
+    def get_series_tags(self) -> List[Tag]:
+        return [t for t in self.tags if t.is_series]
 
     def get_random_tags(self) -> List[Tag]:
         return [t for t in self.tags if t.tag_type == "random" or t.is_random_fill]
@@ -1084,6 +1097,185 @@ class RandomFillDialog(QDialog):
         return tag
 
 
+class SeriesDialog(QDialog):
+    def __init__(self, parent=None, tag: Optional[Tag] = None):
+        super().__init__(parent)
+        self.setWindowTitle("Edit Series Tag" if tag else "Add Series Tag")
+        self.setModal(True)
+        self.collection_videos = []
+        self.setup_ui()
+        if tag:
+            self.name_input.setText(tag.name)
+            self.start_time_edit.setTime(tag.start_time)
+            self.end_time_edit.setTime(tag.end_time)
+            self.start_season_spin.setValue(getattr(tag, 'start_season', 1))
+            self.start_episode_spin.setValue(getattr(tag, 'start_episode', 1))
+            self.video_count_spin.setValue(tag.video_count)
+            if hasattr(tag, 'play_mode') and tag.play_mode:
+                index = self.play_mode_combo.findText(tag.play_mode)
+                if index >= 0:
+                    self.play_mode_combo.setCurrentIndex(index)
+            if tag.collection_videos:
+                self.collection_videos = tag.collection_videos.copy()
+                for video in self.collection_videos:
+                    path = video.get('path', '')
+                    duration = video.get('duration', 0)
+                    display_name = path.split('/')[-1] if '/' in path else path
+                    self.videos_list.addItem(f"{display_name} ({int(duration)}s)")
+            if hasattr(tag, 'collection_path') and tag.collection_path:
+                self.collection_path.setText(tag.collection_path)
+
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+
+        layout.addWidget(QLabel("Name:"))
+        self.name_input = QLineEdit()
+        layout.addWidget(self.name_input)
+
+        collection_layout = QHBoxLayout()
+        collection_layout.addWidget(QLabel("Collection:"))
+        self.collection_path = QLineEdit()
+        self.collection_path.setPlaceholderText("Select collections_name.json...")
+        self.collection_path.setReadOnly(True)
+        collection_layout.addWidget(self.collection_path)
+
+        browse_btn = QPushButton("Browse")
+        browse_btn.clicked.connect(self.browse_collection)
+        collection_layout.addWidget(browse_btn)
+        layout.addLayout(collection_layout)
+
+        layout.addWidget(QLabel("Videos in Collection:"))
+        self.videos_list = QListWidget()
+        self.videos_list.setMinimumHeight(150)
+        layout.addWidget(self.videos_list)
+
+        series_layout = QHBoxLayout()
+        series_layout.addWidget(QLabel("Start Season:"))
+        self.start_season_spin = QSpinBox()
+        self.start_season_spin.setMinimum(1)
+        self.start_season_spin.setValue(1)
+        series_layout.addWidget(self.start_season_spin)
+
+        series_layout.addWidget(QLabel("Start Episode:"))
+        self.start_episode_spin = QSpinBox()
+        self.start_episode_spin.setMinimum(1)
+        self.start_episode_spin.setValue(1)
+        series_layout.addWidget(self.start_episode_spin)
+
+        series_layout.addWidget(QLabel("Video Count:"))
+        self.video_count_spin = QSpinBox()
+        self.video_count_spin.setMinimum(1)
+        self.video_count_spin.setValue(1)
+        series_layout.addWidget(self.video_count_spin)
+
+        series_layout.addWidget(QLabel("Play Mode:"))
+        self.play_mode_combo = QComboBox()
+        self.play_mode_combo.addItems(["sequence", "random"])
+        series_layout.addWidget(self.play_mode_combo)
+        series_layout.addStretch()
+        layout.addLayout(series_layout)
+
+        calc_layout = QHBoxLayout()
+        self.auto_calc_btn = QPushButton("Auto Calc End Time")
+        self.auto_calc_btn.clicked.connect(self.auto_calc_end_time)
+        calc_layout.addWidget(self.auto_calc_btn)
+        calc_layout.addStretch()
+        layout.addLayout(calc_layout)
+
+        time_layout = QHBoxLayout()
+        time_layout.addWidget(QLabel("Start Time:"))
+        self.start_time_edit = QTimeEdit()
+        self.start_time_edit.setDisplayFormat("HH:mm")
+        self.start_time_edit.setTime(QTime(0, 0))
+        time_layout.addWidget(self.start_time_edit)
+
+        time_layout.addWidget(QLabel("End Time:"))
+        self.end_time_edit = QTimeEdit()
+        self.end_time_edit.setDisplayFormat("HH:mm")
+        self.end_time_edit.setTime(QTime(1, 0))
+        time_layout.addWidget(self.end_time_edit)
+        layout.addLayout(time_layout)
+
+        btn_layout = QHBoxLayout()
+        save_btn = QPushButton("Save")
+        save_btn.clicked.connect(self.accept)
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.reject)
+        btn_layout.addWidget(save_btn)
+        btn_layout.addWidget(cancel_btn)
+        layout.addLayout(btn_layout)
+
+    def browse_collection(self):
+        from PySide6.QtWidgets import QFileDialog
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Select Collection File", "",
+            "JSON Files (*.json);;All Files (*)"
+        )
+        if file_path:
+            self.load_collection(file_path)
+
+    def load_collection(self, file_path: str):
+        import json
+        try:
+            with open(file_path, 'r') as f:
+                data = json.load(f)
+            self.collection_path.setText(file_path)
+            self.videos_list.clear()
+            self.collection_videos.clear()
+
+            collections = data.get('collections', [])
+            for collection in collections:
+                for video in collection.get('videos', []):
+                    path = video.get('path', '')
+                    duration = video.get('duration', 0)
+                    video_data = {
+                        'path': path,
+                        'duration': duration,
+                        'name': path.split('/')[-1] if '/' in path else path
+                    }
+                    self.collection_videos.append(video_data)
+                    display_name = path.split('/')[-1] if '/' in path else path
+                    self.videos_list.addItem(f"{display_name} ({int(duration)}s)")
+        except Exception as e:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Error", f"Failed to load collection: {e}")
+
+    def auto_calc_end_time(self):
+        if not self.collection_videos:
+            return
+        total_duration = sum(v.get('duration', 0) for v in self.collection_videos)
+        total_mins = int(total_duration // 60)
+
+        start_time = self.start_time_edit.time()
+        start_mins = start_time.hour() * 60 + start_time.minute()
+        end_mins = start_mins + total_mins
+        end_mins = end_mins % (24 * 60)
+
+        self.end_time_edit.setTime(QTime(end_mins // 60, end_mins % 60))
+
+    def get_tag(self) -> Optional[Tag]:
+        if not self.name_input.text():
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "No Name", "Please enter a name.")
+            return None
+        
+        self.auto_calc_end_time()
+        tag = Tag(
+            tag_type="custom",
+            name=self.name_input.text(),
+            start_time=self.start_time_edit.time(),
+            end_time=self.end_time_edit.time(),
+            collection_videos=self.collection_videos.copy(),
+            collection_path=self.collection_path.text(),
+            video_count=self.video_count_spin.value(),
+            is_series=True,
+            start_season=self.start_season_spin.value(),
+            start_episode=self.start_episode_spin.value(),
+            play_mode=self.play_mode_combo.currentText()
+        )
+        return tag
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -1104,7 +1296,7 @@ class MainWindow(QMainWindow):
         main_layout = QHBoxLayout(central)
 
         self.tags_panel = QWidget()
-        self.tags_panel.setFixedWidth(350)
+        self.tags_panel.setFixedWidth(400)
         tags_layout = QVBoxLayout(self.tags_panel)
 
         tags_title = QLabel("Daypart Tags")
@@ -1123,6 +1315,10 @@ class MainWindow(QMainWindow):
         self.add_random_btn = QPushButton("Add Random Fill")
         self.add_random_btn.clicked.connect(self.add_random_fill_tag)
         btn_layout.addWidget(self.add_random_btn)
+
+        self.add_series_btn = QPushButton("Add Series")
+        self.add_series_btn.clicked.connect(self.add_series_tag)
+        btn_layout.addWidget(self.add_series_btn)
 
         self.edit_btn = QPushButton("Edit")
         self.edit_btn.clicked.connect(self.edit_tag)
@@ -1366,6 +1562,16 @@ class MainWindow(QMainWindow):
 
     def add_random_fill_tag(self):
         dialog = RandomFillDialog(self)
+        if dialog.exec():
+            tag = dialog.get_tag()
+            if tag is None:
+                return
+            self.tag_manager.add_tag(tag)
+            self.refresh_tags_list()
+            self.refresh_preview()
+
+    def add_series_tag(self):
+        dialog = SeriesDialog(self)
         if dialog.exec():
             tag = dialog.get_tag()
             if tag is None:
