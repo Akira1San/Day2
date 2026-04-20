@@ -971,7 +971,12 @@ class RandomFillDialog(QDialog):
                 blacklist_data = json.load(bf).get('blacklist', [])
         
         self.blacklist = blacklist_data
+        
+        self.added_videos = [v for v in self.added_videos 
+                           if v.get('path', '') not in [b.get('path', '') for b in self.blacklist]]
+        
         self.refresh_blacklist_list()
+        self.refresh_added_list()
 
     def save_blacklist_file(self):
         if not self.collection_path.text():
