@@ -296,7 +296,7 @@ class ScheduleGenerator:
                         duration = end_min - pos
                     if duration < 1:
                         break
-                    custom_entries.append(ScheduleEntry(1, pos, pos + duration, video_name))
+                    custom_entries.append(ScheduleEntry(1, pos, pos + duration, f"{ct.name} - {video_name}"))
                     pos += duration
                     vid_idx += 1
             else:
@@ -324,7 +324,7 @@ class ScheduleGenerator:
             
             while pos < rf_end:
                 if not rf_videos:
-                    fill_entries.append(ScheduleEntry(1, pos, rf_end, "No videos"))
+                    fill_entries.append(ScheduleEntry(1, pos, rf_end, f"{rf.name} - No videos"))
                     break
                 video = rf_videos[vid_idx % len(rf_videos)]
                 video_name = video.get('path', 'Unknown').split('/')[-1]
@@ -335,7 +335,7 @@ class ScheduleGenerator:
                     duration = rf_end - pos
                 if duration < 1:
                     break
-                fill_entries.append(ScheduleEntry(1, pos, pos + duration, video_name))
+                fill_entries.append(ScheduleEntry(1, pos, pos + duration, f"{rf.name} - {video_name}"))
                 pos += duration
                 vid_idx += 1
 
@@ -400,10 +400,14 @@ class ScheduleGenerator:
         return final
 
     def apply_approximate(self) -> List[ScheduleEntry]:
+        all_tags = self.tag_manager.get_all_tags()
+        
+        custom_tags = [t for t in all_tags if t.tag_type == "custom" and not t.is_random_fill]
+        random_fill_tags = [t for t in all_tags if t.is_random_fill]
+        
         base_entries = self.generate_random_fill(24 * 60)
 
-        custom_tags = self.tag_manager.get_custom_tags()
-        if not custom_tags:
+        if not custom_tags and not random_fill_tags:
             return base_entries
 
         custom_sorted = sorted(custom_tags, key=lambda t: Tag.qtime_to_minutes(t.start_time))
@@ -412,6 +416,7 @@ class ScheduleGenerator:
         rand_idx = 0
         current_pos = 0
         next_custom_pos = 0
+        occupied = set()
 
         for ct in custom_sorted:
             original_start = Tag.qtime_to_minutes(ct.start_time)
@@ -426,15 +431,27 @@ class ScheduleGenerator:
                 current_pos += dur
                 rand_idx += 1
 
-            if rand_idx < len(base_entries) and base_entries[rand_idx].start_minutes < original_start < base_entries[rand_idx].end_minutes:
-                dur = base_entries[rand_idx].end_minutes - base_entries[rand_idx].start_minutes
-                final.append(ScheduleEntry(1, current_pos, current_pos + dur, base_entries[rand_idx].video_name))
-                current_pos += dur
-                rand_idx += 1
-                
-                custom_start = current_pos
-                custom_end = custom_start + (original_end - original_start)
-                final.append(ScheduleEntry(1, custom_start, custom_end, ct.name))
+            if ct.collection_videos:
+                for m in range(custom_start, custom_end):
+                    occupied.add(m)
+                video_count = getattr(ct, 'video_count', 1)
+                videos = ct.collection_videos.copy()
+                random.shuffle(videos)
+                pos = custom_start
+                vid_idx = 0
+                while pos < custom_end and vid_idx < video_count and vid_idx < len(videos):
+                    video = videos[vid_idx % len(videos)]
+                    video_name = video.get('path', 'Unknown').split('/')[-1]
+                    duration = int(video.get('duration', 90)) // 60
+                    if duration < 1:
+                        duration = 1
+                    if pos + duration > custom_end:
+                        duration = custom_end - pos
+                    if duration < 1:
+                        break
+                    final.append(ScheduleEntry(1, pos, pos + duration, f"{ct.name} - {video_name}"))
+                    pos += duration
+                    vid_idx += 1
                 current_pos = custom_end
             else:
                 if custom_start < current_pos:
@@ -448,12 +465,39 @@ class ScheduleGenerator:
             while rand_idx < len(base_entries) and base_entries[rand_idx].start_minutes < current_pos:
                 rand_idx += 1
 
-        while rand_idx < len(base_entries):
-            dur = base_entries[rand_idx].end_minutes - base_entries[rand_idx].start_minutes
-            if current_pos + dur <= 24 * 60:
-                final.append(ScheduleEntry(1, current_pos, current_pos + dur, base_entries[rand_idx].video_name))
-                current_pos += dur
-            rand_idx += 1
+        rf_sorted = sorted(random_fill_tags, key=lambda t: Tag.qtime_to_minutes(t.start_time))
+        
+        for rf in rf_sorted:
+            rf_start = Tag.qtime_to_minutes(rf.start_time)
+            rf_end = Tag.qtime_to_minutes(rf.end_time)
+            if rf_start >= rf_end:
+                continue
+            if rf_start >= 24 * 60 or rf_end > 24 * 60:
+                continue
+                
+            rf_videos = rf.collection_videos.copy() if rf.collection_videos else []
+            
+            pos = rf_start
+            if rf_videos:
+                random.shuffle(rf_videos)
+            vid_idx = 0
+            
+            while pos < rf_end:
+                if not rf_videos:
+                    final.append(ScheduleEntry(1, pos, rf_end, f"{rf.name} - No videos"))
+                    break
+                video = rf_videos[vid_idx % len(rf_videos)]
+                video_name = video.get('path', 'Unknown').split('/')[-1]
+                duration = int(video.get('duration', 90)) // 60
+                if duration < 1:
+                    duration = 1
+                if pos + duration > rf_end:
+                    duration = rf_end - pos
+                if duration < 1:
+                    break
+                final.append(ScheduleEntry(1, pos, pos + duration, f"{rf.name} - {video_name}"))
+                pos += duration
+                vid_idx += 1
 
         final.sort(key=lambda e: e.start_minutes)
         return final
