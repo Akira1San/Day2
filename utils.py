@@ -29,8 +29,32 @@ def load_collection_json(file_path: str) -> Tuple[List[Dict[str, Any]], Dict[str
 
 
 def load_collection_videos_only(file_path: str) -> List[Dict[str, Any]]:
-    videos, _ = load_collection_json(file_path)
-    return videos
+    if not file_path or not Path(file_path).exists():
+        return []
+
+    try:
+        with open(file_path, 'r') as f:
+            data = json.load(f)
+
+        collections = data.get('collections', [])
+        if not collections:
+            return []
+
+        first_videos = collections[0].get('videos', [])
+
+        if len(first_videos) > 1:
+            return first_videos
+
+        all_single = all(len(c.get('videos', [])) == 1 for c in collections)
+        if all_single:
+            videos = []
+            for c in collections:
+                videos.extend(c.get('videos', []))
+            return videos
+
+        return first_videos
+    except Exception:
+        return []
 
 
 def parse_series_episode(path: str) -> Tuple[int, int]:
