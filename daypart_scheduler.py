@@ -868,6 +868,12 @@ class TagDialog(QDialog):
         if blck_path.exists():
             for ini_file in sorted(blck_path.glob("*_blacklist.ini")):
                 self.blacklist_profile_combo.addItem(ini_file.name)
+            for ini_file in sorted(blck_path.glob("*blacklist*.ini")):
+                self.blacklist_profile_combo.addItem(ini_file.name)
+        
+        if blck_path != Path('.'):
+            for ini_file in sorted(Path('.').glob("*blacklist*.ini")):
+                self.blacklist_profile_combo.addItem(ini_file.name)
 
     def profile_selected(self, index):
         if index <= 0:
