@@ -576,7 +576,11 @@ class ScheduleGenerator:
         if has_24h_fill:
             base_entries = []
         else:
-            base_entries = self.generate_random_fill(24 * 60)
+            # Only generate base_entries when we have custom/series tags AND no 24h fill
+            if custom_tags or series_tags:
+                base_entries = self.generate_random_fill(24 * 60)
+            else:
+                base_entries = []
 
         if not custom_tags and not series_tags and not random_fill_tags:
             return base_entries
@@ -924,7 +928,8 @@ class ScheduleGenerator:
                     pos += duration
                     vid_idx += 1
 
-        if not has_24h_fill:
+        # Only fill entire day when there are no explicit tags at all
+        if len(final) == 0 and not has_24h_fill:
             while current_pos < 24 * 60 and rand_idx < len(base_entries):
                 dur = min(90, base_entries[rand_idx].end_minutes - base_entries[rand_idx].start_minutes)
                 final.append(ScheduleEntry(1, current_pos, current_pos + dur, base_entries[rand_idx].video_name))
