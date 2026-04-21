@@ -1285,6 +1285,80 @@ class RandomFillDialog(QDialog):
         return tag
 
 
+class ConfigDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Config Settings")
+        self.setModal(True)
+        self.config_path = "config.ini"
+        self.setup_ui()
+        self.load_config()
+
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+
+        layout.addWidget(QLabel("Collection Path:"))
+        collection_layout = QHBoxLayout()
+        self.collection_path_edit = QLineEdit()
+        self.collection_path_edit.setPlaceholderText("/home/akira/akira/AkiraTV_NEW/user/collections/")
+        collection_layout.addWidget(self.collection_path_edit)
+        
+        browse_col_btn = QPushButton("Browse")
+        browse_col_btn.clicked.connect(self.browse_collection_path)
+        collection_layout.addWidget(browse_col_btn)
+        layout.addLayout(collection_layout)
+
+        layout.addWidget(QLabel("Blacklist Path:"))
+        blacklist_layout = QHBoxLayout()
+        self.blacklist_path_edit = QLineEdit()
+        self.blacklist_path_edit.setPlaceholderText("/home/akira/akira/AkiraTV_NEW/user/blacklists/")
+        blacklist_layout.addWidget(self.blacklist_path_edit)
+        
+        browse_bl_btn = QPushButton("Browse")
+        browse_bl_btn.clicked.connect(self.browse_blacklist_path)
+        blacklist_layout.addWidget(browse_bl_btn)
+        layout.addLayout(blacklist_layout)
+
+        btn_layout = QHBoxLayout()
+        save_btn = QPushButton("Save")
+        save_btn.clicked.connect(self.save_config)
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.reject)
+        btn_layout.addWidget(save_btn)
+        btn_layout.addWidget(cancel_btn)
+        layout.addLayout(btn_layout)
+
+    def browse_collection_path(self):
+        from PySide6.QtWidgets import QFileDialog
+        path = QFileDialog.getExistingDirectory(self, "Select Collection Directory", "")
+        if path:
+            self.collection_path_edit.setText(path)
+
+    def browse_blacklist_path(self):
+        from PySide6.QtWidgets import QFileDialog
+        path = QFileDialog.getExistingDirectory(self, "Select Blacklist Directory", "")
+        if path:
+            self.blacklist_path_edit.setText(path)
+
+    def load_config(self):
+        if Path(self.config_path).exists():
+            config = configparser.ConfigParser()
+            config.read(self.config_path)
+            if 'Paths' in config:
+                self.collection_path_edit.setText(config['Paths'].get('collection_path', ''))
+                self.blacklist_path_edit.setText(config['Paths'].get('blacklist_path', ''))
+
+    def save_config(self):
+        config = configparser.ConfigParser()
+        config['Paths'] = {
+            'collection_path': self.collection_path_edit.text(),
+            'blacklist_path': self.blacklist_path_edit.text()
+        }
+        with open(self.config_path, 'w') as f:
+            config.write(f)
+        self.accept()
+
+
 class SeriesDialog(QDialog):
     def __init__(self, parent=None, tag: Optional[Tag] = None):
         super().__init__(parent)
@@ -1536,6 +1610,11 @@ class MainWindow(QMainWindow):
         self.load_single_btn = QPushButton("Load Tag")
         self.load_single_btn.clicked.connect(self.load_single_tag)
         save_load_layout.addWidget(self.load_single_btn)
+
+        self.config_btn = QPushButton("Config")
+        self.config_btn.clicked.connect(self.open_config)
+        save_load_layout.addWidget(self.config_btn)
+
         tags_layout.addLayout(save_load_layout)
 
         main_layout.addWidget(self.tags_panel)
@@ -1733,6 +1812,10 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage("Tags loaded from tags.ini")
         else:
             self.statusBar().showMessage("No tags.ini found")
+
+    def open_config(self):
+        dialog = ConfigDialog(self)
+        dialog.exec()
 
     def add_tag(self):
         dialog = TagDialog(self)
