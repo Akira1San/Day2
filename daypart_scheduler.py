@@ -544,7 +544,7 @@ class ScheduleGenerator:
         final.sort(key=lambda e: e.start_minutes)
         return final
 
-def apply_approximate(self) -> List[ScheduleEntry]:
+    def apply_approximate(self) -> List[ScheduleEntry]:
         all_tags = self.tag_manager.get_all_tags()
         
         custom_tags = [t for t in all_tags if t.tag_type == "custom" and not t.is_random_fill and not t.is_series]
