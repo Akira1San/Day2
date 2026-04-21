@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import sys
 import random
+import re
 import configparser
 from datetime import datetime, timedelta
 from typing import List, Optional
@@ -303,7 +304,8 @@ class ScheduleGenerator:
         if use_cache and cached is not None:
             return self._inject_custom_tags(cached)
 
-        custom_tags = [t for t in all_tags if t.tag_type == "custom" and not t.is_random_fill]
+        custom_tags = [t for t in all_tags if t.tag_type == "custom" and not t.is_random_fill and not t.is_series]
+        series_tags = [t for t in all_tags if t.is_series]
         random_fill_tags = [t for t in all_tags if t.is_random_fill]
 
         collection_videos = []
@@ -311,7 +313,7 @@ class ScheduleGenerator:
             if tag.collection_videos:
                 collection_videos.extend(tag.collection_videos)
 
-        if not custom_tags and not random_fill_tags:
+        if not custom_tags and not series_tags and not random_fill_tags:
             entries = self.generate_random_fill(24 * 60)
             self.tag_manager.set_cached_random_entries(entries)
             return entries
@@ -353,6 +355,74 @@ class ScheduleGenerator:
                 for m in range(start_min, end_min):
                     occupied.add(m)
 
+        series_entries = []
+        for st in series_tags:
+            start_min = Tag.qtime_to_minutes(st.start_time)
+            end_min = Tag.qtime_to_minutes(st.end_time)
+            if start_min >= end_min:
+                continue
+            if start_min >= 24 * 60 or end_min > 24 * 60:
+                continue
+
+            if st.collection_videos:
+                for m in range(start_min, end_min):
+                    occupied.add(m)
+
+                start_season = getattr(st, 'start_season', 1)
+                start_episode = getattr(st, 'start_episode', 1)
+                play_mode = getattr(st, 'play_mode', 'sequence')
+                video_count = getattr(st, 'video_count', 1)
+
+                parsed_videos = []
+                for vid in st.collection_videos:
+                    path = vid.get('path', '')
+                    name = path.split('/')[-1] if '/' in path else path
+                    season, episode = 1, 1
+                    match = re.search(r'[Ss](\d+)[Ee](\d+)', name)
+                    if match:
+                        season = int(match.group(1))
+                        episode = int(match.group(2))
+                    else:
+                        match = re.search(r'Season\s*(\d+)\s*Episode\s*(\d+)', name, re.IGNORECASE)
+                        if match:
+                            season = int(match.group(1))
+                            episode = int(match.group(2))
+                    parsed_videos.append({
+                        'video': vid,
+                        'season': season,
+                        'episode': episode,
+                        'path': path,
+                        'name': name
+                    })
+
+                filtered = [v for v in parsed_videos if v['season'] > start_season or (v['season'] == start_season and v['episode'] >= start_episode)]
+
+                if play_mode == 'random':
+                    random.shuffle(filtered)
+                else:
+                    filtered.sort(key=lambda v: (v['season'], v['episode']))
+
+                videos_to_use = filtered[:video_count]
+                pos = start_min
+                for v in videos_to_use:
+                    if pos >= end_min:
+                        break
+                    video = v['video']
+                    video_name = video.get('path', 'Unknown').split('/')[-1]
+                    duration = int(video.get('duration', 90)) // 60
+                    if duration < 1:
+                        duration = 1
+                    if pos + duration > end_min:
+                        duration = end_min - pos
+                    if duration < 1:
+                        break
+                    series_entries.append(ScheduleEntry(1, pos, pos + duration, f"{st.name} - {video_name}"))
+                    pos += duration
+            else:
+                series_entries.append(ScheduleEntry(1, start_min, end_min, st.name))
+                for m in range(start_min, end_min):
+                    occupied.add(m)
+
         fill_entries = []
         rf_sorted = sorted(random_fill_tags, key=lambda t: Tag.qtime_to_minutes(t.start_time))
         
@@ -388,7 +458,7 @@ class ScheduleGenerator:
                 pos += duration
                 vid_idx += 1
 
-        entries = custom_entries + fill_entries
+        entries = custom_entries + series_entries + fill_entries
         entries.sort(key=lambda e: e.start_minutes)
         self.tag_manager.set_cached_random_entries(entries)
         return entries
@@ -451,12 +521,13 @@ class ScheduleGenerator:
     def apply_approximate(self) -> List[ScheduleEntry]:
         all_tags = self.tag_manager.get_all_tags()
         
-        custom_tags = [t for t in all_tags if t.tag_type == "custom" and not t.is_random_fill]
+        custom_tags = [t for t in all_tags if t.tag_type == "custom" and not t.is_random_fill and not t.is_series]
+        series_tags = [t for t in all_tags if t.is_series]
         random_fill_tags = [t for t in all_tags if t.is_random_fill]
         
         base_entries = self.generate_random_fill(24 * 60)
 
-        if not custom_tags and not random_fill_tags:
+        if not custom_tags and not series_tags and not random_fill_tags:
             return base_entries
 
         custom_sorted = sorted(custom_tags, key=lambda t: Tag.qtime_to_minutes(t.start_time))
@@ -508,6 +579,87 @@ class ScheduleGenerator:
                     custom_end = custom_start + (original_end - original_start)
                 final.append(ScheduleEntry(1, custom_start, custom_end, ct.name))
                 current_pos = custom_end
+
+            next_custom_pos = current_pos
+
+            while rand_idx < len(base_entries) and base_entries[rand_idx].start_minutes < current_pos:
+                rand_idx += 1
+
+        for st in series_tags:
+            original_start = Tag.qtime_to_minutes(st.start_time)
+            original_end = Tag.qtime_to_minutes(st.end_time)
+            if original_start >= original_end:
+                continue
+            if original_start >= 24 * 60 or original_end > 24 * 60:
+                continue
+
+            series_start = max(original_start, next_custom_pos)
+            series_end = series_start + (original_end - original_start)
+
+            while current_pos < series_start and rand_idx < len(base_entries):
+                dur = min(90, base_entries[rand_idx].end_minutes - base_entries[rand_idx].start_minutes)
+                final.append(ScheduleEntry(1, current_pos, current_pos + dur, base_entries[rand_idx].video_name))
+                current_pos += dur
+                rand_idx += 1
+
+            if st.collection_videos:
+                for m in range(series_start, series_end):
+                    occupied.add(m)
+
+                start_season = getattr(st, 'start_season', 1)
+                start_episode = getattr(st, 'start_episode', 1)
+                play_mode = getattr(st, 'play_mode', 'sequence')
+                video_count = getattr(st, 'video_count', 1)
+
+                parsed_videos = []
+                for vid in st.collection_videos:
+                    path = vid.get('path', '')
+                    name = path.split('/')[-1] if '/' in path else path
+                    season, episode = 1, 1
+                    match = re.search(r'[Ss](\d+)[Ee](\d+)', name)
+                    if match:
+                        season = int(match.group(1))
+                        episode = int(match.group(2))
+                    else:
+                        match = re.search(r'Season\s*(\d+)\s*Episode\s*(\d+)', name, re.IGNORECASE)
+                        if match:
+                            season = int(match.group(1))
+                            episode = int(match.group(2))
+                    parsed_videos.append({
+                        'video': vid,
+                        'season': season,
+                        'episode': episode,
+                        'path': path,
+                        'name': name
+                    })
+
+                filtered = [v for v in parsed_videos if v['season'] > start_season or (v['season'] == start_season and v['episode'] >= start_episode)]
+
+                if play_mode == 'random':
+                    random.shuffle(filtered)
+                else:
+                    filtered.sort(key=lambda v: (v['season'], v['episode']))
+
+                videos_to_use = filtered[:video_count]
+                pos = series_start
+                for v in videos_to_use:
+                    if pos >= series_end:
+                        break
+                    video = v['video']
+                    video_name = video.get('path', 'Unknown').split('/')[-1]
+                    duration = int(video.get('duration', 90)) // 60
+                    if duration < 1:
+                        duration = 1
+                    if pos + duration > series_end:
+                        duration = series_end - pos
+                    if duration < 1:
+                        break
+                    final.append(ScheduleEntry(1, pos, pos + duration, f"{st.name} - {video_name}"))
+                    pos += duration
+                current_pos = series_end
+            else:
+                final.append(ScheduleEntry(1, series_start, series_end, st.name))
+                current_pos = series_end
 
             next_custom_pos = current_pos
 
