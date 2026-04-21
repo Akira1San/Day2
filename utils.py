@@ -60,7 +60,7 @@ def load_collection_videos_only(file_path: str) -> List[Dict[str, Any]]:
 def parse_series_episode(path: str) -> Tuple[int, int]:
     name = path.split('/')[-1] if '/' in path else path
     season, episode = 1, 1
-    
+
     match = re.search(r'[Ss](\d+)[Ee](\d+)', name)
     if match:
         season = int(match.group(1))
@@ -70,7 +70,11 @@ def parse_series_episode(path: str) -> Tuple[int, int]:
         if match:
             season = int(match.group(1))
             episode = int(match.group(2))
-    
+        else:
+            match = re.match(r'(\d+)\s', name)
+            if match:
+                episode = int(match.group(1))
+
     return season, episode
 
 
