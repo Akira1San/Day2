@@ -131,7 +131,8 @@ class TagManager:
                 start_season = str(getattr(tag, 'start_season', 1))
                 start_episode = str(getattr(tag, 'start_episode', 1))
                 play_mode = getattr(tag, 'play_mode', 'sequence')
-                config['Tags'][key] = f"{tag_type}|{tag.name}|{tag.start_time.toString('HH:mm')}|{tag.end_time.toString('HH:mm')}|{start_season}|{start_episode}|{play_mode}"
+                video_count = str(getattr(tag, 'video_count', 1))
+                config['Tags'][key] = f"{tag_type}|{tag.name}|{tag.start_time.toString('HH:mm')}|{tag.end_time.toString('HH:mm')}|{start_season}|{start_episode}|{play_mode}|{video_count}"
             elif getattr(tag, 'is_random_fill', False):
                 tag_type = "random"
                 blacklist_path = getattr(tag, 'blacklist_path', '')
@@ -174,7 +175,8 @@ class TagManager:
                 start_season = int(parts[4]) if len(parts) >= 5 and parts[4].isdigit() else 1
                 start_episode = int(parts[5]) if len(parts) >= 6 and parts[5].isdigit() else 1
                 play_mode = parts[6] if len(parts) >= 7 else "sequence"
-                tag = Tag('custom', name, QTime.fromString(start, 'HH:mm'), QTime.fromString(end, 'HH:mm'), collection_videos, collection_path, video_count=1, is_series=True, start_season=start_season, start_episode=start_episode, play_mode=play_mode)
+                video_count = int(parts[7]) if len(parts) >= 8 and parts[7].isdigit() else 1
+                tag = Tag('custom', name, QTime.fromString(start, 'HH:mm'), QTime.fromString(end, 'HH:mm'), collection_videos, collection_path, video_count=video_count, is_series=True, start_season=start_season, start_episode=start_episode, play_mode=play_mode)
                 self.tags.append(tag)
             elif tag_type == 'random':
                 collection_path = parts[4] if len(parts) >= 5 else ""
@@ -1624,10 +1626,37 @@ class SeriesDialog(QDialog):
     def auto_calc_end_time(self):
         if not self.collection_videos:
             return
+        
+        start_season = self.start_season_spin.value()
+        start_episode = self.start_episode_spin.value()
+        
+        parsed_videos = []
+        for vid in self.collection_videos:
+            path = vid.get('path', '')
+            name = path.split('/')[-1] if '/' in path else path
+            season, episode = 1, 1
+            match = re.search(r'[Ss](\d+)[Ee](\d+)', name)
+            if match:
+                season = int(match.group(1))
+                episode = int(match.group(2))
+            else:
+                match = re.search(r'Season\s*(\d+)\s*Episode\s*(\d+)', name, re.IGNORECASE)
+                if match:
+                    season = int(match.group(1))
+                    episode = int(match.group(2))
+            parsed_videos.append({
+                'video': vid,
+                'season': season,
+                'episode': episode
+            })
+        
+        filtered = [v for v in parsed_videos if v['season'] > start_season or (v['season'] == start_season and v['episode'] >= start_episode)]
+        
         video_count = self.video_count_spin.value()
-        videos_to_use = self.collection_videos[:video_count]
-        total_duration = sum(v.get('duration', 0) for v in videos_to_use)
-        total_mins = int(total_duration // 60)
+        videos_to_use = filtered[:video_count]
+        total_duration = sum(v['video'].get('duration', 0) for v in videos_to_use)
+        
+        total_mins = int(total_duration / 60)
 
         start_time = self.start_time_edit.time()
         start_mins = start_time.hour() * 60 + start_time.minute()
@@ -2053,8 +2082,9 @@ class MainWindow(QMainWindow):
                 start_season = str(getattr(tag, 'start_season', 1))
                 start_episode = str(getattr(tag, 'start_episode', 1))
                 play_mode = getattr(tag, 'play_mode', 'sequence')
+                video_count = str(getattr(tag, 'video_count', 1))
                 collection_path = getattr(tag, 'collection_path', '')
-                config['Tag'] = {'data': f"{tag_type}|{tag.name}|{tag.start_time.toString('HH:mm')}|{tag.end_time.toString('HH:mm')}|{start_season}|{start_episode}|{play_mode}|{collection_path}"}
+                config['Tag'] = {'data': f"{tag_type}|{tag.name}|{tag.start_time.toString('HH:mm')}|{tag.end_time.toString('HH:mm')}|{start_season}|{start_episode}|{play_mode}|{video_count}|{collection_path}"}
             elif getattr(tag, 'is_random_fill', False):
                 tag_type = "random"
                 collection_path = getattr(tag, 'collection_path', '')
@@ -2103,7 +2133,8 @@ class MainWindow(QMainWindow):
             start_season = int(parts[4]) if len(parts) >= 5 and parts[4].isdigit() else 1
             start_episode = int(parts[5]) if len(parts) >= 6 and parts[5].isdigit() else 1
             play_mode = parts[6] if len(parts) >= 7 else "sequence"
-            collection_path = parts[7] if len(parts) >= 8 else ""
+            video_count = int(parts[7]) if len(parts) >= 8 and parts[7].isdigit() else 1
+            collection_path = parts[8] if len(parts) >= 9 else ""
             
             if collection_path and Path(collection_path).exists():
                 try:
