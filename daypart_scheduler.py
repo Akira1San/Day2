@@ -597,6 +597,8 @@ class ScheduleGenerator:
             else:
                 merged_ranges.append((start, end))
 
+        occupied = set()
+
         for ct in custom_sorted:
             original_start = Tag.qtime_to_minutes(ct.start_time)
             original_end = Tag.qtime_to_minutes(ct.end_time)
