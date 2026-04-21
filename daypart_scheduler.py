@@ -1993,16 +1993,7 @@ class MainWindow(QMainWindow):
             "calendar": {}
         }
 
-        start_date = date.today()
-        for day_offset in range(30):
-            current_date = start_date + timedelta(days=day_offset)
-            date_str = current_date.strftime("%Y-%m-%d")
-            day_name = days[current_date.weekday()]
-            key = f"{date_str}_{day_name.lower()}"
-
-            self.tag_manager.clear_cache()
-            entries = self.schedule_generator.apply_custom_tags() if not self.approximate_enabled else self.schedule_generator.apply_approximate()
-
+        def get_schedule_entries_for_day(entries):
             schedule_entries = []
             for entry in entries:
                 start_h = (entry.start_minutes // 60) % 24
@@ -2039,11 +2030,34 @@ class MainWindow(QMainWindow):
                     video_info['collection_id'] = parts[0].strip()
 
                 schedule_entries.append(video_info)
+            return schedule_entries
 
-            schedule_data["calendar"][key] = {
+        start_date = date.today()
+
+        if self.weekly_radio.isChecked():
+            num_days = 7
+            save_key = "weekly"
+        elif self.monthly_radio.isChecked():
+            num_days = 30
+            save_key = "calendar"
+        else:
+            num_days = 1
+            save_key = "calendar"
+
+        for day_offset in range(num_days):
+            current_date = start_date + timedelta(days=day_offset)
+            date_str = current_date.strftime("%Y-%m-%d")
+            day_name = days[current_date.weekday()]
+            key = f"{date_str}_{day_name.lower()}"
+
+            entries = self.schedule_entries if self.schedule_entries else (self.schedule_generator.apply_custom_tags() if not self.approximate_enabled else self.schedule_generator.apply_approximate())
+
+            schedule_entries = get_schedule_entries_for_day(entries)
+
+            schedule_data[save_key][key] = {
                 "date": date_str,
                 "day": day_name,
-                "description": "Auto-generated calendar schedule",
+                "description": "Auto-generated schedule",
                 "entries": schedule_entries
             }
 
