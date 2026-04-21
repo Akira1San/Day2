@@ -33,7 +33,8 @@ class Tag:
                  is_series: bool = False,
                  start_season: int = 1,
                  start_episode: int = 1,
-                 play_mode: str = "sequence"):
+                 play_mode: str = "sequence",
+                 fill_24h: bool = False):
         self.tag_type = tag_type
         self.name = name
         self.start_time = start_time or QTime(0, 0)
@@ -49,11 +50,15 @@ class Tag:
         self.start_season = start_season
         self.start_episode = start_episode
         self.play_mode = play_mode
+        self.fill_24h = fill_24h
 
     def to_display_string(self) -> str:
         if self.tag_type == "random":
             return f"[R] {self.name}"
         if self.is_random_fill:
+            fill_24h = getattr(self, 'fill_24h', False)
+            if fill_24h:
+                return f"[R] {self.name} (24h Fill)"
             return f"[R] {self.name} ({self.start_time.toString('HH:mm')}-{self.end_time.toString('HH:mm')})"
         if self.is_series:
             return f"[S] {self.name} ({self.start_time.toString('HH:mm')}-{self.end_time.toString('HH:mm')})"
@@ -130,7 +135,8 @@ class TagManager:
             elif getattr(tag, 'is_random_fill', False):
                 tag_type = "random"
                 blacklist_path = getattr(tag, 'blacklist_path', '')
-                config['Tags'][key] = f"{tag_type}|{tag.name}|{tag.start_time.toString('HH:mm')}|{tag.end_time.toString('HH:mm')}|{getattr(tag, 'collection_path', '')}|{blacklist_path}"
+                fill_24h = "1" if getattr(tag, 'fill_24h', False) else "0"
+                config['Tags'][key] = f"{tag_type}|{tag.name}|{tag.start_time.toString('HH:mm')}|{tag.end_time.toString('HH:mm')}|{getattr(tag, 'collection_path', '')}|{blacklist_path}|{fill_24h}"
             else:
                 tag_type = "custom"
                 is_random = "1" if getattr(tag, 'randomize_videos', False) else "0"
@@ -173,6 +179,7 @@ class TagManager:
             elif tag_type == 'random':
                 collection_path = parts[4] if len(parts) >= 5 else ""
                 blacklist_path = parts[5] if len(parts) >= 6 else ""
+                fill_24h = len(parts) >= 7 and parts[6] == "1"
                 
                 if collection_path and Path(collection_path).exists():
                     try:
@@ -204,7 +211,7 @@ class TagManager:
                     except:
                         pass
                 
-                tag = Tag('random', name, QTime.fromString(start, 'HH:mm'), QTime.fromString(end, 'HH:mm'), collection_videos, collection_path, is_random_fill=True, blacklist=blacklist, blacklist_path=blacklist_path)
+                tag = Tag('random', name, QTime.fromString(start, 'HH:mm'), QTime.fromString(end, 'HH:mm'), collection_videos, collection_path, is_random_fill=True, blacklist=blacklist, blacklist_path=blacklist_path, fill_24h=fill_24h)
                 self.tags.append(tag)
             else:
                 is_random_videos = len(parts) >= 5 and parts[4] == "1"
@@ -427,12 +434,18 @@ class ScheduleGenerator:
         rf_sorted = sorted(random_fill_tags, key=lambda t: Tag.qtime_to_minutes(t.start_time))
         
         for rf in rf_sorted:
-            rf_start = Tag.qtime_to_minutes(rf.start_time)
-            rf_end = Tag.qtime_to_minutes(rf.end_time)
-            if rf_start >= rf_end:
-                continue
-            if rf_start >= 24 * 60 or rf_end > 24 * 60:
-                continue
+            rf_fill_24h = getattr(rf, 'fill_24h', False)
+            
+            if rf_fill_24h:
+                rf_start = 0
+                rf_end = 24 * 60
+            else:
+                rf_start = Tag.qtime_to_minutes(rf.start_time)
+                rf_end = Tag.qtime_to_minutes(rf.end_time)
+                if rf_start >= rf_end:
+                    continue
+                if rf_start >= 24 * 60 or rf_end > 24 * 60:
+                    continue
             
             rf_videos = rf.collection_videos.copy() if rf.collection_videos else []
             
@@ -669,13 +682,19 @@ class ScheduleGenerator:
         rf_sorted = sorted(random_fill_tags, key=lambda t: Tag.qtime_to_minutes(t.start_time))
         
         for rf in rf_sorted:
-            rf_start = Tag.qtime_to_minutes(rf.start_time)
-            rf_end = Tag.qtime_to_minutes(rf.end_time)
-            if rf_start >= rf_end:
-                continue
-            if rf_start >= 24 * 60 or rf_end > 24 * 60:
-                continue
-                
+            rf_fill_24h = getattr(rf, 'fill_24h', False)
+            
+            if rf_fill_24h:
+                rf_start = 0
+                rf_end = 24 * 60
+            else:
+                rf_start = Tag.qtime_to_minutes(rf.start_time)
+                rf_end = Tag.qtime_to_minutes(rf.end_time)
+                if rf_start >= rf_end:
+                    continue
+                if rf_start >= 24 * 60 or rf_end > 24 * 60:
+                    continue
+            
             rf_videos = rf.collection_videos.copy() if rf.collection_videos else []
             
             pos = rf_start
@@ -971,6 +990,8 @@ class RandomFillDialog(QDialog):
             self.start_time_edit.setTime(tag.start_time)
             self.end_time_edit.setTime(tag.end_time)
             self.blacklist = tag.blacklist.copy() if hasattr(tag, 'blacklist') and tag.blacklist else []
+            fill_24h = getattr(tag, 'fill_24h', False)
+            self.fill_24h_check.setChecked(fill_24h)
             
             if tag.collection_videos and tag.collection_path:
                 self.load_collection(tag.collection_path)
@@ -1124,6 +1145,10 @@ class RandomFillDialog(QDialog):
         self.end_time_edit.setReadOnly(True)
         time_layout.addWidget(self.end_time_edit)
         lists_layout.addLayout(time_layout)
+
+        self.fill_24h_check = QCheckBox("Fill 24 Hours (loop videos to fill full day)")
+        self.fill_24h_check.setChecked(True)
+        lists_layout.addWidget(self.fill_24h_check)
 
         btn_layout = QHBoxLayout()
         save_btn = QPushButton("Save")
@@ -1358,7 +1383,12 @@ class RandomFillDialog(QDialog):
             QMessageBox.warning(self, "No Videos", "Please add at least one video.")
             return None
         
-        self.auto_calc_end_time()
+        fill_24h = self.fill_24h_check.isChecked()
+        
+        if fill_24h:
+            self.start_time_edit.setTime(QTime(0, 0))
+            self.end_time_edit.setTime(QTime(23, 59))
+        
         tag = Tag(
             tag_type="random",
             name=self.name_input.text() or "Random Fill",
@@ -1368,7 +1398,8 @@ class RandomFillDialog(QDialog):
             collection_path=self.collection_path.text(),
             blacklist=self.blacklist.copy(),
             blacklist_path=self.blacklist_path,
-            is_random_fill=True
+            is_random_fill=True,
+            fill_24h=fill_24h
         )
         return tag
 
@@ -2028,7 +2059,8 @@ class MainWindow(QMainWindow):
                 tag_type = "random"
                 collection_path = getattr(tag, 'collection_path', '')
                 blacklist_path = getattr(tag, 'blacklist_path', '')
-                config['Tag'] = {'data': f"{tag_type}|{tag.name}|{tag.start_time.toString('HH:mm')}|{tag.end_time.toString('HH:mm')}|{collection_path}|{blacklist_path}"}
+                fill_24h = "1" if getattr(tag, 'fill_24h', False) else "0"
+                config['Tag'] = {'data': f"{tag_type}|{tag.name}|{tag.start_time.toString('HH:mm')}|{tag.end_time.toString('HH:mm')}|{collection_path}|{blacklist_path}|{fill_24h}"}
             else:
                 tag_type = "custom"
                 is_random = "1" if getattr(tag, 'randomize_videos', False) else "0"
@@ -2089,6 +2121,7 @@ class MainWindow(QMainWindow):
         elif tag_type == 'random':
             collection_path = parts[4] if len(parts) >= 5 else ""
             blacklist_path = parts[5] if len(parts) >= 6 else ""
+            fill_24h = len(parts) >= 7 and parts[6] == "1"
             
             if collection_path and Path(collection_path).exists():
                 try:
@@ -2103,6 +2136,7 @@ class MainWindow(QMainWindow):
             
             tag = Tag('random', name, QTime.fromString(start, 'HH:mm'), QTime.fromString(end, 'HH:mm'), collection_videos, collection_path, is_random_fill=True)
             tag.blacklist_path = blacklist_path
+            tag.fill_24h = fill_24h
             self.tag_manager.add_tag(tag)
         else:
             is_random_videos = len(parts) >= 5 and parts[4] == "1"
