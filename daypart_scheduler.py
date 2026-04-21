@@ -171,11 +171,24 @@ class TagManager:
             blacklist = []
             blacklist_path = ""
             
-            if tag_type == 'series':
+if tag_type == 'series':
                 start_season = int(parts[4]) if len(parts) >= 5 and parts[4].isdigit() else 1
                 start_episode = int(parts[5]) if len(parts) >= 6 and parts[5].isdigit() else 1
                 play_mode = parts[6] if len(parts) >= 7 else "sequence"
                 video_count = int(parts[7]) if len(parts) >= 8 and parts[7].isdigit() else 1
+                collection_path = parts[8] if len(parts) >= 9 else ""
+                
+                if collection_path and Path(collection_path).exists():
+                    try:
+                        with open(collection_path, 'r') as f:
+                            data = json.load(f)
+                        collections = data.get('collections', [])
+                        for collection in collections:
+                            for video in collection.get('videos', []):
+                                collection_videos.append(video)
+                    except:
+                        pass
+                
                 tag = Tag('custom', name, QTime.fromString(start, 'HH:mm'), QTime.fromString(end, 'HH:mm'), collection_videos, collection_path, video_count=video_count, is_series=True, start_season=start_season, start_episode=start_episode, play_mode=play_mode)
                 self.tags.append(tag)
             elif tag_type == 'random':
