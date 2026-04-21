@@ -171,7 +171,7 @@ class TagManager:
             blacklist = []
             blacklist_path = ""
             
-if tag_type == 'series':
+            if tag_type == 'series':
                 start_season = int(parts[4]) if len(parts) >= 5 and parts[4].isdigit() else 1
                 start_episode = int(parts[5]) if len(parts) >= 6 and parts[5].isdigit() else 1
                 play_mode = parts[6] if len(parts) >= 7 else "sequence"
