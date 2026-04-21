@@ -2166,7 +2166,7 @@ class MainWindow(QMainWindow):
                 except:
                     pass
             
-            tag = Tag('custom', name, QTime.fromString(start, 'HH:mm'), QTime.fromString(end, 'HH:mm'), collection_videos, collection_path, video_count=1, is_series=True, start_season=start_season, start_episode=start_episode, play_mode=play_mode)
+            tag = Tag('custom', name, QTime.fromString(start, 'HH:mm'), QTime.fromString(end, 'HH:mm'), collection_videos, collection_path, video_count=video_count, is_series=True, start_season=start_season, start_episode=start_episode, play_mode=play_mode)
             self.tag_manager.add_tag(tag)
         elif tag_type == 'random':
             collection_path = parts[4] if len(parts) >= 5 else ""
