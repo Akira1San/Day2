@@ -245,7 +245,10 @@ class TagManager:
 
     def edit_tag(self, index: int, name: str, start_time: QTime, end_time: QTime,
                  collection_videos: List[dict] = None, collection_path: str = "",
-                 video_count: int = 1):
+                 video_count: int = 1, is_series: bool = False,
+                 start_season: int = 1, start_episode: int = 1, play_mode: str = "sequence",
+                 is_random_fill: bool = False, blacklist: List[dict] = None,
+                 blacklist_path: str = "", fill_24h: bool = False):
         if index >= 0 and index < len(self.tags):
             self.tags[index].name = name
             self.tags[index].start_time = start_time
@@ -253,6 +256,14 @@ class TagManager:
             self.tags[index].collection_videos = collection_videos or []
             self.tags[index].collection_path = collection_path
             self.tags[index].video_count = video_count
+            self.tags[index].is_series = is_series
+            self.tags[index].start_season = start_season
+            self.tags[index].start_episode = start_episode
+            self.tags[index].play_mode = play_mode
+            self.tags[index].is_random_fill = is_random_fill
+            self.tags[index].blacklist = blacklist or []
+            self.tags[index].blacklist_path = blacklist_path
+            self.tags[index].fill_24h = fill_24h
             return True
         return False
 
@@ -2022,7 +2033,15 @@ class MainWindow(QMainWindow):
                 new_tag.start_time, new_tag.end_time,
                 new_tag.collection_videos,
                 new_tag.collection_path,
-                new_tag.video_count
+                new_tag.video_count,
+                new_tag.is_series,
+                new_tag.start_season,
+                new_tag.start_episode,
+                new_tag.play_mode,
+                new_tag.is_random_fill if hasattr(new_tag, 'is_random_fill') else False,
+                new_tag.blacklist if hasattr(new_tag, 'blacklist') else [],
+                new_tag.blacklist_path if hasattr(new_tag, 'blacklist_path') else '',
+                new_tag.fill_24h if hasattr(new_tag, 'fill_24h') else False
             )
             self.refresh_tags_list()
             self.refresh_preview()
