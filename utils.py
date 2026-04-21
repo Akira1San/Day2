@@ -132,6 +132,18 @@ def get_config_paths(config_file: str = "config.ini") -> Tuple[str, str]:
     return collection_path, blacklist_path
 
 
+def get_schedule_profiles(config_file: str = "config.ini") -> List[str]:
+    try:
+        config = configparser.ConfigParser()
+        config.read(config_file)
+        profiles = config.get('ScheduleProfiles', 'profiles', fallback='')
+        if profiles:
+            return [p.strip() for p in profiles.split(',') if p.strip()]
+    except Exception:
+        pass
+    return []
+
+
 def filter_videos_by_blacklist(videos: List[Dict[str, Any]], blacklist: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     blacklist_paths = {b.get('path', '') for b in blacklist}
     return [v for v in videos if v.get('path', '') not in blacklist_paths]

@@ -16,7 +16,8 @@ from PySide6.QtGui import QClipboard, QFont
 from utils import (
     load_collection_json, load_collection_videos_only, load_blacklist_json,
     parse_series_episode, parse_videos_for_series, qtime_to_minutes,
-    get_video_display_name, format_duration, get_config_paths, filter_videos_by_blacklist
+    get_video_display_name, format_duration, get_config_paths, filter_videos_by_blacklist,
+    get_schedule_profiles
 )
 
 
@@ -38,7 +39,8 @@ class Tag:
                  start_season: int = 1,
                  start_episode: int = 1,
                  play_mode: str = "sequence",
-                 fill_24h: bool = False):
+                 fill_24h: bool = False,
+                 channel: str = ""):
         self.tag_type = tag_type
         self.name = name
         self.start_time = start_time or QTime(0, 0)
@@ -55,6 +57,7 @@ class Tag:
         self.start_episode = start_episode
         self.play_mode = play_mode
         self.fill_24h = fill_24h
+        self.channel = channel
 
     def to_display_string(self) -> str:
         if self.tag_type == "random" or self.is_random_fill:
@@ -138,7 +141,7 @@ class TagManager:
                  video_count: int = 1, is_series: bool = False,
                  start_season: int = 1, start_episode: int = 1, play_mode: str = "sequence",
                  is_random_fill: bool = False, blacklist: List[dict] = None,
-                 blacklist_path: str = "", fill_24h: bool = False) -> bool:
+                 blacklist_path: str = "", fill_24h: bool = False, channel: str = "") -> bool:
         if 0 <= index < len(self.tags):
             t = self.tags[index]
             t.name = name
@@ -155,6 +158,7 @@ class TagManager:
             t.blacklist = blacklist or []
             t.blacklist_path = blacklist_path
             t.fill_24h = fill_24h
+            t.channel = channel
             return True
         return False
 
@@ -701,6 +705,7 @@ class TagDialog(BaseTagDialog):
         self.setModal(True)
         self.setup_ui()
         self.load_available_collection_profiles()
+        self.load_channels()
         if tag:
             self.name_input.setText(tag.name)
             self.start_time_edit.setTime(tag.start_time)
@@ -759,6 +764,15 @@ class TagDialog(BaseTagDialog):
         
         profile_layout.addStretch()
         layout.addLayout(profile_layout)
+
+        channel_layout = QHBoxLayout()
+        channel_layout.addWidget(QLabel("Channel:"))
+        self.channel_combo = QComboBox()
+        self.channel_combo.setEditable(True)
+        self.load_channels()
+        channel_layout.addWidget(self.channel_combo)
+        channel_layout.addStretch()
+        layout.addLayout(channel_layout)
 
         layout.addWidget(QLabel("Videos in Collection:"))
         self.videos_list = QListWidget()
@@ -861,6 +875,19 @@ class TagDialog(BaseTagDialog):
     def load_blacklist_file(self, file_path: str):
         self.blacklist = load_blacklist_json(file_path)
 
+    def load_channels(self):
+        profiles = get_schedule_profiles()
+        self.channel_combo.clear()
+        self.channel_combo.addItem("")
+        for profile in profiles:
+            self.channel_combo.addItem(profile)
+        if hasattr(self, 'tag') and self.tag and hasattr(self.tag, 'channel') and self.tag.channel:
+            index = self.channel_combo.findText(self.tag.channel)
+            if index >= 0:
+                self.channel_combo.setCurrentIndex(index)
+            else:
+                self.channel_combo.setCurrentText(self.tag.channel)
+
     def get_tag(self) -> Tag:
         return Tag(
             tag_type="custom",
@@ -870,7 +897,8 @@ class TagDialog(BaseTagDialog):
             collection_videos=self.collection_videos.copy(),
             collection_path=self.collection_path.text(),
             video_count=self.video_count_spin.value(),
-            blacklist=self.blacklist.copy()
+            blacklist=self.blacklist.copy(),
+            channel=self.channel_combo.currentText()
         )
 
     def auto_calc_end_time(self):
@@ -903,6 +931,7 @@ class RandomFillDialog(BaseTagDialog):
         self.added_videos = []
         self.blacklist_path = ""
         self.setup_ui()
+        self.load_channels()
         
         if tag:
             self.name_input.setText(tag.name)
@@ -949,6 +978,12 @@ class RandomFillDialog(BaseTagDialog):
         name_layout.addWidget(QLabel("Name:"))
         self.name_input = QLineEdit()
         name_layout.addWidget(self.name_input)
+        
+        name_layout.addWidget(QLabel("Channel:"))
+        self.channel_combo = QComboBox()
+        self.channel_combo.setEditable(True)
+        name_layout.addWidget(self.channel_combo)
+        name_layout.addStretch()
         
         coll_layout = QHBoxLayout()
         coll_layout.addWidget(QLabel("Collection:"))
@@ -1241,6 +1276,19 @@ class RandomFillDialog(BaseTagDialog):
         
         QMessageBox.warning(self, "Saved", f"Blacklist saved to {blacklist_path}")
 
+    def load_channels(self):
+        profiles = get_schedule_profiles()
+        self.channel_combo.clear()
+        self.channel_combo.addItem("")
+        for profile in profiles:
+            self.channel_combo.addItem(profile)
+        if hasattr(self, 'tag') and self.tag and hasattr(self.tag, 'channel') and self.tag.channel:
+            index = self.channel_combo.findText(self.tag.channel)
+            if index >= 0:
+                self.channel_combo.setCurrentIndex(index)
+            else:
+                self.channel_combo.setCurrentText(self.tag.channel)
+
     def auto_calc_end_time(self):
         if not self.added_videos:
             QMessageBox.warning(self, "No Videos", "Please add videos first.")
@@ -1276,7 +1324,8 @@ class RandomFillDialog(BaseTagDialog):
             blacklist=self.blacklist.copy(),
             blacklist_path=self.blacklist_path,
             is_random_fill=True,
-            fill_24h=fill_24h
+            fill_24h=fill_24h,
+            channel=self.channel_combo.currentText()
         )
 
 
@@ -1314,6 +1363,11 @@ class ConfigDialog(QDialog):
         blacklist_layout.addWidget(browse_bl_btn)
         layout.addLayout(blacklist_layout)
 
+        layout.addWidget(QLabel("Schedule Profiles (comma-separated names):"))
+        self.schedule_profiles_edit = QLineEdit()
+        self.schedule_profiles_edit.setPlaceholderText("akiratv, superman, horror")
+        layout.addWidget(self.schedule_profiles_edit)
+
         btn_layout = QHBoxLayout()
         save_btn = QPushButton("Save")
         save_btn.clicked.connect(self.save_config)
@@ -1340,6 +1394,8 @@ class ConfigDialog(QDialog):
             if 'Paths' in config:
                 self.collection_path_edit.setText(config['Paths'].get('collection_path', ''))
                 self.blacklist_path_edit.setText(config['Paths'].get('blacklist_path', ''))
+            if 'ScheduleProfiles' in config:
+                self.schedule_profiles_edit.setText(config['ScheduleProfiles'].get('profiles', ''))
 
     def save_config(self):
         config = configparser.ConfigParser()
@@ -1347,6 +1403,11 @@ class ConfigDialog(QDialog):
             'collection_path': self.collection_path_edit.text(),
             'blacklist_path': self.blacklist_path_edit.text()
         }
+        profiles = self.schedule_profiles_edit.text().strip()
+        if profiles:
+            config['ScheduleProfiles'] = {
+                'profiles': profiles
+            }
         with open(self.config_path, 'w') as f:
             config.write(f)
         self.accept()
@@ -1628,6 +1689,16 @@ class MainWindow(QMainWindow):
         self.generate_btn.clicked.connect(self.generate_new_preview)
         bottom_btn_layout.addWidget(self.generate_btn)
 
+        self.save_schedule_btn = QPushButton("Save Schedule")
+        self.save_schedule_btn.clicked.connect(self.save_schedule)
+        bottom_btn_layout.addWidget(self.save_schedule_btn)
+
+        self.schedule_profile_combo = QComboBox()
+        self.schedule_profile_combo.setEditable(True)
+        self.load_schedule_profiles()
+        bottom_btn_layout.addWidget(QLabel("Profile:"))
+        bottom_btn_layout.addWidget(self.schedule_profile_combo)
+
         bottom_btn_layout.addStretch()
 
         self.approx_btn = QPushButton("Approximate OFF")
@@ -1848,7 +1919,8 @@ class MainWindow(QMainWindow):
                 new_tag.is_random_fill if hasattr(new_tag, 'is_random_fill') else False,
                 new_tag.blacklist if hasattr(new_tag, 'blacklist') else [],
                 new_tag.blacklist_path if hasattr(new_tag, 'blacklist_path') else '',
-                new_tag.fill_24h if hasattr(new_tag, 'fill_24h') else False
+                new_tag.fill_24h if hasattr(new_tag, 'fill_24h') else False,
+                new_tag.channel if hasattr(new_tag, 'channel') else ''
             )
             self.refresh_tags_list()
             self.refresh_preview()
@@ -1870,6 +1942,117 @@ class MainWindow(QMainWindow):
         clipboard = QApplication.instance().clipboard()
         clipboard.setText(text)
         QMessageBox.information(self, "Copied", "Schedule copied to clipboard!")
+
+    def load_schedule_profiles(self):
+        profiles = get_schedule_profiles()
+        self.schedule_profile_combo.clear()
+        for profile in profiles:
+            self.schedule_profile_combo.addItem(profile)
+
+    def save_schedule(self):
+        profile_name = self.schedule_profile_combo.currentText().strip()
+        if not profile_name:
+            QMessageBox.warning(self, "No Profile", "Please select or enter a schedule profile name.")
+            return
+
+        import json
+        from datetime import date, timedelta
+
+        collection_cache = {}
+
+        def get_collection_info(collection_path):
+            if collection_path in collection_cache:
+                return collection_cache[collection_path]
+            if not Path(collection_path).exists():
+                return {}
+            try:
+                with open(collection_path, 'r') as f:
+                    data = json.load(f)
+                collections = data.get('collections', [])
+                if collections:
+                    coll = collections[0]
+                    file_stem = Path(collection_path).stem
+                    if file_stem.startswith('collections_'):
+                        channel = file_stem.replace('collections_', '')
+                    else:
+                        channel = file_stem
+                    info = {
+                        'channel': channel,
+                        'id': coll.get('id', channel)
+                    }
+                    collection_cache[collection_path] = info
+                    return info
+            except Exception:
+                pass
+            return {}
+
+        days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+        schedule_data = {
+            "weekly": {},
+            "calendar": {}
+        }
+
+        start_date = date.today()
+        for day_offset in range(30):
+            current_date = start_date + timedelta(days=day_offset)
+            date_str = current_date.strftime("%Y-%m-%d")
+            day_name = days[current_date.weekday()]
+            key = f"{date_str}_{day_name.lower()}"
+
+            self.tag_manager.clear_cache()
+            entries = self.schedule_generator.apply_custom_tags() if not self.approximate_enabled else self.schedule_generator.apply_approximate()
+
+            schedule_entries = []
+            for entry in entries:
+                start_h = (entry.start_minutes // 60) % 24
+                start_m = entry.start_minutes % 60
+                time_str = f"{start_h:02d}:{start_m:02d}:00"
+
+                video_name = entry.video_name
+
+                video_info = {'time': time_str, 'file': '', 'collection_id': '', 'channel': '', 'source': 'random'}
+
+                matched = False
+                for tag in self.tag_manager.get_all_tags():
+                    collection_path = getattr(tag, 'collection_path', '')
+                    if collection_path and tag.collection_videos:
+                        coll_info = get_collection_info(collection_path)
+                        channel = coll_info.get('channel', '')
+                        coll_id = coll_info.get('id', '')
+
+                        for vid in tag.collection_videos:
+                            vid_name = get_video_display_name(vid)
+                            if vid_name in video_name or video_name in vid_name:
+                                video_info['file'] = vid.get('path', '')
+                                video_info['channel'] = channel
+                                video_info['collection_id'] = coll_id
+                                matched = True
+                                break
+                        if matched:
+                            break
+
+                if not video_info['file'] and ' - ' in video_name:
+                    parts = video_name.split(' - ')
+                    video_info['file'] = f"/home/akira/Videos/Akiratv/{parts[-1].strip()}"
+                    video_info['channel'] = parts[0].strip()
+                    video_info['collection_id'] = parts[0].strip()
+
+                schedule_entries.append(video_info)
+
+            schedule_data["calendar"][key] = {
+                "date": date_str,
+                "day": day_name,
+                "description": "Auto-generated calendar schedule",
+                "entries": schedule_entries
+            }
+
+        file_path = f"schedule_{profile_name}.json"
+        with open(file_path, 'w') as f:
+            json.dump(schedule_data, f, indent=2)
+
+        QMessageBox.information(self, "Saved", f"Schedule saved to {file_path}")
+        self.statusBar().showMessage(f"Schedule saved to {file_path}")
 
     def run_approximate(self):
         self.approximate_enabled = not self.approximate_enabled
