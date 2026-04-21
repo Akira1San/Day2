@@ -709,7 +709,9 @@ class TagDialog(QDialog):
         self.setWindowTitle("Edit Tag" if tag else "Add Custom Tag")
         self.setModal(True)
         self.collection_videos = []
+        self.blacklist = []
         self.setup_ui()
+        self.load_available_collection_profiles()
         if tag:
             self.name_input.setText(tag.name)
             self.start_time_edit.setTime(tag.start_time)
@@ -754,6 +756,20 @@ class TagDialog(QDialog):
         browse_btn.clicked.connect(self.browse_collection)
         collection_layout.addWidget(browse_btn)
         layout.addLayout(collection_layout)
+
+        profile_layout = QHBoxLayout()
+        profile_layout.addWidget(QLabel("Collection Profile:"))
+        self.collection_profile_combo = QComboBox()
+        self.collection_profile_combo.currentIndexChanged.connect(self.profile_selected)
+        profile_layout.addWidget(self.collection_profile_combo)
+        
+        profile_layout.addWidget(QLabel("Blacklist Profile:"))
+        self.blacklist_profile_combo = QComboBox()
+        self.blacklist_profile_combo.currentIndexChanged.connect(self.blacklist_profile_selected)
+        profile_layout.addWidget(self.blacklist_profile_combo)
+        
+        profile_layout.addStretch()
+        layout.addLayout(profile_layout)
 
         layout.addWidget(QLabel("Videos in Collection:"))
         self.videos_list = QListWidget()
@@ -830,6 +846,71 @@ class TagDialog(QDialog):
         except Exception as e:
             QMessageBox.warning(self, "Error", f"Failed to load collection: {e}")
 
+    def load_available_collection_profiles(self):
+        try:
+            config = configparser.ConfigParser()
+            config.read('config.ini')
+            collection_path = config.get('Paths', 'collection_path', fallback='/home/akira/akira/AkiraTV_NEW/user/collections')
+            blacklist_path = config.get('Paths', 'blacklist_path', fallback='/home/akira/akira/AkiraTV_NEW/user/collections')
+        except:
+            collection_path = '/home/akira/akira/AkiraTV_NEW/user/collections'
+            blacklist_path = '/home/akira/akira/AkiraTV_NEW/user/collections'
+
+        self.collection_profile_combo.addItem("-- None --")
+        self.blacklist_profile_combo.addItem("-- None --")
+
+        coll_path = Path(collection_path)
+        if coll_path.exists():
+            for json_file in sorted(coll_path.glob("*.json")):
+                self.collection_profile_combo.addItem(json_file.name)
+
+        blck_path = Path(blacklist_path)
+        if blck_path.exists():
+            for ini_file in sorted(blck_path.glob("*_blacklist.ini")):
+                self.blacklist_profile_combo.addItem(ini_file.name)
+
+    def profile_selected(self, index):
+        if index <= 0:
+            return
+        file_name = self.collection_profile_combo.currentText()
+        try:
+            config = configparser.ConfigParser()
+            config.read('config.ini')
+            collection_path = config.get('Paths', 'collection_path', fallback='/home/akira/akira/AkiraTV_NEW/user/collections')
+        except:
+            collection_path = '/home/akira/akira/AkiraTV_NEW/user/collections'
+
+        file_path = Path(collection_path) / file_name
+        if file_path.exists():
+            self.load_collection(str(file_path))
+
+    def blacklist_profile_selected(self, index):
+        if index <= 0:
+            return
+        file_name = self.blacklist_profile_combo.currentText()
+        try:
+            config = configparser.ConfigParser()
+            config.read('config.ini')
+            blacklist_path = config.get('Paths', 'blacklist_path', fallback='/home/akira/akira/AkiraTV_NEW/user/collections')
+        except:
+            blacklist_path = '/home/akira/akira/AkiraTV_NEW/user/collections'
+
+        file_path = Path(blacklist_path) / file_name
+        if file_path.exists():
+            self.load_blacklist_file(str(file_path))
+
+    def load_blacklist_file(self, file_path: str):
+        bc = configparser.ConfigParser()
+        bc.read(file_path)
+        self.blacklist = []
+        if 'Blacklist' in bc:
+            videos_value = bc['Blacklist'].get('videos', '')
+            if videos_value:
+                for line in videos_value.split('\n'):
+                    line = line.strip()
+                    if line:
+                        self.blacklist.append({'path': line})
+
     def get_tag(self) -> Tag:
         tag = Tag(
             tag_type="custom",
@@ -838,7 +919,8 @@ class TagDialog(QDialog):
             end_time=self.end_time_edit.time(),
             collection_videos=self.collection_videos.copy(),
             collection_path=self.collection_path.text(),
-            video_count=self.video_count_spin.value()
+            video_count=self.video_count_spin.value(),
+            blacklist=self.blacklist.copy()
         )
         return tag
 
