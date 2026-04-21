@@ -802,7 +802,16 @@ class ScheduleGenerator:
             rand_idx += 1
 
         final.sort(key=lambda e: e.start_minutes)
-        return final
+        
+        unique_entries = []
+        seen_times = set()
+        for entry in final:
+            key = (entry.start_minutes, entry.end_minutes)
+            if key not in seen_times:
+                seen_times.add(key)
+                unique_entries.append(entry)
+        
+        return unique_entries
 
 class TagDialog(QDialog):
     def __init__(self, parent=None, tag: Optional[Tag] = None):
