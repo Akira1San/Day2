@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 import sys
 import random
-import re
 import configparser
-from datetime import datetime, timedelta
 from typing import List, Optional
 from pathlib import Path
 from PySide6.QtWidgets import (
@@ -12,8 +10,14 @@ from PySide6.QtWidgets import (
     QLabel, QTimeEdit, QMessageBox, QScrollArea, QCheckBox, QRadioButton, QButtonGroup,
     QFileDialog, QSpinBox, QComboBox
 )
-from PySide6.QtCore import Qt, QTime, QTimer
-from PySide6.QtGui import QClipboard, QColor, QFont
+from PySide6.QtCore import Qt, QTime
+from PySide6.QtGui import QClipboard, QFont
+
+from utils import (
+    load_collection_json, load_collection_videos_only, load_blacklist_json,
+    parse_series_episode, parse_videos_for_series, qtime_to_minutes,
+    get_video_display_name, format_duration, get_config_paths, filter_videos_by_blacklist
+)
 
 
 APPROXIMATE_THRESHOLD_MINUTES = 40
@@ -53,9 +57,7 @@ class Tag:
         self.fill_24h = fill_24h
 
     def to_display_string(self) -> str:
-        if self.tag_type == "random":
-            return f"[R] {self.name}"
-        if self.is_random_fill:
+        if self.tag_type == "random" or self.is_random_fill:
             fill_24h = getattr(self, 'fill_24h', False)
             if fill_24h:
                 return f"[R] {self.name} (24h Fill)"
@@ -65,13 +67,6 @@ class Tag:
         if self.randomize_videos:
             return f"[C] {self.name} ({self.start_time.toString('HH:mm')}-{self.end_time.toString('HH:mm')}) x{self.video_count}"
         return f"[C] {self.name} ({self.start_time.toString('HH:mm')}-{self.end_time.toString('HH:mm')})"
-
-    def minutes_from_midnight(self, qtime: QTime) -> int:
-        return qtime.hour() * 60 + qtime.minute()
-
-    @staticmethod
-    def qtime_to_minutes(qtime: QTime) -> int:
-        return qtime.hour() * 60 + qtime.minute()
 
 
 class ScheduleEntry:
@@ -108,9 +103,7 @@ class TagManager:
         self.tags: List[Tag] = []
         self._cached_random_entries: Optional[List[ScheduleEntry]] = None
 
-    def get_cached_random_entries(self) -> List[ScheduleEntry]:
-        if self._cached_random_entries is None:
-            return None
+    def get_cached_random_entries(self) -> Optional[List[ScheduleEntry]]:
         return self._cached_random_entries
 
     def set_cached_random_entries(self, entries: List[ScheduleEntry]):
@@ -120,138 +113,22 @@ class TagManager:
         self._cached_random_entries = None
 
     def save_tags(self, filepath: str = "tags.ini"):
-        import json
-        config = configparser.ConfigParser()
-        config['Tags'] = {}
-        for i, tag in enumerate(self.tags):
-            key = f"tag{i}"
-            
-            if getattr(tag, 'is_series', False):
-                tag_type = "series"
-                start_season = str(getattr(tag, 'start_season', 1))
-                start_episode = str(getattr(tag, 'start_episode', 1))
-                play_mode = getattr(tag, 'play_mode', 'sequence')
-                video_count = str(getattr(tag, 'video_count', 1))
-                config['Tags'][key] = f"{tag_type}|{tag.name}|{tag.start_time.toString('HH:mm')}|{tag.end_time.toString('HH:mm')}|{start_season}|{start_episode}|{play_mode}|{video_count}"
-            elif getattr(tag, 'is_random_fill', False):
-                tag_type = "random"
-                blacklist_path = getattr(tag, 'blacklist_path', '')
-                fill_24h = "1" if getattr(tag, 'fill_24h', False) else "0"
-                config['Tags'][key] = f"{tag_type}|{tag.name}|{tag.start_time.toString('HH:mm')}|{tag.end_time.toString('HH:mm')}|{getattr(tag, 'collection_path', '')}|{blacklist_path}|{fill_24h}"
-            else:
-                tag_type = "custom"
-                is_random = "1" if getattr(tag, 'randomize_videos', False) else "0"
-                video_count = str(getattr(tag, 'video_count', 1))
-                collection_path = getattr(tag, 'collection_path', '')
-                config['Tags'][key] = f"{tag_type}|{tag.name}|{tag.start_time.toString('HH:mm')}|{tag.end_time.toString('HH:mm')}|{is_random}|{video_count}|{collection_path}"
-        with open(filepath, 'w') as f:
-            config.write(f)
+        from serialization import save_tags_to_ini
+        save_tags_to_ini(self.tags, filepath)
 
-    def load_tags(self, filepath: str = "tags.ini"):
-        import json
-        if not Path(filepath).exists():
-            return False
-        config = configparser.ConfigParser()
-        config.read(filepath)
-        if 'Tags' not in config:
-            return False
-        self.tags.clear()
-        for key in config['Tags']:
-            parts = config['Tags'][key].split('|')
-            if len(parts) < 4:
-                continue
-            
-            tag_type = parts[0]
-            name = parts[1]
-            start = parts[2]
-            end = parts[3]
-            
-            collection_videos = []
-            collection_path = ""
-            blacklist = []
-            blacklist_path = ""
-            
-            if tag_type == 'series':
-                start_season = int(parts[4]) if len(parts) >= 5 and parts[4].isdigit() else 1
-                start_episode = int(parts[5]) if len(parts) >= 6 and parts[5].isdigit() else 1
-                play_mode = parts[6] if len(parts) >= 7 else "sequence"
-                video_count = int(parts[7]) if len(parts) >= 8 and parts[7].isdigit() else 1
-                collection_path = parts[8] if len(parts) >= 9 else ""
-                
-                if collection_path and Path(collection_path).exists():
-                    try:
-                        with open(collection_path, 'r') as f:
-                            data = json.load(f)
-                        collections = data.get('collections', [])
-                        for collection in collections:
-                            for video in collection.get('videos', []):
-                                collection_videos.append(video)
-                    except:
-                        pass
-                
-                tag = Tag('custom', name, QTime.fromString(start, 'HH:mm'), QTime.fromString(end, 'HH:mm'), collection_videos, collection_path, video_count=video_count, is_series=True, start_season=start_season, start_episode=start_episode, play_mode=play_mode)
-                self.tags.append(tag)
-            elif tag_type == 'random':
-                collection_path = parts[4] if len(parts) >= 5 else ""
-                blacklist_path = parts[5] if len(parts) >= 6 else ""
-                fill_24h = len(parts) >= 7 and parts[6] == "1"
-                
-                if collection_path and Path(collection_path).exists():
-                    try:
-                        with open(collection_path, 'r') as f:
-                            data = json.load(f)
-                        collections = data.get('collections', [])
-                        for collection in collections:
-                            for video in collection.get('videos', []):
-                                collection_videos.append(video)
-                    except:
-                        pass
-                
-                if blacklist_path and Path(blacklist_path).exists():
-                    try:
-                        blacklist_data = []
-                        if blacklist_path.endswith('.ini'):
-                            bc = configparser.ConfigParser()
-                            bc.read(blacklist_path)
-                            if 'Blacklist' in bc:
-                                for key in bc['Blacklist']:
-                                    value = bc['Blacklist'][key]
-                                    paths = [p.strip() for p in value.split('\n') if p.strip()]
-                                    for path in paths:
-                                        blacklist_data.append({'path': path})
-                        else:
-                            with open(blacklist_path, 'r') as bf:
-                                blacklist_data = json.load(bf).get('blacklist', [])
-                        blacklist = blacklist_data
-                    except:
-                        pass
-                
-                tag = Tag('random', name, QTime.fromString(start, 'HH:mm'), QTime.fromString(end, 'HH:mm'), collection_videos, collection_path, is_random_fill=True, blacklist=blacklist, blacklist_path=blacklist_path, fill_24h=fill_24h)
-                self.tags.append(tag)
-            else:
-                is_random_videos = len(parts) >= 5 and parts[4] == "1"
-                video_count = int(parts[5]) if len(parts) >= 6 and parts[5].isdigit() else 1
-                collection_path = parts[6] if len(parts) >= 7 else ""
-                
-                if collection_path and Path(collection_path).exists():
-                    try:
-                        with open(collection_path, 'r') as f:
-                            data = json.load(f)
-                        collections = data.get('collections', [])
-                        for collection in collections:
-                            for video in collection.get('videos', []):
-                                collection_videos.append(video)
-                    except:
-                        pass
-                
-                self.tags.append(Tag('custom', name, QTime.fromString(start, 'HH:mm'), QTime.fromString(end, 'HH:mm'), collection_videos, collection_path, is_random_videos, video_count))
-        return True
+    def load_tags(self, filepath: str = "tags.ini") -> bool:
+        from serialization import load_tags_from_ini
+        loaded = load_tags_from_ini(filepath, Tag, QTime.fromString)
+        if loaded:
+            self.tags = loaded
+            return True
+        return False
 
     def add_tag(self, tag: Tag):
         self.tags.append(tag)
 
-    def remove_tag(self, index: int):
-        if index >= 0 and index < len(self.tags):
+    def remove_tag(self, index: int) -> bool:
+        if 0 <= index < len(self.tags):
             self.tags.pop(index)
             return True
         return False
@@ -261,22 +138,23 @@ class TagManager:
                  video_count: int = 1, is_series: bool = False,
                  start_season: int = 1, start_episode: int = 1, play_mode: str = "sequence",
                  is_random_fill: bool = False, blacklist: List[dict] = None,
-                 blacklist_path: str = "", fill_24h: bool = False):
-        if index >= 0 and index < len(self.tags):
-            self.tags[index].name = name
-            self.tags[index].start_time = start_time
-            self.tags[index].end_time = end_time
-            self.tags[index].collection_videos = collection_videos or []
-            self.tags[index].collection_path = collection_path
-            self.tags[index].video_count = video_count
-            self.tags[index].is_series = is_series
-            self.tags[index].start_season = start_season
-            self.tags[index].start_episode = start_episode
-            self.tags[index].play_mode = play_mode
-            self.tags[index].is_random_fill = is_random_fill
-            self.tags[index].blacklist = blacklist or []
-            self.tags[index].blacklist_path = blacklist_path
-            self.tags[index].fill_24h = fill_24h
+                 blacklist_path: str = "", fill_24h: bool = False) -> bool:
+        if 0 <= index < len(self.tags):
+            t = self.tags[index]
+            t.name = name
+            t.start_time = start_time
+            t.end_time = end_time
+            t.collection_videos = collection_videos or []
+            t.collection_path = collection_path
+            t.video_count = video_count
+            t.is_series = is_series
+            t.start_season = start_season
+            t.start_episode = start_episode
+            t.play_mode = play_mode
+            t.is_random_fill = is_random_fill
+            t.blacklist = blacklist or []
+            t.blacklist_path = blacklist_path
+            t.fill_24h = fill_24h
             return True
         return False
 
@@ -297,12 +175,20 @@ class ScheduleGenerator:
     def __init__(self, tag_manager: TagManager):
         self.tag_manager = tag_manager
 
+    def _create_video_entry(self, pos: int, duration: int, name: str, tag_name: str = "") -> ScheduleEntry:
+        video_name = f"{tag_name} - {name}" if tag_name else name
+        return ScheduleEntry(1, pos, pos + duration, video_name)
+
+    def _get_all_videos(self, tags: List[Tag]) -> List[dict]:
+        videos = []
+        for tag in tags:
+            if tag.collection_videos:
+                videos.extend(tag.collection_videos)
+        return videos
+
     def generate_random_fill(self, remaining_minutes: int = 24 * 60) -> List[ScheduleEntry]:
         all_tags = self.tag_manager.get_all_tags()
-        collection_videos = []
-        for tag in all_tags:
-            if tag.collection_videos:
-                collection_videos.extend(tag.collection_videos)
+        collection_videos = self._get_all_videos(all_tags)
         
         if not collection_videos:
             return []
@@ -315,20 +201,152 @@ class ScheduleGenerator:
 
         while current_minute < remaining_minutes:
             video = collection_videos[video_index % len(collection_videos)]
-            video_name = video.get('path', 'Unknown').split('/')[-1]
+            video_name = get_video_display_name(video)
             duration = int(video.get('duration', 90)) // 60
             if duration < 1:
                 duration = 90
-            end_minute = current_minute + duration
-
-            if end_minute > remaining_minutes:
-                end_minute = remaining_minutes
+            end_minute = min(current_minute + duration, remaining_minutes)
 
             entries.append(ScheduleEntry(current_day, current_minute, end_minute, video_name))
             current_minute = end_minute
             video_index += 1
 
         return entries
+
+    def _process_custom_tag(self, ct: Tag, custom_entries: List[ScheduleEntry], occupied: set):
+        start_min = qtime_to_minutes(ct.start_time)
+        end_min = qtime_to_minutes(ct.end_time)
+        
+        if start_min >= end_min or start_min >= 24 * 60 or end_min > 24 * 60:
+            return
+        
+        if ct.collection_videos:
+            for m in range(start_min, end_min):
+                occupied.add(m)
+            video_count = getattr(ct, 'video_count', 1)
+            videos = ct.collection_videos.copy()
+            random.shuffle(videos)
+            pos = start_min
+            vid_idx = 0
+            while pos < end_min and vid_idx < video_count and vid_idx < len(videos):
+                video = videos[vid_idx % len(videos)]
+                video_name = get_video_display_name(video)
+                duration = int(video.get('duration', 90)) // 60
+                if duration < 1:
+                    duration = 1
+                duration = min(duration, end_min - pos)
+                if duration < 1:
+                    break
+                custom_entries.append(self._create_video_entry(pos, duration, video_name, ct.name))
+                pos += duration
+                vid_idx += 1
+        else:
+            custom_entries.append(ScheduleEntry(1, start_min, end_min, ct.name))
+            for m in range(start_min, end_min):
+                occupied.add(m)
+
+    def _process_series_tag(self, st: Tag, series_entries: List[ScheduleEntry], occupied: set):
+        start_min = qtime_to_minutes(st.start_time)
+        end_min = qtime_to_minutes(st.end_time)
+        
+        if start_min >= end_min or start_min >= 24 * 60 or end_min > 24 * 60:
+            return
+        
+        if st.collection_videos:
+            for m in range(start_min, end_min):
+                occupied.add(m)
+
+            videos_to_use, _ = parse_videos_for_series(
+                st.collection_videos,
+                getattr(st, 'start_season', 1),
+                getattr(st, 'start_episode', 1),
+                getattr(st, 'play_mode', 'sequence'),
+                getattr(st, 'video_count', 1)
+            )
+            
+            pos = start_min
+            for v in videos_to_use:
+                if pos >= end_min:
+                    break
+                video = v['video']
+                video_name = get_video_display_name(video)
+                duration = int(video.get('duration', 90)) // 60
+                if duration < 1:
+                    duration = 1
+                duration = min(duration, end_min - pos)
+                if duration < 1:
+                    break
+                series_entries.append(self._create_video_entry(pos, duration, video_name, st.name))
+                pos += duration
+        else:
+            series_entries.append(ScheduleEntry(1, start_min, end_min, st.name))
+            for m in range(start_min, end_min):
+                occupied.add(m)
+
+    def _process_random_fill_tag(self, rf: Tag, fill_entries: List[ScheduleEntry], merged_ranges: List[tuple] = None):
+        rf_fill_24h = getattr(rf, 'fill_24h', False)
+        
+        if rf_fill_24h:
+            rf_videos = rf.collection_videos.copy() if rf.collection_videos else []
+            if not rf_videos:
+                return
+            random.shuffle(rf_videos)
+            
+            gaps = []
+            if merged_ranges:
+                prev_end = 0
+                for start, end in merged_ranges:
+                    if start > prev_end:
+                        gaps.append((prev_end, start))
+                    prev_end = max(prev_end, end)
+                if prev_end < 24 * 60:
+                    gaps.append((prev_end, 24 * 60))
+            else:
+                gaps = [(0, 24 * 60)]
+            
+            for gap_start, gap_end in gaps:
+                pos = gap_start
+                vid_idx = 0
+                while pos < gap_end:
+                    video = rf_videos[vid_idx % len(rf_videos)]
+                    video_name = get_video_display_name(video)
+                    duration = int(video.get('duration', 90)) // 60
+                    if duration < 1:
+                        duration = 1
+                    duration = min(duration, gap_end - pos)
+                    if duration < 1:
+                        break
+                    fill_entries.append(self._create_video_entry(pos, duration, video_name, rf.name))
+                    pos += duration
+                    vid_idx += 1
+        else:
+            rf_start = qtime_to_minutes(rf.start_time)
+            rf_end = qtime_to_minutes(rf.end_time)
+            
+            if rf_start >= rf_end or rf_start >= 24 * 60 or rf_end > 24 * 60:
+                return
+            
+            rf_videos = rf.collection_videos.copy() if rf.collection_videos else []
+            pos = rf_start
+            if rf_videos:
+                random.shuffle(rf_videos)
+            vid_idx = 0
+            
+            while pos < rf_end:
+                if not rf_videos:
+                    fill_entries.append(ScheduleEntry(1, pos, rf_end, f"{rf.name} - No videos"))
+                    break
+                video = rf_videos[vid_idx % len(rf_videos)]
+                video_name = get_video_display_name(video)
+                duration = int(video.get('duration', 90)) // 60
+                if duration < 1:
+                    duration = 1
+                duration = min(duration, rf_end - pos)
+                if duration < 1:
+                    break
+                fill_entries.append(self._create_video_entry(pos, duration, video_name, rf.name))
+                pos += duration
+                vid_idx += 1
 
     def apply_custom_tags(self, use_cache: bool = True) -> List[ScheduleEntry]:
         all_tags = self.tag_manager.get_all_tags()
@@ -341,11 +359,6 @@ class ScheduleGenerator:
         series_tags = [t for t in all_tags if t.is_series]
         random_fill_tags = [t for t in all_tags if t.is_random_fill]
 
-        collection_videos = []
-        for tag in all_tags:
-            if tag.collection_videos:
-                collection_videos.extend(tag.collection_videos)
-
         if not custom_tags and not series_tags and not random_fill_tags:
             entries = self.generate_random_fill(24 * 60)
             self.tag_manager.set_cached_random_entries(entries)
@@ -353,149 +366,18 @@ class ScheduleGenerator:
 
         occupied = set()
         custom_entries = []
+        series_entries = []
+        fill_entries = []
         
         for ct in custom_tags:
-            start_min = Tag.qtime_to_minutes(ct.start_time)
-            end_min = Tag.qtime_to_minutes(ct.end_time)
-            if start_min >= end_min:
-                continue
-            if start_min >= 24 * 60 or end_min > 24 * 60:
-                continue
-                
-            if ct.collection_videos:
-                for m in range(start_min, end_min):
-                    occupied.add(m)
-                video_count = getattr(ct, 'video_count', 1)
-                videos = ct.collection_videos.copy()
-                random.shuffle(videos)
-                pos = start_min
-                vid_idx = 0
-                while pos < end_min and vid_idx < video_count and vid_idx < len(videos):
-                    video = videos[vid_idx % len(videos)]
-                    video_name = video.get('path', 'Unknown').split('/')[-1]
-                    duration = int(video.get('duration', 90)) // 60
-                    if duration < 1:
-                        duration = 1
-                    if pos + duration > end_min:
-                        duration = end_min - pos
-                    if duration < 1:
-                        break
-                    custom_entries.append(ScheduleEntry(1, pos, pos + duration, f"{ct.name} - {video_name}"))
-                    pos += duration
-                    vid_idx += 1
-            else:
-                custom_entries.append(ScheduleEntry(1, start_min, end_min, ct.name))
-                for m in range(start_min, end_min):
-                    occupied.add(m)
+            self._process_custom_tag(ct, custom_entries, occupied)
 
-        series_entries = []
         for st in series_tags:
-            start_min = Tag.qtime_to_minutes(st.start_time)
-            end_min = Tag.qtime_to_minutes(st.end_time)
-            if start_min >= end_min:
-                continue
-            if start_min >= 24 * 60 or end_min > 24 * 60:
-                continue
+            self._process_series_tag(st, series_entries, occupied)
 
-            if st.collection_videos:
-                for m in range(start_min, end_min):
-                    occupied.add(m)
-
-                start_season = getattr(st, 'start_season', 1)
-                start_episode = getattr(st, 'start_episode', 1)
-                play_mode = getattr(st, 'play_mode', 'sequence')
-                video_count = getattr(st, 'video_count', 1)
-
-                parsed_videos = []
-                for vid in st.collection_videos:
-                    path = vid.get('path', '')
-                    name = path.split('/')[-1] if '/' in path else path
-                    season, episode = 1, 1
-                    match = re.search(r'[Ss](\d+)[Ee](\d+)', name)
-                    if match:
-                        season = int(match.group(1))
-                        episode = int(match.group(2))
-                    else:
-                        match = re.search(r'Season\s*(\d+)\s*Episode\s*(\d+)', name, re.IGNORECASE)
-                        if match:
-                            season = int(match.group(1))
-                            episode = int(match.group(2))
-                    parsed_videos.append({
-                        'video': vid,
-                        'season': season,
-                        'episode': episode,
-                        'path': path,
-                        'name': name
-                    })
-
-                filtered = [v for v in parsed_videos if v['season'] > start_season or (v['season'] == start_season and v['episode'] >= start_episode)]
-
-                if play_mode == 'random':
-                    random.shuffle(filtered)
-                else:
-                    filtered.sort(key=lambda v: (v['season'], v['episode']))
-
-                videos_to_use = filtered[:video_count]
-                pos = start_min
-                for v in videos_to_use:
-                    if pos >= end_min:
-                        break
-                    video = v['video']
-                    video_name = video.get('path', 'Unknown').split('/')[-1]
-                    duration = int(video.get('duration', 90)) // 60
-                    if duration < 1:
-                        duration = 1
-                    if pos + duration > end_min:
-                        duration = end_min - pos
-                    if duration < 1:
-                        break
-                    series_entries.append(ScheduleEntry(1, pos, pos + duration, f"{st.name} - {video_name}"))
-                    pos += duration
-            else:
-                series_entries.append(ScheduleEntry(1, start_min, end_min, st.name))
-                for m in range(start_min, end_min):
-                    occupied.add(m)
-
-        fill_entries = []
-        rf_sorted = sorted(random_fill_tags, key=lambda t: Tag.qtime_to_minutes(t.start_time))
-        
+        rf_sorted = sorted(random_fill_tags, key=lambda t: qtime_to_minutes(t.start_time))
         for rf in rf_sorted:
-            rf_fill_24h = getattr(rf, 'fill_24h', False)
-            
-            if rf_fill_24h:
-                rf_start = 0
-                rf_end = 24 * 60
-            else:
-                rf_start = Tag.qtime_to_minutes(rf.start_time)
-                rf_end = Tag.qtime_to_minutes(rf.end_time)
-                if rf_start >= rf_end:
-                    continue
-                if rf_start >= 24 * 60 or rf_end > 24 * 60:
-                    continue
-            
-            rf_videos = rf.collection_videos.copy() if rf.collection_videos else []
-            
-            pos = rf_start
-            if rf_videos:
-                random.shuffle(rf_videos)
-            vid_idx = 0
-            
-            while pos < rf_end:
-                if not rf_videos:
-                    fill_entries.append(ScheduleEntry(1, pos, rf_end, f"{rf.name} - No videos"))
-                    break
-                video = rf_videos[vid_idx % len(rf_videos)]
-                video_name = video.get('path', 'Unknown').split('/')[-1]
-                duration = int(video.get('duration', 90)) // 60
-                if duration < 1:
-                    duration = 1
-                if pos + duration > rf_end:
-                    duration = rf_end - pos
-                if duration < 1:
-                    break
-                fill_entries.append(ScheduleEntry(1, pos, pos + duration, f"{rf.name} - {video_name}"))
-                pos += duration
-                vid_idx += 1
+            self._process_random_fill_tag(rf, fill_entries)
 
         entries = custom_entries + series_entries + fill_entries
         entries.sort(key=lambda e: e.start_minutes)
@@ -509,11 +391,11 @@ class ScheduleGenerator:
 
         final = []
         rand_idx = 0
-        custom_sorted = sorted(custom_tags, key=lambda t: Tag.qtime_to_minutes(t.start_time))
+        custom_sorted = sorted(custom_tags, key=lambda t: qtime_to_minutes(t.start_time))
 
         for ct in custom_sorted:
-            start = Tag.qtime_to_minutes(ct.start_time)
-            end = Tag.qtime_to_minutes(ct.end_time)
+            start = qtime_to_minutes(ct.start_time)
+            end = qtime_to_minutes(ct.end_time)
             if start >= end or start >= 24 * 60:
                 continue
 
@@ -533,12 +415,11 @@ class ScheduleGenerator:
                 vid_idx = 0
                 while pos < end and vid_idx < video_count and vid_idx < len(videos):
                     video = videos[vid_idx % len(videos)]
-                    video_name = video.get('path', 'Unknown').split('/')[-1]
+                    video_name = get_video_display_name(video)
                     duration = int(video.get('duration', 90)) // 60
                     if duration < 1:
                         duration = 1
-                    if pos + duration > end:
-                        duration = end - pos
+                    duration = min(duration, end - pos)
                     if duration < 1:
                         break
                     final.append(ScheduleEntry(1, pos, pos + duration, video_name))
@@ -566,49 +447,31 @@ class ScheduleGenerator:
         
         rf_24h_tags = [t for t in random_fill_tags if getattr(t, 'fill_24h', False)]
         
-        # If only 24h fill tags exist (no custom/series), return full random fill
         if rf_24h_tags and not custom_tags and not series_tags:
             return self.generate_random_fill(24 * 60)
         
-        # If we have 24h fill tags, we only fill in gaps between explicit time ranges
         has_24h_fill = bool(rf_24h_tags)
         
         if has_24h_fill:
             base_entries = []
         else:
-            # Only generate base_entries when we have custom/series tags AND no 24h fill
-            if custom_tags or series_tags:
-                base_entries = self.generate_random_fill(24 * 60)
-            else:
-                base_entries = []
+            base_entries = self.generate_random_fill(24 * 60) if (custom_tags or series_tags) else []
 
         if not custom_tags and not series_tags and not random_fill_tags:
             return base_entries
 
-        custom_sorted = sorted(custom_tags, key=lambda t: Tag.qtime_to_minutes(t.start_time))
-
-        final = []
-        rand_idx = 0
-        current_pos = 0
-        next_custom_pos = 0
-        
         scheduled_ranges = []
-        
-        for ct in custom_sorted:
-            original_start = Tag.qtime_to_minutes(ct.start_time)
-            original_end = Tag.qtime_to_minutes(ct.end_time)
-            scheduled_ranges.append((original_start, original_end))
+        for ct in custom_tags:
+            scheduled_ranges.append((qtime_to_minutes(ct.start_time), qtime_to_minutes(ct.end_time)))
         
         for st in series_tags:
-            original_start = Tag.qtime_to_minutes(st.start_time)
-            original_end = Tag.qtime_to_minutes(st.end_time)
-            scheduled_ranges.append((original_start, original_end))
+            scheduled_ranges.append((qtime_to_minutes(st.start_time), qtime_to_minutes(st.end_time)))
         
         for rf in random_fill_tags:
             rf_fill_24h = getattr(rf, 'fill_24h', False)
             if not rf_fill_24h:
-                rf_start = Tag.qtime_to_minutes(rf.start_time)
-                rf_end = Tag.qtime_to_minutes(rf.end_time)
+                rf_start = qtime_to_minutes(rf.start_time)
+                rf_end = qtime_to_minutes(rf.end_time)
                 if rf_start < rf_end:
                     scheduled_ranges.append((rf_start, rf_end))
         
@@ -622,21 +485,20 @@ class ScheduleGenerator:
                 merged_ranges.append((start, end))
         
         occupied = set()
+        final = []
+        rand_idx = 0
+        current_pos = 0
+        next_custom_pos = 0
+        
+        custom_sorted = sorted(custom_tags, key=lambda t: qtime_to_minutes(t.start_time))
 
         if not has_24h_fill:
             for ct in custom_sorted:
-                original_start = Tag.qtime_to_minutes(ct.start_time)
-                original_end = Tag.qtime_to_minutes(ct.end_time)
+                original_start = qtime_to_minutes(ct.start_time)
+                original_end = qtime_to_minutes(ct.end_time)
 
                 custom_start = max(original_start, next_custom_pos)
                 custom_end = custom_start + (original_end - original_start)
-
-                # Don't pre-fill before tags - only show explicit tag entries
-                # while current_pos < custom_start and rand_idx < len(base_entries):
-                #     dur = min(90, base_entries[rand_idx].end_minutes - base_entries[rand_idx].start_minutes)
-                #     final.append(ScheduleEntry(1, current_pos, current_pos + dur, base_entries[rand_idx].video_name))
-                #     current_pos += dur
-                #     rand_idx += 1
 
                 if ct.collection_videos:
                     for m in range(custom_start, custom_end):
@@ -648,15 +510,14 @@ class ScheduleGenerator:
                     vid_idx = 0
                     while pos < custom_end and vid_idx < video_count and vid_idx < len(videos):
                         video = videos[vid_idx % len(videos)]
-                        video_name = video.get('path', 'Unknown').split('/')[-1]
+                        video_name = get_video_display_name(video)
                         duration = int(video.get('duration', 90)) // 60
                         if duration < 1:
                             duration = 1
-                        if pos + duration > custom_end:
-                            duration = custom_end - pos
+                        duration = min(duration, custom_end - pos)
                         if duration < 1:
                             break
-                        final.append(ScheduleEntry(1, pos, pos + duration, f"{ct.name} - {video_name}"))
+                        final.append(self._create_video_entry(pos, duration, video_name, ct.name))
                         pos += duration
                         vid_idx += 1
                     current_pos = custom_end
@@ -668,81 +529,43 @@ class ScheduleGenerator:
                     current_pos = custom_end
 
                 next_custom_pos = current_pos
-
                 while rand_idx < len(base_entries) and base_entries[rand_idx].start_minutes < current_pos:
                     rand_idx += 1
 
             for st in series_tags:
-                original_start = Tag.qtime_to_minutes(st.start_time)
-                original_end = Tag.qtime_to_minutes(st.end_time)
-                if original_start >= original_end:
-                    continue
-                if original_start >= 24 * 60 or original_end > 24 * 60:
+                original_start = qtime_to_minutes(st.start_time)
+                original_end = qtime_to_minutes(st.end_time)
+                if original_start >= original_end or original_start >= 24 * 60 or original_end > 24 * 60:
                     continue
 
                 series_start = max(original_start, next_custom_pos)
                 series_end = series_start + (original_end - original_start)
 
-                # Don't pre-fill before series - only show explicit tag entries
-                # while current_pos < series_start and rand_idx < len(base_entries):
-                #     dur = min(90, base_entries[rand_idx].end_minutes - base_entries[rand_idx].start_minutes)
-                #     final.append(ScheduleEntry(1, current_pos, current_pos + dur, base_entries[rand_idx].video_name))
-                #     current_pos += dur
-                #     rand_idx += 1
-
                 if st.collection_videos:
                     for m in range(series_start, series_end):
                         occupied.add(m)
 
-                    start_season = getattr(st, 'start_season', 1)
-                    start_episode = getattr(st, 'start_episode', 1)
-                    play_mode = getattr(st, 'play_mode', 'sequence')
-                    video_count = getattr(st, 'video_count', 1)
-
-                    parsed_videos = []
-                    for vid in st.collection_videos:
-                        path = vid.get('path', '')
-                        name = path.split('/')[-1] if '/' in path else path
-                        season, episode = 1, 1
-                        match = re.search(r'[Ss](\d+)[Ee](\d+)', name)
-                        if match:
-                            season = int(match.group(1))
-                            episode = int(match.group(2))
-                        else:
-                            match = re.search(r'Season\s*(\d+)\s*Episode\s*(\d+)', name, re.IGNORECASE)
-                            if match:
-                                season = int(match.group(1))
-                                episode = int(match.group(2))
-                        parsed_videos.append({
-                            'video': vid,
-                            'season': season,
-                            'episode': episode,
-                            'path': path,
-                            'name': name
-                        })
-
-                    filtered = [v for v in parsed_videos if v['season'] > start_season or (v['season'] == start_season and v['episode'] >= start_episode)]
-
-                    if play_mode == 'random':
-                        random.shuffle(filtered)
-                    else:
-                        filtered.sort(key=lambda v: (v['season'], v['episode']))
-
-                    videos_to_use = filtered[:video_count]
+                    videos_to_use, _ = parse_videos_for_series(
+                        st.collection_videos,
+                        getattr(st, 'start_season', 1),
+                        getattr(st, 'start_episode', 1),
+                        getattr(st, 'play_mode', 'sequence'),
+                        getattr(st, 'video_count', 1)
+                    )
+                    
                     pos = series_start
                     for v in videos_to_use:
                         if pos >= series_end:
                             break
                         video = v['video']
-                        video_name = video.get('path', 'Unknown').split('/')[-1]
+                        video_name = get_video_display_name(video)
                         duration = int(video.get('duration', 90)) // 60
                         if duration < 1:
                             duration = 1
-                        if pos + duration > series_end:
-                            duration = series_end - pos
+                        duration = min(duration, series_end - pos)
                         if duration < 1:
                             break
-                        final.append(ScheduleEntry(1, pos, pos + duration, f"{st.name} - {video_name}"))
+                        final.append(self._create_video_entry(pos, duration, video_name, st.name))
                         pos += duration
                     current_pos = series_end
                 else:
@@ -750,187 +573,75 @@ class ScheduleGenerator:
                     current_pos = series_end
 
                 next_custom_pos = current_pos
-
                 while rand_idx < len(base_entries) and base_entries[rand_idx].start_minutes < current_pos:
                     rand_idx += 1
         else:
-            # With 24h fill, only add explicit tags at their exact times (no pre-fill)
             for ct in custom_sorted:
-                original_start = Tag.qtime_to_minutes(ct.start_time)
-                original_end = Tag.qtime_to_minutes(ct.end_time)
-
-                custom_start = original_start
-                custom_end = original_end
+                original_start = qtime_to_minutes(ct.start_time)
+                original_end = qtime_to_minutes(ct.end_time)
 
                 if ct.collection_videos:
-                    for m in range(custom_start, custom_end):
+                    for m in range(original_start, original_end):
                         occupied.add(m)
                     video_count = getattr(ct, 'video_count', 1)
                     videos = ct.collection_videos.copy()
                     random.shuffle(videos)
-                    pos = custom_start
+                    pos = original_start
                     vid_idx = 0
-                    while pos < custom_end and vid_idx < video_count and vid_idx < len(videos):
+                    while pos < original_end and vid_idx < video_count and vid_idx < len(videos):
                         video = videos[vid_idx % len(videos)]
-                        video_name = video.get('path', 'Unknown').split('/')[-1]
+                        video_name = get_video_display_name(video)
                         duration = int(video.get('duration', 90)) // 60
                         if duration < 1:
                             duration = 1
-                        if pos + duration > custom_end:
-                            duration = custom_end - pos
+                        duration = min(duration, original_end - pos)
                         if duration < 1:
                             break
-                        final.append(ScheduleEntry(1, pos, pos + duration, f"{ct.name} - {video_name}"))
+                        final.append(self._create_video_entry(pos, duration, video_name, ct.name))
                         pos += duration
                         vid_idx += 1
-                    current_pos = custom_end
                 else:
-                    final.append(ScheduleEntry(1, custom_start, custom_end, ct.name))
-                    current_pos = custom_end
-
-                next_custom_pos = current_pos
+                    final.append(ScheduleEntry(1, original_start, original_end, ct.name))
 
             for st in series_tags:
-                original_start = Tag.qtime_to_minutes(st.start_time)
-                original_end = Tag.qtime_to_minutes(st.end_time)
-                if original_start >= original_end:
+                original_start = qtime_to_minutes(st.start_time)
+                original_end = qtime_to_minutes(st.end_time)
+                if original_start >= original_end or original_start >= 24 * 60 or original_end > 24 * 60:
                     continue
-                if original_start >= 24 * 60 or original_end > 24 * 60:
-                    continue
-
-                series_start = original_start
-                series_end = original_end
 
                 if st.collection_videos:
-                    for m in range(series_start, series_end):
+                    for m in range(original_start, original_end):
                         occupied.add(m)
 
-                    start_season = getattr(st, 'start_season', 1)
-                    start_episode = getattr(st, 'start_episode', 1)
-                    play_mode = getattr(st, 'play_mode', 'sequence')
-                    video_count = getattr(st, 'video_count', 1)
-
-                    parsed_videos = []
-                    for vid in st.collection_videos:
-                        path = vid.get('path', '')
-                        name = path.split('/')[-1] if '/' in path else path
-                        season, episode = 1, 1
-                        match = re.search(r'[Ss](\d+)[Ee](\d+)', name)
-                        if match:
-                            season = int(match.group(1))
-                            episode = int(match.group(2))
-                        else:
-                            match = re.search(r'Season\s*(\d+)\s*Episode\s*(\d+)', name, re.IGNORECASE)
-                            if match:
-                                season = int(match.group(1))
-                                episode = int(match.group(2))
-                        parsed_videos.append({
-                            'video': vid,
-                            'season': season,
-                            'episode': episode,
-                            'path': path,
-                            'name': name
-                        })
-
-                    filtered = [v for v in parsed_videos if v['season'] > start_season or (v['season'] == start_season and v['episode'] >= start_episode)]
-
-                    if play_mode == 'random':
-                        random.shuffle(filtered)
-                    else:
-                        filtered.sort(key=lambda v: (v['season'], v['episode']))
-
-                    videos_to_use = filtered[:video_count]
-                    pos = series_start
+                    videos_to_use, _ = parse_videos_for_series(
+                        st.collection_videos,
+                        getattr(st, 'start_season', 1),
+                        getattr(st, 'start_episode', 1),
+                        getattr(st, 'play_mode', 'sequence'),
+                        getattr(st, 'video_count', 1)
+                    )
+                    
+                    pos = original_start
                     for v in videos_to_use:
-                        if pos >= series_end:
+                        if pos >= original_end:
                             break
                         video = v['video']
-                        video_name = video.get('path', 'Unknown').split('/')[-1]
+                        video_name = get_video_display_name(video)
                         duration = int(video.get('duration', 90)) // 60
                         if duration < 1:
                             duration = 1
-                        if pos + duration > series_end:
-                            duration = series_end - pos
+                        duration = min(duration, original_end - pos)
                         if duration < 1:
                             break
-                        final.append(ScheduleEntry(1, pos, pos + duration, f"{st.name} - {video_name}"))
+                        final.append(self._create_video_entry(pos, duration, video_name, st.name))
                         pos += duration
-                    current_pos = series_end
                 else:
-                    final.append(ScheduleEntry(1, series_start, series_end, st.name))
-                    current_pos = series_end
+                    final.append(ScheduleEntry(1, original_start, original_end, st.name))
 
-                next_custom_pos = current_pos
-
-        rf_sorted = sorted(random_fill_tags, key=lambda t: Tag.qtime_to_minutes(t.start_time))
-        
+        rf_sorted = sorted(random_fill_tags, key=lambda t: qtime_to_minutes(t.start_time))
         for rf in rf_sorted:
-            rf_fill_24h = getattr(rf, 'fill_24h', False)
-            
-            if rf_fill_24h:
-                rf_videos = rf.collection_videos.copy() if rf.collection_videos else []
-                if not rf_videos:
-                    continue
-                random.shuffle(rf_videos)
-                
-                gaps = []
-                prev_end = 0
-                for start, end in merged_ranges:
-                    if start > prev_end:
-                        gaps.append((prev_end, start))
-                    prev_end = max(prev_end, end)
-                if prev_end < 24 * 60:
-                    gaps.append((prev_end, 24 * 60))
-                
-                for gap_start, gap_end in gaps:
-                    pos = gap_start
-                    vid_idx = 0
-                    while pos < gap_end:
-                        video = rf_videos[vid_idx % len(rf_videos)]
-                        video_name = video.get('path', 'Unknown').split('/')[-1]
-                        duration = int(video.get('duration', 90)) // 60
-                        if duration < 1:
-                            duration = 1
-                        if pos + duration > gap_end:
-                            duration = gap_end - pos
-                        if duration < 1:
-                            break
-                        final.append(ScheduleEntry(1, pos, pos + duration, f"{rf.name} - {video_name}"))
-                        pos += duration
-                        vid_idx += 1
-            else:
-                rf_start = Tag.qtime_to_minutes(rf.start_time)
-                rf_end = Tag.qtime_to_minutes(rf.end_time)
-                if rf_start >= rf_end:
-                    continue
-                if rf_start >= 24 * 60 or rf_end > 24 * 60:
-                    continue
-                
-                rf_videos = rf.collection_videos.copy() if rf.collection_videos else []
-                
-                pos = rf_start
-                if rf_videos:
-                    random.shuffle(rf_videos)
-                vid_idx = 0
-                
-                while pos < rf_end:
-                    if not rf_videos:
-                        final.append(ScheduleEntry(1, pos, rf_end, f"{rf.name} - No videos"))
-                        break
-                    video = rf_videos[vid_idx % len(rf_videos)]
-                    video_name = video.get('path', 'Unknown').split('/')[-1]
-                    duration = int(video.get('duration', 90)) // 60
-                    if duration < 1:
-                        duration = 1
-                    if pos + duration > rf_end:
-                        duration = rf_end - pos
-                    if duration < 1:
-                        break
-                    final.append(ScheduleEntry(1, pos, pos + duration, f"{rf.name} - {video_name}"))
-                    pos += duration
-                    vid_idx += 1
+            self._process_random_fill_tag(rf, final, merged_ranges if has_24h_fill else None)
 
-        # Only fill entire day when there are no explicit tags at all
         if len(final) == 0 and not has_24h_fill:
             while current_pos < 24 * 60 and rand_idx < len(base_entries):
                 dur = min(90, base_entries[rand_idx].end_minutes - base_entries[rand_idx].start_minutes)
@@ -950,13 +661,44 @@ class ScheduleGenerator:
         
         return unique_entries
 
-class TagDialog(QDialog):
+
+class BaseTagDialog(QDialog):
     def __init__(self, parent=None, tag: Optional[Tag] = None):
         super().__init__(parent)
-        self.setWindowTitle("Edit Tag" if tag else "Add Custom Tag")
-        self.setModal(True)
         self.collection_videos = []
         self.blacklist = []
+
+    def _setup_time_inputs(self, layout: QHBoxLayout, start_time: QTime = None, end_time: QTime = None):
+        start_time = start_time or QTime(0, 0)
+        end_time = end_time or QTime(1, 0)
+        
+        layout.addWidget(QLabel("Start Time:"))
+        self.start_time_edit = QTimeEdit()
+        self.start_time_edit.setDisplayFormat("HH:mm")
+        self.start_time_edit.setTime(start_time)
+        layout.addWidget(self.start_time_edit)
+
+        layout.addWidget(QLabel("End Time:"))
+        self.end_time_edit = QTimeEdit()
+        self.end_time_edit.setDisplayFormat("HH:mm")
+        self.end_time_edit.setTime(end_time)
+        layout.addWidget(self.end_time_edit)
+
+    def _load_collection_to_list(self, file_path: str, list_widget: QListWidget):
+        collection_videos, _ = load_collection_json(file_path)
+        self.collection_videos = collection_videos
+        for video in collection_videos:
+            path = video.get('path', '')
+            duration = video.get('duration', 0)
+            display_name = get_video_display_name(video)
+            list_widget.addItem(f"{display_name} ({format_duration(duration)})")
+
+
+class TagDialog(BaseTagDialog):
+    def __init__(self, parent=None, tag: Optional[Tag] = None):
+        super().__init__(parent, tag)
+        self.setWindowTitle("Edit Tag" if tag else "Add Custom Tag")
+        self.setModal(True)
         self.setup_ui()
         self.load_available_collection_profiles()
         if tag:
@@ -968,8 +710,8 @@ class TagDialog(QDialog):
                 for video in self.collection_videos:
                     path = video.get('path', '')
                     duration = video.get('duration', 0)
-                    display_name = path.split('/')[-1] if '/' in path else path
-                    self.videos_list.addItem(f"{display_name} ({int(duration)}s)")
+                    display_name = get_video_display_name(video)
+                    self.videos_list.addItem(f"{display_name} ({format_duration(duration)})")
             if hasattr(tag, 'randomize_videos') and tag.randomize_videos:
                 self.randomize_videos_check.setChecked(True)
             if hasattr(tag, 'video_count'):
@@ -982,8 +724,8 @@ class TagDialog(QDialog):
                     for video in self.collection_videos:
                         path = video.get('path', '')
                         duration = video.get('duration', 0)
-                        display_name = path.split('/')[-1] if '/' in path else path
-                        self.videos_list.addItem(f"{display_name} ({int(duration)}s)")
+                        display_name = get_video_display_name(video)
+                        self.videos_list.addItem(f"{display_name} ({format_duration(duration)})")
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
@@ -1042,17 +784,7 @@ class TagDialog(QDialog):
         layout.addLayout(calc_layout)
 
         time_layout = QHBoxLayout()
-        time_layout.addWidget(QLabel("Start Time:"))
-        self.start_time_edit = QTimeEdit()
-        self.start_time_edit.setDisplayFormat("HH:mm")
-        self.start_time_edit.setTime(QTime(0, 0))
-        time_layout.addWidget(self.start_time_edit)
-
-        time_layout.addWidget(QLabel("End Time:"))
-        self.end_time_edit = QTimeEdit()
-        self.end_time_edit.setDisplayFormat("HH:mm")
-        self.end_time_edit.setTime(QTime(1, 0))
-        time_layout.addWidget(self.end_time_edit)
+        self._setup_time_inputs(time_layout)
         layout.addLayout(time_layout)
 
         btn_layout = QHBoxLayout()
@@ -1065,7 +797,6 @@ class TagDialog(QDialog):
         layout.addLayout(btn_layout)
 
     def browse_collection(self):
-        from PySide6.QtWidgets import QFileDialog
         file_path, _ = QFileDialog.getOpenFileName(
             self, "Select Collection File", "",
             "JSON Files (*.json);;All Files (*)"
@@ -1074,34 +805,21 @@ class TagDialog(QDialog):
             self.load_collection(file_path)
 
     def load_collection(self, file_path: str):
-        import json
-        try:
-            with open(file_path, 'r') as f:
-                data = json.load(f)
-            self.collection_path.setText(file_path)
-            self.videos_list.clear()
-            self.collection_videos.clear()
+        self.collection_path.setText(file_path)
+        self.videos_list.clear()
+        self.collection_videos.clear()
 
-            collections = data.get('collections', [])
-            for collection in collections:
-                for video in collection.get('videos', []):
-                    path = video.get('path', '')
-                    duration = video.get('duration', 0)
-                    self.collection_videos.append({'path': path, 'duration': duration})
-                    display_name = path.split('/')[-1] if '/' in path else path
-                    self.videos_list.addItem(f"{display_name} ({int(duration)}s)")
-        except Exception as e:
-            QMessageBox.warning(self, "Error", f"Failed to load collection: {e}")
+        collection_videos, _ = load_collection_json(file_path)
+        self.collection_videos = collection_videos
+
+        for video in collection_videos:
+            path = video.get('path', '')
+            duration = video.get('duration', 0)
+            display_name = get_video_display_name(video)
+            self.videos_list.addItem(f"{display_name} ({format_duration(duration)})")
 
     def load_available_collection_profiles(self):
-        try:
-            config = configparser.ConfigParser()
-            config.read('config.ini')
-            collection_path = config.get('Paths', 'collection_path', fallback='/home/akira/akira/AkiraTV_NEW/user/collections')
-            blacklist_path = config.get('Paths', 'blacklist_path', fallback='/home/akira/akira/AkiraTV_NEW/user/collections')
-        except:
-            collection_path = '/home/akira/akira/AkiraTV_NEW/user/collections'
-            blacklist_path = '/home/akira/akira/AkiraTV_NEW/user/collections'
+        collection_path, blacklist_path = get_config_paths()
 
         self.collection_profile_combo.addItem("-- None --")
         self.blacklist_profile_combo.addItem("-- None --")
@@ -1126,13 +844,7 @@ class TagDialog(QDialog):
         if index <= 0:
             return
         file_name = self.collection_profile_combo.currentText()
-        try:
-            config = configparser.ConfigParser()
-            config.read('config.ini')
-            collection_path = config.get('Paths', 'collection_path', fallback='/home/akira/akira/AkiraTV_NEW/user/collections')
-        except:
-            collection_path = '/home/akira/akira/AkiraTV_NEW/user/collections'
-
+        collection_path, _ = get_config_paths()
         file_path = Path(collection_path) / file_name
         if file_path.exists():
             self.load_collection(str(file_path))
@@ -1141,31 +853,16 @@ class TagDialog(QDialog):
         if index <= 0:
             return
         file_name = self.blacklist_profile_combo.currentText()
-        try:
-            config = configparser.ConfigParser()
-            config.read('config.ini')
-            blacklist_path = config.get('Paths', 'blacklist_path', fallback='/home/akira/akira/AkiraTV_NEW/user/collections')
-        except:
-            blacklist_path = '/home/akira/akira/AkiraTV_NEW/user/collections'
-
+        _, blacklist_path = get_config_paths()
         file_path = Path(blacklist_path) / file_name
         if file_path.exists():
             self.load_blacklist_file(str(file_path))
 
     def load_blacklist_file(self, file_path: str):
-        bc = configparser.ConfigParser()
-        bc.read(file_path)
-        self.blacklist = []
-        if 'Blacklist' in bc:
-            videos_value = bc['Blacklist'].get('videos', '')
-            if videos_value:
-                for line in videos_value.split('\n'):
-                    line = line.strip()
-                    if line:
-                        self.blacklist.append({'path': line})
+        self.blacklist = load_blacklist_json(file_path)
 
     def get_tag(self) -> Tag:
-        tag = Tag(
+        return Tag(
             tag_type="custom",
             name=self.name_input.text() or "Custom Video",
             start_time=self.start_time_edit.time(),
@@ -1175,7 +872,6 @@ class TagDialog(QDialog):
             video_count=self.video_count_spin.value(),
             blacklist=self.blacklist.copy()
         )
-        return tag
 
     def auto_calc_end_time(self):
         if not self.collection_videos:
@@ -1190,26 +886,21 @@ class TagDialog(QDialog):
             duration = self.collection_videos[selected].get('duration', 0)
         else:
             count = self.video_count_spin.value()
-            total_duration = 0
-            for i in range(min(count, len(self.collection_videos))):
-                total_duration += self.collection_videos[i].get('duration', 0)
+            total_duration = sum(self.collection_videos[i].get('duration', 0) for i in range(min(count, len(self.collection_videos))))
             duration = total_duration
 
         start_time = self.start_time_edit.time()
-        start_mins = start_time.hour() * 60 + start_time.minute()
-        end_mins = start_mins + int(duration // 60)
-        end_mins = end_mins % (24 * 60)
+        start_mins = qtime_to_minutes(start_time)
+        end_mins = (start_mins + int(duration // 60)) % (24 * 60)
         self.end_time_edit.setTime(QTime(end_mins // 60, end_mins % 60))
 
 
-class RandomFillDialog(QDialog):
+class RandomFillDialog(BaseTagDialog):
     def __init__(self, parent=None, tag: Optional[Tag] = None):
-        super().__init__(parent)
+        super().__init__(parent, tag)
         self.setWindowTitle("Add Random Fill Tag" if not tag else "Edit Random Fill Tag")
         self.setModal(True)
-        self.collection_videos = []
         self.added_videos = []
-        self.blacklist = []
         self.blacklist_path = ""
         self.setup_ui()
         
@@ -1276,102 +967,30 @@ class RandomFillDialog(QDialog):
         lists_container = QWidget()
         lists_inner = QHBoxLayout(lists_container)
         
-        collection_widget = QWidget()
-        collection_vbox = QVBoxLayout(collection_widget)
-        collection_vbox.addWidget(QLabel("Videos in Collection"))
-        self.videos_count_label = QLabel("Count: 0")
-        collection_vbox.addWidget(self.videos_count_label)
-        self.videos_list = QListWidget()
-        self.videos_list.setMinimumHeight(200)
-        self.videos_list.setSelectionMode(QListWidget.MultiSelection)
-        self.videos_list.itemClicked.connect(self.on_video_selected)
-        collection_vbox.addWidget(self.videos_list)
+        collection_widget = self._create_video_list_section("Videos in Collection", True)
+        self.videos_list = collection_widget.videos_list
+        self.videos_count_label = collection_widget.count_label
         
-        collection_btn_layout = QHBoxLayout()
-        select_all_btn = QPushButton("Select All")
-        select_all_btn.clicked.connect(self.select_all_videos)
-        collection_btn_layout.addWidget(select_all_btn)
+        added_widget = self._create_video_list_section("Added Videos", False)
+        self.added_list = added_widget.videos_list
+        self.added_count_label = added_widget.count_label
         
-        clear_sel_btn = QPushButton("Clear")
-        clear_sel_btn.clicked.connect(self.clear_selection)
-        collection_btn_layout.addWidget(clear_sel_btn)
+        blacklist_widget = self._create_blacklist_section()
+        self.blacklist_list = blacklist_widget.blacklist_list
+        self.blacklist_count_label = blacklist_widget.count_label
         
-        add_btn = QPushButton("Add >>")
-        add_btn.clicked.connect(self.add_selected_videos)
-        collection_btn_layout.addWidget(add_btn)
-        
-        collection_vbox.addLayout(collection_btn_layout)
-        lists_inner.addWidget(collection_widget)
-        
-        added_widget = QWidget()
-        added_vbox = QVBoxLayout(added_widget)
-        added_vbox.addWidget(QLabel("Added Videos"))
-        self.added_count_label = QLabel("Count: 0")
-        added_vbox.addWidget(self.added_count_label)
-        self.added_list = QListWidget()
-        self.added_list.setMinimumHeight(200)
-        added_vbox.addWidget(self.added_list)
-        
-        added_btn_layout = QHBoxLayout()
-        remove_btn = QPushButton("<< Remove")
-        remove_btn.clicked.connect(self.remove_selected_added)
-        added_btn_layout.addWidget(remove_btn)
-        
-        remove_all_btn = QPushButton("Remove All")
-        remove_all_btn.clicked.connect(self.remove_all_added)
-        added_btn_layout.addWidget(remove_all_btn)
-        
-        blacklist_btn = QPushButton("Add to Blacklist >>")
-        blacklist_btn.clicked.connect(self.add_to_blacklist)
-        added_btn_layout.addWidget(blacklist_btn)
-        
-        added_vbox.addLayout(added_btn_layout)
-        lists_inner.addWidget(added_widget)
-        
-        blacklist_widget = QWidget()
-        blacklist_vbox = QVBoxLayout(blacklist_widget)
-        blacklist_vbox.addWidget(QLabel("Blacklist"))
-        self.blacklist_count_label = QLabel("Count: 0")
-        blacklist_vbox.addWidget(self.blacklist_count_label)
-        self.blacklist_list = QListWidget()
-        self.blacklist_list.setMinimumHeight(200)
-        blacklist_vbox.addWidget(self.blacklist_list)
-        
-        blacklist_btn_layout = QHBoxLayout()
-        remove_blacklist_btn = QPushButton("<< Remove")
-        remove_blacklist_btn.clicked.connect(self.remove_from_blacklist)
-        blacklist_btn_layout.addWidget(remove_blacklist_btn)
-        
-        load_blacklist_btn = QPushButton("Load")
-        load_blacklist_btn.clicked.connect(self.load_blacklist_file)
-        blacklist_btn_layout.addWidget(load_blacklist_btn)
-        
-        save_blacklist_btn = QPushButton("Save")
-        save_blacklist_btn.clicked.connect(self.save_blacklist_file)
-        blacklist_btn_layout.addWidget(save_blacklist_btn)
-        
-        blacklist_vbox.addLayout(blacklist_btn_layout)
-        lists_inner.addWidget(blacklist_widget)
+        lists_inner.addWidget(collection_widget.widget)
+        lists_inner.addWidget(added_widget.widget)
+        lists_inner.addWidget(blacklist_widget.widget)
         
         lists_layout.addWidget(lists_container)
         
         time_layout = QHBoxLayout()
-        time_layout.addWidget(QLabel("Start Time:"))
-        self.start_time_edit = QTimeEdit()
-        self.start_time_edit.setDisplayFormat("HH:mm")
-        self.start_time_edit.setTime(QTime(0, 0))
-        time_layout.addWidget(self.start_time_edit)
+        self._setup_time_inputs(time_layout)
 
         self.calc_btn = QPushButton("Auto Calc")
         self.calc_btn.clicked.connect(self.auto_calc_end_time)
         time_layout.addWidget(self.calc_btn)
-        
-        time_layout.addWidget(QLabel("End Time:"))
-        self.end_time_edit = QTimeEdit()
-        self.end_time_edit.setDisplayFormat("HH:mm")
-        self.end_time_edit.setTime(QTime(1, 0))
-        self.end_time_edit.setReadOnly(True)
-        time_layout.addWidget(self.end_time_edit)
         lists_layout.addLayout(time_layout)
 
         self.fill_24h_check = QCheckBox("Fill 24 Hours (loop videos to fill full day)")
@@ -1389,6 +1008,86 @@ class RandomFillDialog(QDialog):
         
         main_layout.addWidget(lists_panel)
 
+    def _create_video_list_section(self, title: str, with_buttons: bool):
+        widget = QWidget()
+        vbox = QVBoxLayout(widget)
+        vbox.addWidget(QLabel(title))
+        
+        count_label = QLabel("Count: 0")
+        vbox.addWidget(count_label)
+        
+        videos_list = QListWidget()
+        videos_list.setMinimumHeight(200)
+        if with_buttons:
+            videos_list.setSelectionMode(QListWidget.MultiSelection)
+            videos_list.itemClicked.connect(self.on_video_selected)
+        vbox.addWidget(videos_list)
+        
+        btn_layout = QHBoxLayout()
+        if with_buttons:
+            select_all_btn = QPushButton("Select All")
+            select_all_btn.clicked.connect(self.select_all_videos)
+            btn_layout.addWidget(select_all_btn)
+            
+            clear_sel_btn = QPushButton("Clear")
+            clear_sel_btn.clicked.connect(self.clear_selection)
+            btn_layout.addWidget(clear_sel_btn)
+            
+            add_btn = QPushButton("Add >>")
+            add_btn.clicked.connect(self.add_selected_videos)
+            btn_layout.addWidget(add_btn)
+        else:
+            remove_btn = QPushButton("<< Remove")
+            remove_btn.clicked.connect(self.remove_selected_added)
+            btn_layout.addWidget(remove_btn)
+            
+            remove_all_btn = QPushButton("Remove All")
+            remove_all_btn.clicked.connect(self.remove_all_added)
+            btn_layout.addWidget(remove_all_btn)
+            
+            blacklist_btn = QPushButton("Add to Blacklist >>")
+            blacklist_btn.clicked.connect(self.add_to_blacklist)
+            btn_layout.addWidget(blacklist_btn)
+        
+        vbox.addLayout(btn_layout)
+        
+        section = type('VideoSection', (), {
+            'widget': widget, 'videos_list': videos_list, 'count_label': count_label
+        })()
+        return section
+
+    def _create_blacklist_section(self):
+        widget = QWidget()
+        vbox = QVBoxLayout(widget)
+        vbox.addWidget(QLabel("Blacklist"))
+        
+        count_label = QLabel("Count: 0")
+        vbox.addWidget(count_label)
+        
+        blacklist_list = QListWidget()
+        blacklist_list.setMinimumHeight(200)
+        vbox.addWidget(blacklist_list)
+        
+        btn_layout = QHBoxLayout()
+        remove_blacklist_btn = QPushButton("<< Remove")
+        remove_blacklist_btn.clicked.connect(self.remove_from_blacklist)
+        btn_layout.addWidget(remove_blacklist_btn)
+        
+        load_blacklist_btn = QPushButton("Load")
+        load_blacklist_btn.clicked.connect(self.load_blacklist_file)
+        btn_layout.addWidget(load_blacklist_btn)
+        
+        save_blacklist_btn = QPushButton("Save")
+        save_blacklist_btn.clicked.connect(self.save_blacklist_file)
+        btn_layout.addWidget(save_blacklist_btn)
+        
+        vbox.addLayout(btn_layout)
+        
+        section = type('BlacklistSection', (), {
+            'widget': widget, 'blacklist_list': blacklist_list, 'count_label': count_label
+        })()
+        return section
+
     def browse_collection(self):
         file_path, _ = QFileDialog.getOpenFileName(
             self, "Select Collection File", "",
@@ -1398,71 +1097,46 @@ class RandomFillDialog(QDialog):
             self.load_collection(file_path)
 
     def load_collection(self, file_path: str):
-        import json
-        from pathlib import Path
-        import configparser
-        try:
-            with open(file_path, 'r') as f:
-                data = json.load(f)
-            self.collection_path.setText(file_path)
-            self.videos_list.clear()
-            self.collection_videos = []
-            self.added_videos = []
-            self.blacklist = []
+        collection_videos, collection_info = load_collection_json(file_path)
+        self.collection_path.setText(file_path)
+        self.videos_list.clear()
+        self.collection_videos = []
+        self.added_videos = []
+        self.blacklist = []
 
-            collection_dir = Path(file_path).parent
-            collection_stem = Path(file_path).stem
-            
-            blacklist_data = []
-            
-            search_dirs = [collection_dir, Path.cwd()]
-            
-            for search_dir in search_dirs:
-                for bl_file in search_dir.glob(f"{collection_stem}_blacklist.*"):
-                    if bl_file.suffix == '.json':
-                        with open(bl_file, 'r') as bf:
-                            blacklist_data = json.load(bf).get('blacklist', [])
-                        break
-                    elif bl_file.suffix == '.ini':
-                        bc = configparser.ConfigParser()
-                        bc.read(bl_file)
-                        if 'Blacklist' in bc:
-                            for key in bc['Blacklist']:
-                                blacklist_data.append({'path': bc['Blacklist'][key]})
-                        break
-                if blacklist_data:
-                    break
+        collection_dir = Path(file_path).parent
+        collection_stem = Path(file_path).stem
+        
+        blacklist_data = []
+        for search_dir in [collection_dir, Path.cwd()]:
+            for bl_file in search_dir.glob(f"{collection_stem}_blacklist.*"):
+                blacklist_data = load_blacklist_json(str(bl_file))
+                break
+            if blacklist_data:
+                break
 
-            collections = data.get('collections', [])
-            for collection in collections:
-                self.info_name.setText(f"Name: {collection.get('name', '-')}")
-                self.info_desc.setText(f"Description: {collection.get('description', '-')}")
-                self.info_genre.setText(f"Genre: {', '.join(collection.get('genre', []))}")
-                self.info_year.setText(f"Year: {collection.get('year', '-')}")
-                
-                for video in collection.get('videos', []):
-                    path = video.get('path', '')
-                    duration = video.get('duration', 0)
-                    video_data = {
-                        'path': path,
-                        'duration': duration,
-                        'name': path.split('/')[-1] if '/' in path else path
-                    }
-                    self.collection_videos.append(video_data)
-                    self.videos_list.addItem(f"{video_data['name']} ({int(duration)}s)")
-                    
-                    if any(b.get('path') == path for b in blacklist_data):
-                        self.blacklist.append(video_data)
+        self.info_name.setText(f"Name: {collection_info.get('name', '-')}")
+        self.info_desc.setText(f"Description: {collection_info.get('description', '-')}")
+        self.info_genre.setText(f"Genre: {', '.join(collection_info.get('genre', []))}")
+        self.info_year.setText(f"Year: {collection_info.get('year', '-')}")
+        
+        for video in collection_videos:
+            path = video.get('path', '')
+            duration = video.get('duration', 0)
+            video_data = {'path': path, 'duration': duration, 'name': get_video_display_name(video)}
+            self.collection_videos.append(video_data)
+            self.videos_list.addItem(f"{video_data['name']} ({format_duration(duration)})")
             
-            for bl_video in blacklist_data:
-                if bl_video not in self.blacklist:
-                    self.blacklist.append(bl_video)
-            
-            self.added_videos = []
-            self.refresh_added_list()
-            self.refresh_blacklist_list()
-        except Exception as e:
-            QMessageBox.warning(self, "Error", f"Failed to load collection: {e}")
+            if any(b.get('path') == path for b in blacklist_data):
+                self.blacklist.append(video_data)
+        
+        for bl_video in blacklist_data:
+            if bl_video not in self.blacklist:
+                self.blacklist.append(bl_video)
+        
+        self.added_videos = []
+        self.refresh_added_list()
+        self.refresh_blacklist_list()
 
     def on_video_selected(self, item):
         row = self.videos_list.row(item)
@@ -1478,8 +1152,7 @@ class RandomFillDialog(QDialog):
         self.videos_list.clearSelection()
 
     def add_selected_videos(self):
-        selected = self.videos_list.selectedItems()
-        for item in selected:
+        for item in self.videos_list.selectedItems():
             row = self.videos_list.row(item)
             if 0 <= row < len(self.collection_videos):
                 video = self.collection_videos[row]
@@ -1492,9 +1165,8 @@ class RandomFillDialog(QDialog):
         self.refresh_added_list()
 
     def remove_selected_added(self):
-        selected_texts = [item.text() for item in self.added_list.selectedItems()]
-        for text in selected_texts:
-            video_name = text.split(' (')[0]
+        for item in self.added_list.selectedItems():
+            video_name = item.text().split(' (')[0]
             self.added_videos = [v for v in self.added_videos if v.get('path', '').split('/')[-1] != video_name]
         self.refresh_added_list()
 
@@ -1504,8 +1176,7 @@ class RandomFillDialog(QDialog):
 
     def add_to_blacklist(self):
         for item in self.added_list.selectedItems():
-            text = item.text()
-            video_name = text.split(' (')[0]
+            video_name = item.text().split(' (')[0]
             for v in self.collection_videos:
                 if v.get('path', '').split('/')[-1] == video_name:
                     if v not in self.blacklist:
@@ -1525,18 +1196,14 @@ class RandomFillDialog(QDialog):
         sorted_added = sorted(self.added_videos, key=lambda v: v.get('path', '').split('/')[-1])
         self.added_list.clear()
         for video in sorted_added:
-            path = video.get('path', '')
-            name = path.split('/')[-1] if '/' in path else path
-            self.added_list.addItem(f"{name} ({int(video.get('duration', 0))}s)")
+            self.added_list.addItem(f"{get_video_display_name(video)} ({format_duration(video.get('duration', 0))})")
         self.update_counts()
 
     def refresh_blacklist_list(self):
         self.blacklist_list.clear()
         sorted_blacklist = sorted(self.blacklist, key=lambda v: v.get('path', '').split('/')[-1])
         for video in sorted_blacklist:
-            path = video.get('path', '')
-            name = path.split('/')[-1] if '/' in path else path
-            self.blacklist_list.addItem(name)
+            self.blacklist_list.addItem(get_video_display_name(video))
         self.update_counts()
 
     def update_counts(self):
@@ -1551,28 +1218,11 @@ class RandomFillDialog(QDialog):
         if not file_path:
             return
         
-        import configparser
-        blacklist_data = []
-        
-        if file_path.endswith('.ini'):
-            bc = configparser.ConfigParser()
-            bc.read(file_path)
-            if 'Blacklist' in bc:
-                for key in bc['Blacklist']:
-                    value = bc['Blacklist'][key]
-                    paths = [p.strip() for p in value.split('\n') if p.strip()]
-                    for path in paths:
-                        blacklist_data.append({'path': path})
-        else:
-            import json
-            with open(file_path, 'r') as bf:
-                blacklist_data = json.load(bf).get('blacklist', [])
-        
+        blacklist_data = load_blacklist_json(file_path)
         self.blacklist = blacklist_data
         self.blacklist_path = file_path
         
-        self.added_videos = [v for v in self.added_videos 
-                           if v.get('path', '') not in [b.get('path', '') for b in self.blacklist]]
+        self.added_videos = filter_videos_by_blacklist(self.added_videos, self.blacklist)
         
         self.refresh_blacklist_list()
         self.refresh_added_list()
@@ -1600,13 +1250,12 @@ class RandomFillDialog(QDialog):
         total_mins = int(total_duration // 60)
         
         start_time = self.start_time_edit.time()
-        start_mins = start_time.hour() * 60 + start_time.minute()
-        end_mins = start_mins + total_mins
-        end_mins = end_mins % (24 * 60)
+        start_mins = qtime_to_minutes(start_time)
+        end_mins = (start_mins + total_mins) % (24 * 60)
         
         self.end_time_edit.setTime(QTime(end_mins // 60, end_mins % 60))
 
-    def get_tag(self) -> Tag:
+    def get_tag(self) -> Optional[Tag]:
         if not self.added_videos:
             QMessageBox.warning(self, "No Videos", "Please add at least one video.")
             return None
@@ -1617,7 +1266,7 @@ class RandomFillDialog(QDialog):
             self.start_time_edit.setTime(QTime(0, 0))
             self.end_time_edit.setTime(QTime(23, 59))
         
-        tag = Tag(
+        return Tag(
             tag_type="random",
             name=self.name_input.text() or "Random Fill",
             start_time=self.start_time_edit.time(),
@@ -1629,7 +1278,6 @@ class RandomFillDialog(QDialog):
             is_random_fill=True,
             fill_24h=fill_24h
         )
-        return tag
 
 
 class ConfigDialog(QDialog):
@@ -1676,13 +1324,11 @@ class ConfigDialog(QDialog):
         layout.addLayout(btn_layout)
 
     def browse_collection_path(self):
-        from PySide6.QtWidgets import QFileDialog
         path = QFileDialog.getExistingDirectory(self, "Select Collection Directory", "")
         if path:
             self.collection_path_edit.setText(path)
 
     def browse_blacklist_path(self):
-        from PySide6.QtWidgets import QFileDialog
         path = QFileDialog.getExistingDirectory(self, "Select Blacklist Directory", "")
         if path:
             self.blacklist_path_edit.setText(path)
@@ -1706,12 +1352,11 @@ class ConfigDialog(QDialog):
         self.accept()
 
 
-class SeriesDialog(QDialog):
+class SeriesDialog(BaseTagDialog):
     def __init__(self, parent=None, tag: Optional[Tag] = None):
-        super().__init__(parent)
+        super().__init__(parent, tag)
         self.setWindowTitle("Edit Series Tag" if tag else "Add Series Tag")
         self.setModal(True)
-        self.collection_videos = []
         self.setup_ui()
         if tag:
             self.name_input.setText(tag.name)
@@ -1729,8 +1374,8 @@ class SeriesDialog(QDialog):
                 for video in self.collection_videos:
                     path = video.get('path', '')
                     duration = video.get('duration', 0)
-                    display_name = path.split('/')[-1] if '/' in path else path
-                    self.videos_list.addItem(f"{display_name} ({int(duration)}s)")
+                    display_name = get_video_display_name(video)
+                    self.videos_list.addItem(f"{display_name} ({format_duration(duration)})")
             if hasattr(tag, 'collection_path') and tag.collection_path:
                 self.collection_path.setText(tag.collection_path)
 
@@ -1792,17 +1437,7 @@ class SeriesDialog(QDialog):
         layout.addLayout(calc_layout)
 
         time_layout = QHBoxLayout()
-        time_layout.addWidget(QLabel("Start Time:"))
-        self.start_time_edit = QTimeEdit()
-        self.start_time_edit.setDisplayFormat("HH:mm")
-        self.start_time_edit.setTime(QTime(0, 0))
-        time_layout.addWidget(self.start_time_edit)
-
-        time_layout.addWidget(QLabel("End Time:"))
-        self.end_time_edit = QTimeEdit()
-        self.end_time_edit.setDisplayFormat("HH:mm")
-        self.end_time_edit.setTime(QTime(1, 0))
-        time_layout.addWidget(self.end_time_edit)
+        self._setup_time_inputs(time_layout)
         layout.addLayout(time_layout)
 
         btn_layout = QHBoxLayout()
@@ -1815,7 +1450,6 @@ class SeriesDialog(QDialog):
         layout.addLayout(btn_layout)
 
     def browse_collection(self):
-        from PySide6.QtWidgets import QFileDialog
         file_path, _ = QFileDialog.getOpenFileName(
             self, "Select Collection File", "",
             "JSON Files (*.json);;All Files (*)"
@@ -1824,30 +1458,16 @@ class SeriesDialog(QDialog):
             self.load_collection(file_path)
 
     def load_collection(self, file_path: str):
-        import json
-        try:
-            with open(file_path, 'r') as f:
-                data = json.load(f)
-            self.collection_path.setText(file_path)
-            self.videos_list.clear()
-            self.collection_videos.clear()
+        collection_videos, _ = load_collection_json(file_path)
+        self.collection_path.setText(file_path)
+        self.videos_list.clear()
+        self.collection_videos = collection_videos
 
-            collections = data.get('collections', [])
-            for collection in collections:
-                for video in collection.get('videos', []):
-                    path = video.get('path', '')
-                    duration = video.get('duration', 0)
-                    video_data = {
-                        'path': path,
-                        'duration': duration,
-                        'name': path.split('/')[-1] if '/' in path else path
-                    }
-                    self.collection_videos.append(video_data)
-                    display_name = path.split('/')[-1] if '/' in path else path
-                    self.videos_list.addItem(f"{display_name} ({int(duration)}s)")
-        except Exception as e:
-            from PySide6.QtWidgets import QMessageBox
-            QMessageBox.warning(self, "Error", f"Failed to load collection: {e}")
+        for video in collection_videos:
+            path = video.get('path', '')
+            duration = video.get('duration', 0)
+            display_name = get_video_display_name(video)
+            self.videos_list.addItem(f"{display_name} ({format_duration(duration)})")
 
     def auto_calc_end_time(self):
         if not self.collection_videos:
@@ -1856,49 +1476,30 @@ class SeriesDialog(QDialog):
         start_season = self.start_season_spin.value()
         start_episode = self.start_episode_spin.value()
         
-        parsed_videos = []
-        for vid in self.collection_videos:
-            path = vid.get('path', '')
-            name = path.split('/')[-1] if '/' in path else path
-            season, episode = 1, 1
-            match = re.search(r'[Ss](\d+)[Ee](\d+)', name)
-            if match:
-                season = int(match.group(1))
-                episode = int(match.group(2))
-            else:
-                match = re.search(r'Season\s*(\d+)\s*Episode\s*(\d+)', name, re.IGNORECASE)
-                if match:
-                    season = int(match.group(1))
-                    episode = int(match.group(2))
-            parsed_videos.append({
-                'video': vid,
-                'season': season,
-                'episode': episode
-            })
+        videos_to_use, _ = parse_videos_for_series(
+            self.collection_videos,
+            start_season,
+            start_episode,
+            self.play_mode_combo.currentText(),
+            self.video_count_spin.value()
+        )
         
-        filtered = [v for v in parsed_videos if v['season'] > start_season or (v['season'] == start_season and v['episode'] >= start_episode)]
-        
-        video_count = self.video_count_spin.value()
-        videos_to_use = filtered[:video_count]
         total_duration = sum(v['video'].get('duration', 0) for v in videos_to_use)
-        
         total_mins = int(total_duration / 60)
 
         start_time = self.start_time_edit.time()
-        start_mins = start_time.hour() * 60 + start_time.minute()
-        end_mins = start_mins + total_mins
-        end_mins = end_mins % (24 * 60)
+        start_mins = qtime_to_minutes(start_time)
+        end_mins = (start_mins + total_mins) % (24 * 60)
 
         self.end_time_edit.setTime(QTime(end_mins // 60, end_mins % 60))
 
     def get_tag(self) -> Optional[Tag]:
         if not self.name_input.text():
-            from PySide6.QtWidgets import QMessageBox
             QMessageBox.warning(self, "No Name", "Please enter a name.")
             return None
         
         self.auto_calc_end_time()
-        tag = Tag(
+        return Tag(
             tag_type="custom",
             name=self.name_input.text(),
             start_time=self.start_time_edit.time(),
@@ -1911,7 +1512,6 @@ class SeriesDialog(QDialog):
             start_episode=self.start_episode_spin.value(),
             play_mode=self.play_mode_combo.currentText()
         )
-        return tag
 
 
 class MainWindow(QMainWindow):
@@ -2136,7 +1736,7 @@ class MainWindow(QMainWindow):
         days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
         
         for day_offset in range(7):
-            current_date = start_date + timedelta(days=day_offset)
+            current_date = start_date + __import__('datetime').timedelta(days=day_offset)
             day_name = days[current_date.weekday()]
             self.preview_list.addItem(f"=== {current_date} - {day_name} ===")
             self.tag_manager.clear_cache()
@@ -2160,7 +1760,7 @@ class MainWindow(QMainWindow):
         days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
         
         for day_offset in range(30):
-            current_date = start_date + timedelta(days=day_offset)
+            current_date = start_date + __import__('datetime').timedelta(days=day_offset)
             day_name = days[current_date.weekday()]
             self.preview_list.addItem(f"=== {current_date} - {day_name} ===")
             self.tag_manager.clear_cache()
@@ -2190,14 +1790,6 @@ class MainWindow(QMainWindow):
     def open_config(self):
         dialog = ConfigDialog(self)
         dialog.exec()
-
-    def add_tag(self):
-        dialog = TagDialog(self)
-        if dialog.exec():
-            tag = dialog.get_tag()
-            self.tag_manager.add_tag(tag)
-            self.refresh_tags_list()
-            self.refresh_preview()
 
     def add_custom_tag(self):
         dialog = TagDialog(self)
@@ -2267,8 +1859,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "No Selection", "Please select a tag to delete.")
             return
 
-        reply = QMessageBox.question(self, "Confirm Delete",
-                                 "Are you sure you want to delete this tag?")
+        reply = QMessageBox.question(self, "Confirm Delete", "Are you sure you want to delete this tag?")
         if reply == QMessageBox.Yes:
             self.tag_manager.remove_tag(current_row)
             self.refresh_tags_list()
@@ -2308,31 +1899,8 @@ class MainWindow(QMainWindow):
         tag = self.tag_manager.tags[current_row]
         file_path, _ = QFileDialog.getSaveFileName(self, "Save Tag", "", "INI Files (*.ini);;All Files (*)")
         if file_path:
-            import json
-            config = configparser.ConfigParser()
-            
-            if getattr(tag, 'is_series', False):
-                tag_type = "series"
-                start_season = str(getattr(tag, 'start_season', 1))
-                start_episode = str(getattr(tag, 'start_episode', 1))
-                play_mode = getattr(tag, 'play_mode', 'sequence')
-                video_count = str(getattr(tag, 'video_count', 1))
-                collection_path = getattr(tag, 'collection_path', '')
-                config['Tag'] = {'data': f"{tag_type}|{tag.name}|{tag.start_time.toString('HH:mm')}|{tag.end_time.toString('HH:mm')}|{start_season}|{start_episode}|{play_mode}|{video_count}|{collection_path}"}
-            elif getattr(tag, 'is_random_fill', False):
-                tag_type = "random"
-                collection_path = getattr(tag, 'collection_path', '')
-                blacklist_path = getattr(tag, 'blacklist_path', '')
-                fill_24h = "1" if getattr(tag, 'fill_24h', False) else "0"
-                config['Tag'] = {'data': f"{tag_type}|{tag.name}|{tag.start_time.toString('HH:mm')}|{tag.end_time.toString('HH:mm')}|{collection_path}|{blacklist_path}|{fill_24h}"}
-            else:
-                tag_type = "custom"
-                is_random = "1" if getattr(tag, 'randomize_videos', False) else "0"
-                video_count = str(getattr(tag, 'video_count', 1))
-                collection_path = getattr(tag, 'collection_path', '')
-                config['Tag'] = {'data': f"{tag_type}|{tag.name}|{tag.start_time.toString('HH:mm')}|{tag.end_time.toString('HH:mm')}|{is_random}|{video_count}|{collection_path}"}
-            with open(file_path, 'w') as f:
-                config.write(f)
+            from serialization import save_single_tag_to_ini
+            save_single_tag_to_ini(tag, file_path)
             self.statusBar().showMessage(f"Tag saved to {file_path}")
 
     def load_single_tag(self):
@@ -2340,91 +1908,15 @@ class MainWindow(QMainWindow):
         if not file_path:
             return
 
-        import json
-        if not Path(file_path).exists():
-            QMessageBox.warning(self, "Error", "File not found.")
-            return
-
-        config = configparser.ConfigParser()
-        config.read(file_path)
-        if 'Tag' not in config:
-            QMessageBox.warning(self, "Error", "Invalid tag file.")
-            return
-
-        parts = config['Tag']['data'].split('|')
-        if len(parts) < 4:
-            return
-        
-        tag_type = parts[0]
-        name = parts[1]
-        start = parts[2]
-        end = parts[3]
-        
-        collection_videos = []
-        collection_path = ""
-        
-        if tag_type == 'series':
-            start_season = int(parts[4]) if len(parts) >= 5 and parts[4].isdigit() else 1
-            start_episode = int(parts[5]) if len(parts) >= 6 and parts[5].isdigit() else 1
-            play_mode = parts[6] if len(parts) >= 7 else "sequence"
-            video_count = int(parts[7]) if len(parts) >= 8 and parts[7].isdigit() else 1
-            collection_path = parts[8] if len(parts) >= 9 else ""
-            
-            if collection_path and Path(collection_path).exists():
-                try:
-                    with open(collection_path, 'r') as f:
-                        data = json.load(f)
-                    collections = data.get('collections', [])
-                    for collection in collections:
-                        for video in collection.get('videos', []):
-                            collection_videos.append(video)
-                except:
-                    pass
-            
-            tag = Tag('custom', name, QTime.fromString(start, 'HH:mm'), QTime.fromString(end, 'HH:mm'), collection_videos, collection_path, video_count=video_count, is_series=True, start_season=start_season, start_episode=start_episode, play_mode=play_mode)
+        from serialization import load_single_tag_from_ini
+        tag = load_single_tag_from_ini(file_path, Tag, QTime.fromString)
+        if tag:
             self.tag_manager.add_tag(tag)
-        elif tag_type == 'random':
-            collection_path = parts[4] if len(parts) >= 5 else ""
-            blacklist_path = parts[5] if len(parts) >= 6 else ""
-            fill_24h = len(parts) >= 7 and parts[6] == "1"
-            
-            if collection_path and Path(collection_path).exists():
-                try:
-                    with open(collection_path, 'r') as f:
-                        data = json.load(f)
-                    collections = data.get('collections', [])
-                    for collection in collections:
-                        for video in collection.get('videos', []):
-                            collection_videos.append(video)
-                except:
-                    pass
-            
-            tag = Tag('random', name, QTime.fromString(start, 'HH:mm'), QTime.fromString(end, 'HH:mm'), collection_videos, collection_path, is_random_fill=True)
-            tag.blacklist_path = blacklist_path
-            tag.fill_24h = fill_24h
-            self.tag_manager.add_tag(tag)
+            self.refresh_tags_list()
+            self.refresh_preview()
+            self.statusBar().showMessage(f"Tag loaded from {file_path}")
         else:
-            is_random_videos = len(parts) >= 5 and parts[4] == "1"
-            video_count = int(parts[5]) if len(parts) >= 6 and parts[5].isdigit() else 1
-            collection_path = parts[6] if len(parts) >= 7 else ""
-            
-            if collection_path and Path(collection_path).exists():
-                try:
-                    with open(collection_path, 'r') as f:
-                        data = json.load(f)
-                    collections = data.get('collections', [])
-                    for collection in collections:
-                        for video in collection.get('videos', []):
-                            collection_videos.append(video)
-                except:
-                    pass
-            
-            tag = Tag('custom', name, QTime.fromString(start, 'HH:mm'), QTime.fromString(end, 'HH:mm'), collection_videos, collection_path, is_random_videos, video_count)
-            self.tag_manager.add_tag(tag)
-
-        self.refresh_tags_list()
-        self.refresh_preview()
-        self.statusBar().showMessage(f"Tag loaded from {file_path}")
+            QMessageBox.warning(self, "Error", "Failed to load tag.")
 
 
 def main():
