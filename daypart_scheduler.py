@@ -631,11 +631,12 @@ class ScheduleGenerator:
                 custom_start = max(original_start, next_custom_pos)
                 custom_end = custom_start + (original_end - original_start)
 
-                while current_pos < custom_start and rand_idx < len(base_entries):
-                    dur = min(90, base_entries[rand_idx].end_minutes - base_entries[rand_idx].start_minutes)
-                    final.append(ScheduleEntry(1, current_pos, current_pos + dur, base_entries[rand_idx].video_name))
-                    current_pos += dur
-                    rand_idx += 1
+                # Don't pre-fill before tags - only show explicit tag entries
+                # while current_pos < custom_start and rand_idx < len(base_entries):
+                #     dur = min(90, base_entries[rand_idx].end_minutes - base_entries[rand_idx].start_minutes)
+                #     final.append(ScheduleEntry(1, current_pos, current_pos + dur, base_entries[rand_idx].video_name))
+                #     current_pos += dur
+                #     rand_idx += 1
 
                 if ct.collection_videos:
                     for m in range(custom_start, custom_end):
@@ -682,11 +683,12 @@ class ScheduleGenerator:
                 series_start = max(original_start, next_custom_pos)
                 series_end = series_start + (original_end - original_start)
 
-                while current_pos < series_start and rand_idx < len(base_entries):
-                    dur = min(90, base_entries[rand_idx].end_minutes - base_entries[rand_idx].start_minutes)
-                    final.append(ScheduleEntry(1, current_pos, current_pos + dur, base_entries[rand_idx].video_name))
-                    current_pos += dur
-                    rand_idx += 1
+                # Don't pre-fill before series - only show explicit tag entries
+                # while current_pos < series_start and rand_idx < len(base_entries):
+                #     dur = min(90, base_entries[rand_idx].end_minutes - base_entries[rand_idx].start_minutes)
+                #     final.append(ScheduleEntry(1, current_pos, current_pos + dur, base_entries[rand_idx].video_name))
+                #     current_pos += dur
+                #     rand_idx += 1
 
                 if st.collection_videos:
                     for m in range(series_start, series_end):
