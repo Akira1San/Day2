@@ -18,9 +18,9 @@ def load_collection_json(file_path: str) -> Tuple[List[Dict[str, Any]], Dict[str
             data = json.load(f)
         
         collections = data.get('collections', [])
-        for collection in collections:
-            collection_info = collection
-            for video in collection.get('videos', []):
+        if collections:
+            collection_info = collections[0]
+            for video in collection_info.get('videos', []):
                 collection_videos.append(video)
     except Exception:
         pass
