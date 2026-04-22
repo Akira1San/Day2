@@ -252,8 +252,7 @@ class TagDialog(BaseTagDialog):
             collection_videos=self.collection_videos.copy(),
             collection_path=self.collection_path.text(),
             video_count=self.video_count_spin.value(),
-            blacklist=self.blacklist.copy(),
-            channel=self.channel_combo.currentText()
+            blacklist=self.blacklist.copy()
         )
 
     def auto_calc_end_time(self):
@@ -288,7 +287,6 @@ class RandomFillDialog(BaseTagDialog):
         self.collection_profile = ""
         self.blacklist_profile = ""
         self.setup_ui()
-        self.load_channels()
         self.load_available_profiles()
         
         if tag:
@@ -348,11 +346,6 @@ class RandomFillDialog(BaseTagDialog):
         name_layout.addWidget(QLabel("Name:"))
         self.name_input = QLineEdit()
         name_layout.addWidget(self.name_input)
-        
-        name_layout.addWidget(QLabel("Channel:"))
-        self.channel_combo = QComboBox()
-        self.channel_combo.setEditable(True)
-        name_layout.addWidget(self.channel_combo)
         name_layout.addStretch()
         
         profile_layout = QHBoxLayout()
@@ -750,7 +743,6 @@ class RandomFillDialog(BaseTagDialog):
             blacklist_path=self.blacklist_path,
             is_random_fill=True,
             fill_24h=fill_24h,
-            channel=self.channel_combo.currentText(),
             collection_profile=self.collection_profile_combo.currentText(),
             blacklist_profile=self.blacklist_profile_combo.currentText()
         )
