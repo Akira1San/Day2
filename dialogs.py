@@ -1042,10 +1042,19 @@ class SeriesDialog(BaseTagDialog):
             bl_name = self.blacklist_profile_combo.itemText(i)
             if collection_name in bl_name:
                 self.blacklist_profile_combo.setCurrentIndex(i)
+                bl_file = Path(blacklist_path) / bl_name
+                if bl_file.exists():
+                    self.load_blacklist_file(str(bl_file))
                 break
 
     def blacklist_profile_selected(self, index):
-        pass
+        if index <= 0:
+            return
+        file_name = self.blacklist_profile_combo.currentText()
+        _, blacklist_path = get_config_paths()
+        file_path = Path(blacklist_path) / file_name
+        if file_path.exists():
+            self.load_blacklist_file(str(file_path))
 
     def auto_calc_end_time(self):
         if not self.collection_videos:
