@@ -199,15 +199,19 @@ class TagDialog(BaseTagDialog):
                 self.collection_profile_combo.addItem(json_file.name)
 
         blck_path = Path(blacklist_path)
+        blacklist_files = set()
         if blck_path.exists():
             for ini_file in sorted(blck_path.glob("*_blacklist.ini")):
-                self.blacklist_profile_combo.addItem(ini_file.name)
+                blacklist_files.add(ini_file.name)
             for ini_file in sorted(blck_path.glob("*blacklist*.ini")):
-                self.blacklist_profile_combo.addItem(ini_file.name)
+                blacklist_files.add(ini_file.name)
         
         if blck_path != Path('.'):
             for ini_file in sorted(Path('.').glob("*blacklist*.ini")):
-                self.blacklist_profile_combo.addItem(ini_file.name)
+                blacklist_files.add(ini_file.name)
+        
+        for name in sorted(blacklist_files):
+            self.blacklist_profile_combo.addItem(name)
 
     def profile_selected(self, index):
         if index <= 0:
@@ -522,15 +526,19 @@ class RandomFillDialog(BaseTagDialog):
                 self.collection_profile_combo.addItem(json_file.name)
 
         blck_path = Path(blacklist_path)
+        blacklist_files = set()
         if blck_path.exists():
             for ini_file in sorted(blck_path.glob("*_blacklist.ini")):
-                self.blacklist_profile_combo.addItem(ini_file.name)
+                blacklist_files.add(ini_file.name)
             for ini_file in sorted(blck_path.glob("*blacklist*.ini")):
-                self.blacklist_profile_combo.addItem(ini_file.name)
+                blacklist_files.add(ini_file.name)
         
         if blck_path != Path('.'):
             for ini_file in sorted(Path('.').glob("*blacklist*.ini")):
-                self.blacklist_profile_combo.addItem(ini_file.name)
+                blacklist_files.add(ini_file.name)
+        
+        for name in sorted(blacklist_files):
+            self.blacklist_profile_combo.addItem(name)
 
     def collection_profile_selected(self, index):
         if index <= 0:
@@ -995,15 +1003,19 @@ class SeriesDialog(BaseTagDialog):
                 self.collection_profile_combo.addItem(json_file.name)
 
         blck_path = Path(blacklist_path)
+        blacklist_files = set()
         if blck_path.exists():
             for ini_file in sorted(blck_path.glob("*_blacklist.ini")):
-                self.blacklist_profile_combo.addItem(ini_file.name)
+                blacklist_files.add(ini_file.name)
             for ini_file in sorted(blck_path.glob("*blacklist*.ini")):
-                self.blacklist_profile_combo.addItem(ini_file.name)
+                blacklist_files.add(ini_file.name)
         
         if blck_path != Path('.'):
             for ini_file in sorted(Path('.').glob("*blacklist*.ini")):
-                self.blacklist_profile_combo.addItem(ini_file.name)
+                blacklist_files.add(ini_file.name)
+        
+        for name in sorted(blacklist_files):
+            self.blacklist_profile_combo.addItem(name)
 
     def collection_profile_selected(self, index):
         if index <= 0:
