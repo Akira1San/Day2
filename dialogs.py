@@ -881,6 +881,20 @@ class SeriesDialog(BaseTagDialog):
         self.name_input = QLineEdit()
         layout.addWidget(self.name_input)
 
+        profile_layout = QHBoxLayout()
+        profile_layout.addWidget(QLabel("Collection Profile:"))
+        self.collection_profile_combo = QComboBox()
+        self.collection_profile_combo.currentIndexChanged.connect(self.collection_profile_selected)
+        profile_layout.addWidget(self.collection_profile_combo)
+        
+        profile_layout.addWidget(QLabel("Blacklist Profile:"))
+        self.blacklist_profile_combo = QComboBox()
+        self.blacklist_profile_combo.currentIndexChanged.connect(self.blacklist_profile_selected)
+        profile_layout.addWidget(self.blacklist_profile_combo)
+        
+        profile_layout.addStretch()
+        layout.addLayout(profile_layout)
+
         collection_layout = QHBoxLayout()
         collection_layout.addWidget(QLabel("Collection:"))
         self.collection_path = QLineEdit()
@@ -891,11 +905,6 @@ class SeriesDialog(BaseTagDialog):
         browse_btn = QPushButton("Browse")
         browse_btn.clicked.connect(self.browse_collection)
         collection_layout.addWidget(browse_btn)
-        
-        collection_layout.addWidget(QLabel("Profile:"))
-        self.collection_profile_combo = QComboBox()
-        self.collection_profile_combo.currentIndexChanged.connect(self.collection_profile_selected)
-        collection_layout.addWidget(self.collection_profile_combo)
         
         collection_layout.addStretch()
         layout.addLayout(collection_layout)
@@ -928,11 +937,6 @@ class SeriesDialog(BaseTagDialog):
         self.play_mode_combo = QComboBox()
         self.play_mode_combo.addItems(["sequence", "random"])
         series_layout.addWidget(self.play_mode_combo)
-        
-        series_layout.addWidget(QLabel("Blacklist Profile:"))
-        self.blacklist_profile_combo = QComboBox()
-        self.blacklist_profile_combo.currentIndexChanged.connect(self.blacklist_profile_selected)
-        series_layout.addWidget(self.blacklist_profile_combo)
         
         series_layout.addStretch()
         layout.addLayout(series_layout)
