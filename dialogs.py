@@ -613,7 +613,7 @@ class RandomFillDialog(BaseTagDialog):
             else:
                 text = item.text()
                 video_name = text.split(' (')[0]
-                video = {'path': f"/home/akira/Videos/Akiratv/{video_name}"}
+                video = {'name': video_name}
             if video not in self.added_videos:
                 self.added_videos.append(video)
         self.refresh_added_list()
@@ -760,10 +760,12 @@ class ConfigDialog(QDialog):
     def setup_ui(self):
         layout = QVBoxLayout(self)
 
+        collection_path, blacklist_path = get_config_paths()
+
         layout.addWidget(QLabel("Collection Path:"))
         collection_layout = QHBoxLayout()
         self.collection_path_edit = QLineEdit()
-        self.collection_path_edit.setPlaceholderText("/home/akira/akira/AkiraTV_NEW/user/collections/")
+        self.collection_path_edit.setPlaceholderText(collection_path)
         collection_layout.addWidget(self.collection_path_edit)
         
         browse_col_btn = QPushButton("Browse")
@@ -774,7 +776,7 @@ class ConfigDialog(QDialog):
         layout.addWidget(QLabel("Blacklist Path:"))
         blacklist_layout = QHBoxLayout()
         self.blacklist_path_edit = QLineEdit()
-        self.blacklist_path_edit.setPlaceholderText("/home/akira/akira/AkiraTV_NEW/user/blacklists/")
+        self.blacklist_path_edit.setPlaceholderText(blacklist_path)
         blacklist_layout.addWidget(self.blacklist_path_edit)
         
         browse_bl_btn = QPushButton("Browse")
