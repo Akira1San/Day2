@@ -205,6 +205,10 @@ class TagDialog(BaseTagDialog):
                 blacklist_files.add(ini_file.name)
             for ini_file in sorted(blck_path.glob("*blacklist*.ini")):
                 blacklist_files.add(ini_file.name)
+            for ini_file in sorted(blck_path.glob("**/*_blacklist.ini"), key=lambda p: p.name):
+                blacklist_files.add(ini_file.name)
+            for ini_file in sorted(blck_path.glob("**/*blacklist*.ini"), key=lambda p: p.name):
+                blacklist_files.add(ini_file.name)
         
         for ini_file in sorted(Path('.').glob("*blacklist*.ini")):
             blacklist_files.add(ini_file.name)
@@ -530,6 +534,10 @@ class RandomFillDialog(BaseTagDialog):
             for ini_file in sorted(blck_path.glob("*_blacklist.ini")):
                 blacklist_files.add(ini_file.name)
             for ini_file in sorted(blck_path.glob("*blacklist*.ini")):
+                blacklist_files.add(ini_file.name)
+            for ini_file in sorted(blck_path.glob("**/*_blacklist.ini"), key=lambda p: p.name):
+                blacklist_files.add(ini_file.name)
+            for ini_file in sorted(blck_path.glob("**/*blacklist*.ini"), key=lambda p: p.name):
                 blacklist_files.add(ini_file.name)
         
         for ini_file in sorted(Path('.').glob("*blacklist*.ini")):
@@ -1017,6 +1025,10 @@ class SeriesDialog(BaseTagDialog):
             for ini_file in sorted(blck_path.glob("*_blacklist.ini")):
                 blacklist_files.add(ini_file.name)
             for ini_file in sorted(blck_path.glob("*blacklist*.ini")):
+                blacklist_files.add(ini_file.name)
+            for ini_file in sorted(blck_path.glob("**/*_blacklist.ini"), key=lambda p: p.name):
+                blacklist_files.add(ini_file.name)
+            for ini_file in sorted(blck_path.glob("**/*blacklist*.ini"), key=lambda p: p.name):
                 blacklist_files.add(ini_file.name)
         
         for ini_file in sorted(Path('.').glob("*blacklist*.ini")):
