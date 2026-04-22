@@ -285,8 +285,11 @@ class RandomFillDialog(BaseTagDialog):
         self.setModal(True)
         self.added_videos = []
         self.blacklist_path = ""
+        self.collection_profile = ""
+        self.blacklist_profile = ""
         self.setup_ui()
         self.load_channels()
+        self.load_available_profiles()
         
         if tag:
             self.name_input.setText(tag.name)
@@ -298,6 +301,18 @@ class RandomFillDialog(BaseTagDialog):
             
             if tag.collection_videos and tag.collection_path:
                 self.load_collection(tag.collection_path)
+            
+            collection_profile = getattr(tag, 'collection_profile', '')
+            if collection_profile:
+                index = self.collection_profile_combo.findText(collection_profile)
+                if index >= 0:
+                    self.collection_profile_combo.setCurrentIndex(index)
+            
+            blacklist_profile = getattr(tag, 'blacklist_profile', '')
+            if blacklist_profile:
+                index = self.blacklist_profile_combo.findText(blacklist_profile)
+                if index >= 0:
+                    self.blacklist_profile_combo.setCurrentIndex(index)
 
     def setup_ui(self):
         main_layout = QHBoxLayout(self)
@@ -340,6 +355,19 @@ class RandomFillDialog(BaseTagDialog):
         name_layout.addWidget(self.channel_combo)
         name_layout.addStretch()
         
+        profile_layout = QHBoxLayout()
+        profile_layout.addWidget(QLabel("Collection Profile:"))
+        self.collection_profile_combo = QComboBox()
+        self.collection_profile_combo.currentIndexChanged.connect(self.collection_profile_selected)
+        profile_layout.addWidget(self.collection_profile_combo)
+        
+        profile_layout.addWidget(QLabel("Blacklist Profile:"))
+        self.blacklist_profile_combo = QComboBox()
+        self.blacklist_profile_combo.currentIndexChanged.connect(self.blacklist_profile_selected)
+        profile_layout.addWidget(self.blacklist_profile_combo)
+        
+        profile_layout.addStretch()
+        
         coll_layout = QHBoxLayout()
         coll_layout.addWidget(QLabel("Collection:"))
         self.collection_path = QLineEdit()
@@ -351,7 +379,10 @@ class RandomFillDialog(BaseTagDialog):
         browse_btn.clicked.connect(self.browse_collection)
         coll_layout.addWidget(browse_btn)
         
+        coll_layout.addStretch()
+        
         lists_layout.addLayout(name_layout)
+        lists_layout.addLayout(profile_layout)
         lists_layout.addLayout(coll_layout)
         
         lists_container = QWidget()
@@ -485,6 +516,46 @@ class RandomFillDialog(BaseTagDialog):
         )
         if file_path:
             self.load_collection(file_path)
+
+    def load_available_profiles(self):
+        collection_path, blacklist_path = get_config_paths()
+
+        self.collection_profile_combo.addItem("-- None --")
+        self.blacklist_profile_combo.addItem("-- None --")
+
+        coll_path = Path(collection_path)
+        if coll_path.exists():
+            for json_file in sorted(coll_path.glob("*.json")):
+                self.collection_profile_combo.addItem(json_file.name)
+
+        blck_path = Path(blacklist_path)
+        if blck_path.exists():
+            for ini_file in sorted(blck_path.glob("*_blacklist.ini")):
+                self.blacklist_profile_combo.addItem(ini_file.name)
+            for ini_file in sorted(blck_path.glob("*blacklist*.ini")):
+                self.blacklist_profile_combo.addItem(ini_file.name)
+        
+        if blck_path != Path('.'):
+            for ini_file in sorted(Path('.').glob("*blacklist*.ini")):
+                self.blacklist_profile_combo.addItem(ini_file.name)
+
+    def collection_profile_selected(self, index):
+        if index <= 0:
+            return
+        file_name = self.collection_profile_combo.currentText()
+        collection_path, _ = get_config_paths()
+        file_path = Path(collection_path) / file_name
+        if file_path.exists():
+            self.load_collection(str(file_path))
+
+    def blacklist_profile_selected(self, index):
+        if index <= 0:
+            return
+        file_name = self.blacklist_profile_combo.currentText()
+        _, blacklist_path = get_config_paths()
+        file_path = Path(blacklist_path) / file_name
+        if file_path.exists():
+            self.load_blacklist_file(str(file_path))
 
     def load_collection(self, file_path: str):
         collection_videos, collection_info = load_collection_json(file_path)
@@ -679,7 +750,9 @@ class RandomFillDialog(BaseTagDialog):
             blacklist_path=self.blacklist_path,
             is_random_fill=True,
             fill_24h=fill_24h,
-            channel=self.channel_combo.currentText()
+            channel=self.channel_combo.currentText(),
+            collection_profile=self.collection_profile_combo.currentText(),
+            blacklist_profile=self.blacklist_profile_combo.currentText()
         )
 
 

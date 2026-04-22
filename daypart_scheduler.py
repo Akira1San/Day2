@@ -392,7 +392,9 @@ class MainWindow(QMainWindow):
                 new_tag.blacklist if hasattr(new_tag, 'blacklist') else [],
                 new_tag.blacklist_path if hasattr(new_tag, 'blacklist_path') else '',
                 new_tag.fill_24h if hasattr(new_tag, 'fill_24h') else False,
-                new_tag.channel if hasattr(new_tag, 'channel') else ''
+                new_tag.channel if hasattr(new_tag, 'channel') else '',
+                new_tag.collection_profile if hasattr(new_tag, 'collection_profile') else '',
+                new_tag.blacklist_profile if hasattr(new_tag, 'blacklist_profile') else ''
             )
             self.refresh_tags_list()
             self.refresh_preview()

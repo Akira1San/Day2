@@ -24,7 +24,9 @@ class Tag:
                  start_episode: int = 1,
                  play_mode: str = "sequence",
                  fill_24h: bool = False,
-                 channel: str = ""):
+                 channel: str = "",
+                 collection_profile: str = "",
+                 blacklist_profile: str = ""):
         self.tag_type = tag_type
         self.name = name
         self.start_time = start_time or QTime(0, 0)
@@ -42,13 +44,23 @@ class Tag:
         self.play_mode = play_mode
         self.fill_24h = fill_24h
         self.channel = channel
+        self.collection_profile = collection_profile
+        self.blacklist_profile = blacklist_profile
 
     def to_display_string(self) -> str:
         if self.tag_type == "random" or self.is_random_fill:
             fill_24h = getattr(self, 'fill_24h', False)
+            collection_profile = getattr(self, 'collection_profile', '')
+            blacklist_profile = getattr(self, 'blacklist_profile', '')
+            profile_info = []
+            if collection_profile:
+                profile_info.append(f"col:{collection_profile}")
+            if blacklist_profile:
+                profile_info.append(f"blk:{blacklist_profile}")
+            profile_str = f" ({', '.join(profile_info)})" if profile_info else ""
             if fill_24h:
-                return f"[R] {self.name} (24h Fill)"
-            return f"[R] {self.name} ({self.start_time.toString('HH:mm')}-{self.end_time.toString('HH:mm')})"
+                return f"[R] {self.name} (24h Fill){profile_str}"
+            return f"[R] {self.name} ({self.start_time.toString('HH:mm')}-{self.end_time.toString('HH:mm')}){profile_str}"
         if self.is_series:
             return f"[S] {self.name} ({self.start_time.toString('HH:mm')}-{self.end_time.toString('HH:mm')})"
         if self.randomize_videos:
@@ -133,8 +145,9 @@ class TagManager:
              collection_videos: List[dict] = None, collection_path: str = "",
              video_count: int = 1, is_series: bool = False,
              start_season: int = 1, start_episode: int = 1, play_mode: str = "sequence",
-             is_random_fill: bool = False, blacklist: List[dict] = None,
-             blacklist_path: str = "", fill_24h: bool = False, channel: str = "") -> bool:
+is_random_fill: bool = False, blacklist: List[dict] = None,
+                  blacklist_path: str = "", fill_24h: bool = False, channel: str = "",
+                  collection_profile: str = "", blacklist_profile: str = "") -> bool:
         if 0 <= index < len(self.tags):
             t = self.tags[index]
             t.name = name
@@ -152,6 +165,8 @@ class TagManager:
             t.blacklist_path = blacklist_path
             t.fill_24h = fill_24h
             t.channel = channel
+            t.collection_profile = collection_profile
+            t.blacklist_profile = blacklist_profile
             return True
         return False
 

@@ -18,7 +18,9 @@ def serialize_tag_to_string(tag) -> str:
         tag_type = "random"
         blacklist_path = getattr(tag, 'blacklist_path', '')
         fill_24h = "1" if getattr(tag, 'fill_24h', False) else "0"
-        return f"{tag_type}|{tag.name}|{tag.start_time.toString('HH:mm')}|{tag.end_time.toString('HH:mm')}|{getattr(tag, 'collection_path', '')}|{blacklist_path}|{fill_24h}"
+        collection_profile = getattr(tag, 'collection_profile', '')
+        blacklist_profile = getattr(tag, 'blacklist_profile', '')
+        return f"{tag_type}|{tag.name}|{tag.start_time.toString('HH:mm')}|{tag.end_time.toString('HH:mm')}|{getattr(tag, 'collection_path', '')}|{blacklist_path}|{fill_24h}|{collection_profile}|{blacklist_profile}"
     
     else:
         tag_type = "custom"
@@ -73,6 +75,8 @@ def deserialize_tag_from_string(data: str, tag_class, qtime_from_string):
         collection_path = parts[4] if len(parts) >= 5 else ""
         blacklist_path = parts[5] if len(parts) >= 6 else ""
         fill_24h = len(parts) >= 7 and parts[6] == "1"
+        collection_profile = parts[7] if len(parts) >= 8 else ""
+        blacklist_profile = parts[8] if len(parts) >= 9 else ""
         
         if collection_path:
             collection_videos = load_collection_videos_only(collection_path)
@@ -82,7 +86,8 @@ def deserialize_tag_from_string(data: str, tag_class, qtime_from_string):
         
         return tag_class('random', name, qtime_from_string(start, 'HH:mm'), qtime_from_string(end, 'HH:mm'),
                         collection_videos, collection_path, is_random_fill=True,
-                        blacklist=blacklist, blacklist_path=blacklist_path, fill_24h=fill_24h)
+                        blacklist=blacklist, blacklist_path=blacklist_path, fill_24h=fill_24h,
+                        collection_profile=collection_profile, blacklist_profile=blacklist_profile)
     
     else:
         is_random_videos = len(parts) >= 5 and parts[4] == "1"
