@@ -410,7 +410,11 @@ class MainWindow(QMainWindow):
             self.refresh_preview()
 
     def copy_preview(self):
-        text = "\n".join(entry.to_copy_string() for entry in self.schedule_entries)
+        if self.weekly_radio.isChecked() or self.monthly_radio.isChecked():
+            items = [self.preview_list.item(i).text() for i in range(self.preview_list.count())]
+            text = "\n".join(items)
+        else:
+            text = "\n".join(entry.to_copy_string() for entry in self.schedule_entries)
         clipboard = QApplication.instance().clipboard()
         clipboard.setText(text)
         QMessageBox.information(self, "Copied", "Schedule copied to clipboard!")
