@@ -249,16 +249,21 @@ class ScheduleGenerator:
             for m in range(start_min, end_min):
                 occupied.add(m)
 
-    def _process_series_tag(self, st: Tag, series_entries: List[ScheduleEntry], occupied: set, day_offset: int = 0):
+    def _process_series_tag(self, st: Tag, series_entries: List[ScheduleEntry], occupied: set, day_offset: int = 0, num_days: int = 1):
         start_min = qtime_to_minutes(st.start_time)
         end_min = qtime_to_minutes(st.end_time)
 
-        if start_min >= end_min or start_min >= 24 * 60 or end_min > 24 * 60:
+        start_min += day_offset * 24 * 60
+        end_min += day_offset * 24 * 60
+
+        if start_min >= end_min or start_min >= 24 * 60 * num_days or end_min > 24 * 60 * num_days:
             return
 
         base_start_episode = getattr(st, 'start_episode', 1)
         video_count = getattr(st, 'video_count', 1)
         start_episode = base_start_episode + (day_offset * video_count)
+
+        print(f"DEBUG _process_series_tag: {st.name}, day_offset={day_offset}, start_episode={start_episode}")
 
         if st.collection_videos:
             for m in range(start_min, end_min):
@@ -382,7 +387,7 @@ class ScheduleGenerator:
 
         for day_offset in range(num_days):
             for st in series_tags:
-                self._process_series_tag(st, series_entries, occupied, day_offset)
+                self._process_series_tag(st, series_entries, occupied, day_offset, num_days)
 
         rf_sorted = sorted(random_fill_tags, key=lambda t: qtime_to_minutes(t.start_time))
         for rf in rf_sorted:
