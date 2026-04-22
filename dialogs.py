@@ -595,10 +595,14 @@ class RandomFillDialog(BaseTagDialog):
         collection_stem = Path(file_path).stem
         
         blacklist_data = []
+        blacklist_patterns = [f"{collection_stem}_blacklist.*", f"{collection_stem.replace('collections_', '')}_blacklist.*"]
         for search_dir in [collection_dir, Path.cwd()]:
-            for bl_file in search_dir.glob(f"{collection_stem}_blacklist.*"):
-                blacklist_data = load_blacklist_json(str(bl_file))
-                break
+            for pattern in blacklist_patterns:
+                for bl_file in search_dir.glob(pattern):
+                    blacklist_data = load_blacklist_json(str(bl_file))
+                    break
+                if blacklist_data:
+                    break
             if blacklist_data:
                 break
 
@@ -647,8 +651,11 @@ class RandomFillDialog(BaseTagDialog):
                 text = item.text()
                 video_name = text.split(' (')[0]
                 video = {'name': video_name}
+            
             if video not in self.added_videos:
-                self.added_videos.append(video)
+                is_blacklisted = any(b.get('path') == video.get('path') for b in self.blacklist)
+                if not is_blacklisted:
+                    self.added_videos.append(video)
         self.refresh_added_list()
 
     def remove_selected_added(self):
