@@ -201,16 +201,16 @@ class TagDialog(BaseTagDialog):
         blck_path = Path(blacklist_path)
         blacklist_files = set()
         if blck_path.exists():
-            for ini_file in sorted(blck_path.glob("*_blacklist.ini")):
+            for ini_file in blck_path.glob("*_blacklist.ini"):
                 blacklist_files.add(ini_file.name)
-            for ini_file in sorted(blck_path.glob("*blacklist*.ini")):
+            for ini_file in blck_path.glob("*blacklist*.ini"):
                 blacklist_files.add(ini_file.name)
-            for ini_file in sorted(blck_path.glob("**/*_blacklist.ini"), key=lambda p: p.name):
+            for ini_file in blck_path.glob("**/*_blacklist.ini"):
                 blacklist_files.add(ini_file.name)
-            for ini_file in sorted(blck_path.glob("**/*blacklist*.ini"), key=lambda p: p.name):
+            for ini_file in blck_path.glob("**/*blacklist*.ini"):
                 blacklist_files.add(ini_file.name)
         
-        for ini_file in sorted(Path('.').glob("*blacklist*.ini")):
+        for ini_file in Path('.').glob("*blacklist*.ini"):
             blacklist_files.add(ini_file.name)
         
         for name in sorted(blacklist_files):
@@ -531,16 +531,16 @@ class RandomFillDialog(BaseTagDialog):
         blck_path = Path(blacklist_path)
         blacklist_files = set()
         if blck_path.exists():
-            for ini_file in sorted(blck_path.glob("*_blacklist.ini")):
+            for ini_file in blck_path.glob("*_blacklist.ini"):
                 blacklist_files.add(ini_file.name)
-            for ini_file in sorted(blck_path.glob("*blacklist*.ini")):
+            for ini_file in blck_path.glob("*blacklist*.ini"):
                 blacklist_files.add(ini_file.name)
-            for ini_file in sorted(blck_path.glob("**/*_blacklist.ini"), key=lambda p: p.name):
+            for ini_file in blck_path.glob("**/*_blacklist.ini"):
                 blacklist_files.add(ini_file.name)
-            for ini_file in sorted(blck_path.glob("**/*blacklist*.ini"), key=lambda p: p.name):
+            for ini_file in blck_path.glob("**/*blacklist*.ini"):
                 blacklist_files.add(ini_file.name)
         
-        for ini_file in sorted(Path('.').glob("*blacklist*.ini")):
+        for ini_file in Path('.').glob("*blacklist*.ini"):
             blacklist_files.add(ini_file.name)
         
         for name in sorted(blacklist_files):
@@ -1022,16 +1022,16 @@ class SeriesDialog(BaseTagDialog):
         blck_path = Path(blacklist_path)
         blacklist_files = set()
         if blck_path.exists():
-            for ini_file in sorted(blck_path.glob("*_blacklist.ini")):
+            for ini_file in blck_path.glob("*_blacklist.ini"):
                 blacklist_files.add(ini_file.name)
-            for ini_file in sorted(blck_path.glob("*blacklist*.ini")):
+            for ini_file in blck_path.glob("*blacklist*.ini"):
                 blacklist_files.add(ini_file.name)
-            for ini_file in sorted(blck_path.glob("**/*_blacklist.ini"), key=lambda p: p.name):
+            for ini_file in blck_path.glob("**/*_blacklist.ini"):
                 blacklist_files.add(ini_file.name)
-            for ini_file in sorted(blck_path.glob("**/*blacklist*.ini"), key=lambda p: p.name):
+            for ini_file in blck_path.glob("**/*blacklist*.ini"):
                 blacklist_files.add(ini_file.name)
         
-        for ini_file in sorted(Path('.').glob("*blacklist*.ini")):
+        for ini_file in Path('.').glob("*blacklist*.ini"):
             blacklist_files.add(ini_file.name)
         
         for name in sorted(blacklist_files):
