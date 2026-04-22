@@ -549,13 +549,11 @@ class MainWindow(QMainWindow):
         self.approximate_enabled = not self.approximate_enabled
         self.tag_manager.clear_cache()
         if self.approximate_enabled:
-            self.schedule_entries = self.schedule_generator.apply_approximate()
             self.preview_title.setText("24-Hour Schedule Preview [APPROXIMATE ON]")
             self.approx_btn.setText("APPROXIMATE ON")
             self.approx_btn.setStyleSheet("background-color: #22c55e; color: white; font-weight: bold; padding: 10px 20px; border-radius: 6px;")
             self.statusBar().showMessage("Approximate: ON")
         else:
-            self.schedule_entries = self.schedule_generator.apply_custom_tags()
             self.preview_title.setText("24-Hour Schedule Preview [Approximate OFF]")
             self.approx_btn.setText("Approximate OFF")
             self.approx_btn.setStyleSheet("background-color: #4a4a5e; color: #a0a0b0; font-weight: bold; padding: 10px 20px; border-radius: 6px;")
