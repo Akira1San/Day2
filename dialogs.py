@@ -305,7 +305,7 @@ class RandomFillDialog(BaseTagDialog):
             self.fill_24h_check.setChecked(fill_24h)
             
             if tag.collection_videos and tag.collection_path:
-                self.load_collection(tag.collection_path)
+                self.load_collection(tag.collection_path, load_blacklist=False)
             
             collection_profile = getattr(tag, 'collection_profile', '')
             if collection_profile:
@@ -583,47 +583,58 @@ class RandomFillDialog(BaseTagDialog):
         if file_path.exists():
             self.load_blacklist_file(str(file_path))
 
-    def load_collection(self, file_path: str):
+    def load_collection(self, file_path: str, load_blacklist: bool = True):
         collection_videos, collection_info = load_collection_json(file_path)
         self.collection_path.setText(file_path)
         self.videos_list.clear()
         self.collection_videos = []
         self.added_videos = []
-        self.blacklist = []
-
+        
+        if load_blacklist:
+            self.blacklist = []
+        
         collection_dir = Path(file_path).parent
         collection_stem = Path(file_path).stem
         
-        blacklist_data = []
-        blacklist_patterns = [f"{collection_stem}_blacklist.*", f"{collection_stem.replace('collections_', '')}_blacklist.*"]
-        for search_dir in [collection_dir, Path.cwd()]:
-            for pattern in blacklist_patterns:
-                for bl_file in search_dir.glob(pattern):
-                    blacklist_data = load_blacklist_json(str(bl_file))
-                    break
+        if load_blacklist:
+            blacklist_data = []
+            blacklist_patterns = [f"{collection_stem}_blacklist.*", f"{collection_stem.replace('collections_', '')}_blacklist.*"]
+            for search_dir in [collection_dir, Path.cwd()]:
+                for pattern in blacklist_patterns:
+                    for bl_file in search_dir.glob(pattern):
+                        blacklist_data = load_blacklist_json(str(bl_file))
+                        break
+                    if blacklist_data:
+                        break
                 if blacklist_data:
                     break
-            if blacklist_data:
-                break
-
+        
         self.info_name.setText(f"Name: {collection_info.get('name', '-')}")
         self.info_desc.setText(f"Description: {collection_info.get('description', '-')}")
         self.info_genre.setText(f"Genre: {', '.join(collection_info.get('genre', []))}")
         self.info_year.setText(f"Year: {collection_info.get('year', '-')}")
         
-        for video in collection_videos:
-            path = video.get('path', '')
-            duration = video.get('duration', 0)
-            video_data = {'path': path, 'duration': duration, 'name': get_video_display_name(video)}
-            self.collection_videos.append(video_data)
-            self.videos_list.addItem(f"{video_data['name']} ({format_duration(duration)})")
+        if load_blacklist:
+            for video in collection_videos:
+                path = video.get('path', '')
+                duration = video.get('duration', 0)
+                video_data = {'path': path, 'duration': duration, 'name': get_video_display_name(video)}
+                self.collection_videos.append(video_data)
+                self.videos_list.addItem(f"{video_data['name']} ({format_duration(duration)})")
+                
+                if any(b.get('path') == path for b in blacklist_data):
+                    self.blacklist.append(video_data)
             
-            if any(b.get('path') == path for b in blacklist_data):
-                self.blacklist.append(video_data)
-        
-        for bl_video in blacklist_data:
-            if bl_video not in self.blacklist:
-                self.blacklist.append(bl_video)
+            for bl_video in blacklist_data:
+                if bl_video not in self.blacklist:
+                    self.blacklist.append(bl_video)
+        else:
+            for video in collection_videos:
+                path = video.get('path', '')
+                duration = video.get('duration', 0)
+                video_data = {'path': path, 'duration': duration, 'name': get_video_display_name(video)}
+                self.collection_videos.append(video_data)
+                self.videos_list.addItem(f"{video_data['name']} ({format_duration(duration)})")
         
         self.added_videos = []
         self.refresh_added_list()
