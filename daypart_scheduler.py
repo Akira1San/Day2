@@ -568,7 +568,7 @@ class ScheduleGenerator:
                     if original_start >= original_end or original_start >= 24 * 60 or original_end > 24 * 60:
                         continue
 
-                    series_start = max(original_start, next_custom_pos)
+                    series_start = max(original_start, next_custom_pos) + (day_offset * 24 * 60)
                     series_end = series_start + (original_end - original_start)
 
                     base_start_episode = getattr(st, 'start_episode', 1)
@@ -586,7 +586,7 @@ class ScheduleGenerator:
                             getattr(st, 'play_mode', 'sequence'),
                             video_count
                         )
-                    
+
                     pos = series_start
                     for v in videos_to_use:
                         if pos >= series_end:
