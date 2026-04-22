@@ -12,7 +12,9 @@ def serialize_tag_to_string(tag) -> str:
         start_episode = str(getattr(tag, 'start_episode', 1))
         play_mode = getattr(tag, 'play_mode', 'sequence')
         video_count = str(getattr(tag, 'video_count', 1))
-        return f"{tag_type}|{tag.name}|{tag.start_time.toString('HH:mm')}|{tag.end_time.toString('HH:mm')}|{start_season}|{start_episode}|{play_mode}|{video_count}"
+        collection_profile = getattr(tag, 'collection_profile', '')
+        blacklist_profile = getattr(tag, 'blacklist_profile', '')
+        return f"{tag_type}|{tag.name}|{tag.start_time.toString('HH:mm')}|{tag.end_time.toString('HH:mm')}|{start_season}|{start_episode}|{play_mode}|{video_count}|{collection_profile}|{blacklist_profile}"
     
     elif getattr(tag, 'is_random_fill', False):
         tag_type = "random"
@@ -61,7 +63,15 @@ def deserialize_tag_from_string(data: str, tag_class, qtime_from_string):
         start_episode = int(parts[5]) if len(parts) >= 6 and parts[5].isdigit() else 1
         play_mode = parts[6] if len(parts) >= 7 else "sequence"
         video_count = int(parts[7]) if len(parts) >= 8 and parts[7].isdigit() else 1
-        collection_path = parts[8] if len(parts) >= 9 else ""
+        
+        if len(parts) >= 10:
+            collection_profile = parts[8] if parts[8] else ""
+            blacklist_profile = parts[9] if parts[9] else ""
+            collection_path = ""
+        else:
+            collection_profile = ""
+            blacklist_profile = ""
+            collection_path = parts[8] if len(parts) >= 9 else ""
         
         if collection_path:
             collection_videos = load_collection_videos_only(collection_path)
@@ -69,7 +79,8 @@ def deserialize_tag_from_string(data: str, tag_class, qtime_from_string):
         return tag_class('custom', name, qtime_from_string(start, 'HH:mm'), qtime_from_string(end, 'HH:mm'), 
                         collection_videos, collection_path, video_count=video_count, 
                         is_series=True, start_season=start_season, start_episode=start_episode, 
-                        play_mode=play_mode)
+                        play_mode=play_mode, collection_profile=collection_profile,
+                        blacklist_profile=blacklist_profile)
     
     elif tag_type == 'random':
         collection_path = parts[4] if len(parts) >= 5 else ""

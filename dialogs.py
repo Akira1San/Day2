@@ -837,7 +837,10 @@ class SeriesDialog(BaseTagDialog):
         super().__init__(parent, tag)
         self.setWindowTitle("Edit Series Tag" if tag else "Add Series Tag")
         self.setModal(True)
+        self.collection_profile = ""
+        self.blacklist_profile = ""
         self.setup_ui()
+        self.load_available_profiles()
         if tag:
             self.name_input.setText(tag.name)
             self.start_time_edit.setTime(tag.start_time)
@@ -858,6 +861,18 @@ class SeriesDialog(BaseTagDialog):
                     self.videos_list.addItem(f"{display_name} ({format_duration(duration)})")
             if hasattr(tag, 'collection_path') and tag.collection_path:
                 self.collection_path.setText(tag.collection_path)
+            
+            collection_profile = getattr(tag, 'collection_profile', '')
+            if collection_profile:
+                index = self.collection_profile_combo.findText(collection_profile)
+                if index >= 0:
+                    self.collection_profile_combo.setCurrentIndex(index)
+            
+            blacklist_profile = getattr(tag, 'blacklist_profile', '')
+            if blacklist_profile:
+                index = self.blacklist_profile_combo.findText(blacklist_profile)
+                if index >= 0:
+                    self.blacklist_profile_combo.setCurrentIndex(index)
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
@@ -876,6 +891,13 @@ class SeriesDialog(BaseTagDialog):
         browse_btn = QPushButton("Browse")
         browse_btn.clicked.connect(self.browse_collection)
         collection_layout.addWidget(browse_btn)
+        
+        collection_layout.addWidget(QLabel("Profile:"))
+        self.collection_profile_combo = QComboBox()
+        self.collection_profile_combo.currentIndexChanged.connect(self.collection_profile_selected)
+        collection_layout.addWidget(self.collection_profile_combo)
+        
+        collection_layout.addStretch()
         layout.addLayout(collection_layout)
 
         layout.addWidget(QLabel("Videos in Collection:"))
@@ -906,6 +928,12 @@ class SeriesDialog(BaseTagDialog):
         self.play_mode_combo = QComboBox()
         self.play_mode_combo.addItems(["sequence", "random"])
         series_layout.addWidget(self.play_mode_combo)
+        
+        series_layout.addWidget(QLabel("Blacklist Profile:"))
+        self.blacklist_profile_combo = QComboBox()
+        self.blacklist_profile_combo.currentIndexChanged.connect(self.blacklist_profile_selected)
+        series_layout.addWidget(self.blacklist_profile_combo)
+        
         series_layout.addStretch()
         layout.addLayout(series_layout)
 
@@ -949,6 +977,40 @@ class SeriesDialog(BaseTagDialog):
             display_name = get_video_display_name(video)
             self.videos_list.addItem(f"{display_name} ({format_duration(duration)})")
 
+    def load_available_profiles(self):
+        collection_path, blacklist_path = get_config_paths()
+
+        self.collection_profile_combo.addItem("-- None --")
+        self.blacklist_profile_combo.addItem("-- None --")
+
+        coll_path = Path(collection_path)
+        if coll_path.exists():
+            for json_file in sorted(coll_path.glob("*.json")):
+                self.collection_profile_combo.addItem(json_file.name)
+
+        blck_path = Path(blacklist_path)
+        if blck_path.exists():
+            for ini_file in sorted(blck_path.glob("*_blacklist.ini")):
+                self.blacklist_profile_combo.addItem(ini_file.name)
+            for ini_file in sorted(blck_path.glob("*blacklist*.ini")):
+                self.blacklist_profile_combo.addItem(ini_file.name)
+        
+        if blck_path != Path('.'):
+            for ini_file in sorted(Path('.').glob("*blacklist*.ini")):
+                self.blacklist_profile_combo.addItem(ini_file.name)
+
+    def collection_profile_selected(self, index):
+        if index <= 0:
+            return
+        file_name = self.collection_profile_combo.currentText()
+        collection_path, _ = get_config_paths()
+        file_path = Path(collection_path) / file_name
+        if file_path.exists():
+            self.load_collection(str(file_path))
+
+    def blacklist_profile_selected(self, index):
+        pass
+
     def auto_calc_end_time(self):
         if not self.collection_videos:
             return
@@ -990,5 +1052,7 @@ class SeriesDialog(BaseTagDialog):
             is_series=True,
             start_season=self.start_season_spin.value(),
             start_episode=self.start_episode_spin.value(),
-            play_mode=self.play_mode_combo.currentText()
+            play_mode=self.play_mode_combo.currentText(),
+            collection_profile=self.collection_profile_combo.currentText(),
+            blacklist_profile=self.blacklist_profile_combo.currentText()
         )
