@@ -60,7 +60,15 @@ class Tag:
                 return f"[R] {self.name} (24h Fill){profile_str}"
             return f"[R] {self.name} ({self.start_time.toString('HH:mm')}-{self.end_time.toString('HH:mm')}){profile_str}"
         if self.is_series:
-            return f"[S] {self.name} ({self.start_time.toString('HH:mm')}-{self.end_time.toString('HH:mm')})"
+            collection_profile = getattr(self, 'collection_profile', '')
+            blacklist_profile = getattr(self, 'blacklist_profile', '')
+            profile_info = []
+            if collection_profile:
+                profile_info.append(f"col:{collection_profile}")
+            if blacklist_profile:
+                profile_info.append(f"blk:{blacklist_profile}")
+            profile_str = f" ({', '.join(profile_info)})" if profile_info else ""
+            return f"[S] {self.name} ({self.start_time.toString('HH:mm')}-{self.end_time.toString('HH:mm')}){profile_str}"
         if self.randomize_videos:
             return f"[C] {self.name} ({self.start_time.toString('HH:mm')}-{self.end_time.toString('HH:mm')}) x{self.video_count}"
         return f"[C] {self.name} ({self.start_time.toString('HH:mm')}-{self.end_time.toString('HH:mm')})"
