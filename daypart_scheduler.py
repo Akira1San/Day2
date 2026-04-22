@@ -1637,23 +1637,28 @@ class MainWindow(QMainWindow):
         tags_layout.addWidget(self.tags_list)
 
         btn_layout = QHBoxLayout()
-        self.add_btn = QPushButton("Add Custom")
+        self.add_btn = QPushButton("Custom")
+        self.add_btn.setToolTip("Add a custom time slot tag")
         self.add_btn.clicked.connect(self.add_custom_tag)
         btn_layout.addWidget(self.add_btn)
 
-        self.add_random_btn = QPushButton("Add Random Fill")
+        self.add_random_btn = QPushButton("Random Fill")
+        self.add_random_btn.setToolTip("Add a random fill tag for gaps")
         self.add_random_btn.clicked.connect(self.add_random_fill_tag)
         btn_layout.addWidget(self.add_random_btn)
 
-        self.add_series_btn = QPushButton("Add Series")
+        self.add_series_btn = QPushButton("Series")
+        self.add_series_btn.setToolTip("Add a series/episode tag")
         self.add_series_btn.clicked.connect(self.add_series_tag)
         btn_layout.addWidget(self.add_series_btn)
 
         self.edit_btn = QPushButton("Edit")
+        self.edit_btn.setToolTip("Edit the selected tag")
         self.edit_btn.clicked.connect(self.edit_tag)
         btn_layout.addWidget(self.edit_btn)
 
         self.delete_btn = QPushButton("Delete")
+        self.delete_btn.setToolTip("Delete the selected tag")
         self.delete_btn.clicked.connect(self.delete_tag)
         btn_layout.addWidget(self.delete_btn)
 
@@ -1661,22 +1666,27 @@ class MainWindow(QMainWindow):
 
         save_load_layout = QHBoxLayout()
         self.save_btn = QPushButton("Save All")
+        self.save_btn.setToolTip("Save all tags to tags.ini")
         self.save_btn.clicked.connect(self.save_tags)
         save_load_layout.addWidget(self.save_btn)
 
         self.load_btn = QPushButton("Load All")
+        self.load_btn.setToolTip("Load all tags from tags.ini")
         self.load_btn.clicked.connect(self.load_tags)
         save_load_layout.addWidget(self.load_btn)
 
         self.save_single_btn = QPushButton("Save Tag")
+        self.save_single_btn.setToolTip("Save selected tag to file")
         self.save_single_btn.clicked.connect(self.save_single_tag)
         save_load_layout.addWidget(self.save_single_btn)
 
         self.load_single_btn = QPushButton("Load Tag")
+        self.load_single_btn.setToolTip("Load tag from file")
         self.load_single_btn.clicked.connect(self.load_single_tag)
         save_load_layout.addWidget(self.load_single_btn)
 
         self.config_btn = QPushButton("Config")
+        self.config_btn.setToolTip("Open configuration")
         self.config_btn.clicked.connect(self.open_config)
         save_load_layout.addWidget(self.config_btn)
 
@@ -1711,15 +1721,18 @@ class MainWindow(QMainWindow):
         bottom_btn_layout.addWidget(self.weekly_radio)
         bottom_btn_layout.addWidget(self.monthly_radio)
         
-        self.copy_btn = QPushButton("Copy Preview")
+        self.copy_btn = QPushButton("Copy")
+        self.copy_btn.setToolTip("Copy preview to clipboard")
         self.copy_btn.clicked.connect(self.copy_preview)
         bottom_btn_layout.addWidget(self.copy_btn)
 
-        self.generate_btn = QPushButton("Generate Preview")
+        self.generate_btn = QPushButton("Generate")
+        self.generate_btn.setToolTip("Generate preview based on radio selection")
         self.generate_btn.clicked.connect(self.generate_new_preview)
         bottom_btn_layout.addWidget(self.generate_btn)
 
         self.save_schedule_btn = QPushButton("Save Schedule")
+        self.save_schedule_btn.setToolTip("Save schedule to file")
         self.save_schedule_btn.clicked.connect(self.save_schedule)
         bottom_btn_layout.addWidget(self.save_schedule_btn)
 
@@ -1732,6 +1745,7 @@ class MainWindow(QMainWindow):
         bottom_btn_layout.addStretch()
 
         self.approx_btn = QPushButton("Approximate OFF")
+        self.approx_btn.setToolTip("Toggle approximate scheduling mode")
         self.approx_btn.setStyleSheet("background-color: #4a4a5e; color: #a0a0b0; font-weight: bold; padding: 10px 20px; border-radius: 6px;")
         self.approx_btn.clicked.connect(self.run_approximate)
         bottom_btn_layout.addWidget(self.approx_btn)
