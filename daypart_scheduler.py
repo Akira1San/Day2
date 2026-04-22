@@ -287,15 +287,15 @@ class ScheduleGenerator:
             for m in range(start_min, end_min):
                 occupied.add(m)
 
-    def _process_random_fill_tag(self, rf: Tag, fill_entries: List[ScheduleEntry], merged_ranges: List[tuple] = None):
+    def _process_random_fill_tag(self, rf: Tag, fill_entries: List[ScheduleEntry], merged_ranges: List[tuple] = None, start_vid_idx: int = 0):
         rf_fill_24h = getattr(rf, 'fill_24h', False)
-        
+
         if rf_fill_24h:
             rf_videos = rf.collection_videos.copy() if rf.collection_videos else []
             if not rf_videos:
                 return
             random.shuffle(rf_videos)
-            
+
             gaps = []
             if merged_ranges:
                 prev_end = 0
@@ -307,10 +307,10 @@ class ScheduleGenerator:
                     gaps.append((prev_end, 24 * 60))
             else:
                 gaps = [(0, 24 * 60)]
-            
+
+            vid_idx = start_vid_idx
             for gap_start, gap_end in gaps:
                 pos = gap_start
-                vid_idx = 0
                 while pos < gap_end:
                     video = rf_videos[vid_idx % len(rf_videos)]
                     video_name = get_video_display_name(video)
@@ -381,7 +381,21 @@ class ScheduleGenerator:
 
         rf_sorted = sorted(random_fill_tags, key=lambda t: qtime_to_minutes(t.start_time))
         for rf in rf_sorted:
-            self._process_random_fill_tag(rf, fill_entries)
+            merged = [(e.start_minutes, e.end_minutes) for e in custom_entries + series_entries]
+            self._process_random_fill_tag(rf, fill_entries, merged if getattr(rf, 'fill_24h', False) else None)
+
+        if fill_entries and getattr(rf, 'fill_24h', False):
+            fill_entries.sort(key=lambda e: e.start_minutes)
+            total_duration = sum(e.end_minutes - e.start_minutes for e in fill_entries)
+            rf_videos = rf_sorted[0].collection_videos.copy() if rf_sorted else []
+            if rf_videos:
+                total_mins = sum(int(v.get('duration', 90) // 60) for v in rf_videos)
+                avg_duration = total_mins // len(rf_videos) if rf_videos else 0
+                if avg_duration > 0:
+                    start_vid_idx = (total_duration // avg_duration) % len(rf_videos)
+                    for rf in rf_sorted[1:]:
+                        merged = [(e.start_minutes, e.end_minutes) for e in custom_entries + series_entries]
+                        self._process_random_fill_tag(rf, fill_entries, merged, start_vid_idx)
 
         entries = custom_entries + series_entries + fill_entries
         entries.sort(key=lambda e: e.start_minutes)
