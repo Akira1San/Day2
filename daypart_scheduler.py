@@ -461,7 +461,7 @@ class ScheduleGenerator:
         final.sort(key=lambda e: e.start_minutes)
         return final
 
-    def apply_approximate(self) -> List[ScheduleEntry]:
+    def apply_approximate(self, num_days: int = 1) -> List[ScheduleEntry]:
         all_tags = self.tag_manager.get_all_tags()
         
         custom_tags = [t for t in all_tags if t.tag_type == "custom" and not t.is_random_fill and not t.is_series]
@@ -516,19 +516,20 @@ class ScheduleGenerator:
         custom_sorted = sorted(custom_tags, key=lambda t: qtime_to_minutes(t.start_time))
 
         if not has_24h_fill:
-            for ct in custom_sorted:
-                original_start = qtime_to_minutes(ct.start_time)
-                original_end = qtime_to_minutes(ct.end_time)
+            for day_offset in range(num_days):
+                for ct in custom_sorted:
+                    original_start = qtime_to_minutes(ct.start_time)
+                    original_end = qtime_to_minutes(ct.end_time)
 
-                custom_start = max(original_start, next_custom_pos)
-                custom_end = custom_start + (original_end - original_start)
+                    custom_start = max(original_start, next_custom_pos)
+                    custom_end = custom_start + (original_end - original_start)
 
-                if ct.collection_videos:
-                    for m in range(custom_start, custom_end):
-                        occupied.add(m)
-                    video_count = getattr(ct, 'video_count', 1)
-                    videos = ct.collection_videos.copy()
-                    random.shuffle(videos)
+                    if ct.collection_videos:
+                        for m in range(custom_start, custom_end):
+                            occupied.add(m)
+                        video_count = getattr(ct, 'video_count', 1)
+                        videos = ct.collection_videos.copy()
+                        random.shuffle(videos)
                     pos = custom_start
                     vid_idx = 0
                     while pos < custom_end and vid_idx < video_count and vid_idx < len(videos):
@@ -555,26 +556,31 @@ class ScheduleGenerator:
                 while rand_idx < len(base_entries) and base_entries[rand_idx].start_minutes < current_pos:
                     rand_idx += 1
 
-            for st in series_tags:
-                original_start = qtime_to_minutes(st.start_time)
-                original_end = qtime_to_minutes(st.end_time)
-                if original_start >= original_end or original_start >= 24 * 60 or original_end > 24 * 60:
-                    continue
+            for day_offset in range(num_days):
+                for st in series_tags:
+                    original_start = qtime_to_minutes(st.start_time)
+                    original_end = qtime_to_minutes(st.end_time)
+                    if original_start >= original_end or original_start >= 24 * 60 or original_end > 24 * 60:
+                        continue
 
-                series_start = max(original_start, next_custom_pos)
-                series_end = series_start + (original_end - original_start)
+                    series_start = max(original_start, next_custom_pos)
+                    series_end = series_start + (original_end - original_start)
 
-                if st.collection_videos:
-                    for m in range(series_start, series_end):
-                        occupied.add(m)
+                    base_start_episode = getattr(st, 'start_episode', 1)
+                    video_count = getattr(st, 'video_count', 1)
+                    start_episode = base_start_episode + (day_offset * video_count)
 
-                    videos_to_use, _ = parse_videos_for_series(
-                        st.collection_videos,
-                        getattr(st, 'start_season', 1),
-                        getattr(st, 'start_episode', 1),
-                        getattr(st, 'play_mode', 'sequence'),
-                        getattr(st, 'video_count', 1)
-                    )
+                    if st.collection_videos:
+                        for m in range(series_start, series_end):
+                            occupied.add(m)
+
+                        videos_to_use, _ = parse_videos_for_series(
+                            st.collection_videos,
+                            getattr(st, 'start_season', 1),
+                            start_episode,
+                            getattr(st, 'play_mode', 'sequence'),
+                            video_count
+                        )
                     
                     pos = series_start
                     for v in videos_to_use:
@@ -1830,7 +1836,7 @@ class MainWindow(QMainWindow):
             day_name = days[current_date.weekday()]
             self.preview_list.addItem(f"=== {current_date} - {day_name} ===")
             self.tag_manager.clear_cache()
-            entries = self.schedule_generator.apply_custom_tags(num_days=7) if not self.approximate_enabled else self.schedule_generator.apply_approximate()
+            entries = self.schedule_generator.apply_custom_tags(num_days=7) if not self.approximate_enabled else self.schedule_generator.apply_approximate(num_days=7)
             for entry in entries:
                 start_h = (entry.start_minutes // 60) % 24
                 start_m = entry.start_minutes % 60
