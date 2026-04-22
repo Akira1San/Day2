@@ -249,12 +249,16 @@ class ScheduleGenerator:
             for m in range(start_min, end_min):
                 occupied.add(m)
 
-    def _process_series_tag(self, st: Tag, series_entries: List[ScheduleEntry], occupied: set):
+    def _process_series_tag(self, st: Tag, series_entries: List[ScheduleEntry], occupied: set, day_offset: int = 0):
         start_min = qtime_to_minutes(st.start_time)
         end_min = qtime_to_minutes(st.end_time)
 
         if start_min >= end_min or start_min >= 24 * 60 or end_min > 24 * 60:
             return
+
+        base_start_episode = getattr(st, 'start_episode', 1)
+        video_count = getattr(st, 'video_count', 1)
+        start_episode = base_start_episode + (day_offset * video_count)
 
         if st.collection_videos:
             for m in range(start_min, end_min):
@@ -263,9 +267,9 @@ class ScheduleGenerator:
             videos_to_use, _ = parse_videos_for_series(
                 st.collection_videos,
                 getattr(st, 'start_season', 1),
-                getattr(st, 'start_episode', 1),
+                start_episode,
                 getattr(st, 'play_mode', 'sequence'),
-                getattr(st, 'video_count', 1)
+                video_count
             )
 
             pos = start_min
@@ -352,9 +356,9 @@ class ScheduleGenerator:
                 pos += duration
                 vid_idx += 1
 
-    def apply_custom_tags(self, use_cache: bool = True) -> List[ScheduleEntry]:
+    def apply_custom_tags(self, use_cache: bool = True, num_days: int = 1) -> List[ScheduleEntry]:
         all_tags = self.tag_manager.get_all_tags()
-        
+
         cached = self.tag_manager.get_cached_random_entries()
         if use_cache and cached is not None:
             return self._inject_custom_tags(cached)
@@ -376,8 +380,9 @@ class ScheduleGenerator:
         for ct in custom_tags:
             self._process_custom_tag(ct, custom_entries, occupied)
 
-        for st in series_tags:
-            self._process_series_tag(st, series_entries, occupied)
+        for day_offset in range(num_days):
+            for st in series_tags:
+                self._process_series_tag(st, series_entries, occupied, day_offset)
 
         rf_sorted = sorted(random_fill_tags, key=lambda t: qtime_to_minutes(t.start_time))
         for rf in rf_sorted:
@@ -1825,7 +1830,7 @@ class MainWindow(QMainWindow):
             day_name = days[current_date.weekday()]
             self.preview_list.addItem(f"=== {current_date} - {day_name} ===")
             self.tag_manager.clear_cache()
-            entries = self.schedule_generator.apply_custom_tags() if not self.approximate_enabled else self.schedule_generator.apply_approximate()
+            entries = self.schedule_generator.apply_custom_tags(num_days=7) if not self.approximate_enabled else self.schedule_generator.apply_approximate()
             for entry in entries:
                 start_h = (entry.start_minutes // 60) % 24
                 start_m = entry.start_minutes % 60
