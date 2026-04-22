@@ -78,11 +78,11 @@ def parse_series_episode(path: str) -> Tuple[int, int]:
     return season, episode
 
 
-def parse_videos_for_series(videos: List[Dict[str, Any]], start_season: int = 1, 
+def parse_videos_for_series(videos: List[Dict[str, Any]], start_season: int = 1,
                             start_episode: int = 1, play_mode: str = "sequence",
                             video_count: int = 1) -> Tuple[List[Dict[str, Any]], int]:
     parsed_videos = []
-    for vid in videos:
+    for idx, vid in enumerate(videos):
         path = vid.get('path', '')
         season, episode = parse_series_episode(path)
         parsed_videos.append({
@@ -90,17 +90,18 @@ def parse_videos_for_series(videos: List[Dict[str, Any]], start_season: int = 1,
             'season': season,
             'episode': episode,
             'path': path,
-            'name': path.split('/')[-1] if '/' in path else path
+            'name': path.split('/')[-1] if '/' in path else path,
+            'index': idx
         })
-    
-    filtered = [v for v in parsed_videos 
+
+    filtered = [v for v in parsed_videos
                 if v['season'] > start_season or (v['season'] == start_season and v['episode'] >= start_episode)]
-    
+
     if play_mode == 'random':
         import random
         random.shuffle(filtered)
     else:
-        filtered.sort(key=lambda v: (v['season'], v['episode']))
+        filtered.sort(key=lambda v: (v['season'], v['episode'], v['index']))
     
     return filtered[:video_count], len(filtered)
 

@@ -252,10 +252,10 @@ class ScheduleGenerator:
     def _process_series_tag(self, st: Tag, series_entries: List[ScheduleEntry], occupied: set):
         start_min = qtime_to_minutes(st.start_time)
         end_min = qtime_to_minutes(st.end_time)
-        
+
         if start_min >= end_min or start_min >= 24 * 60 or end_min > 24 * 60:
             return
-        
+
         if st.collection_videos:
             for m in range(start_min, end_min):
                 occupied.add(m)
@@ -267,7 +267,7 @@ class ScheduleGenerator:
                 getattr(st, 'play_mode', 'sequence'),
                 getattr(st, 'video_count', 1)
             )
-            
+
             pos = start_min
             for v in videos_to_use:
                 if pos >= end_min:

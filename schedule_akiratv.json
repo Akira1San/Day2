@@ -1,0 +1,124 @@
+{
+  "weekly": {},
+  "calendar": {
+    "2026-04-22_wednesday": {
+      "date": "2026-04-22",
+      "day": "Wednesday",
+      "description": "Auto-generated schedule",
+      "entries": [
+        {
+          "time": "00:00:00",
+          "file": "/home/akira/Videos/Akiratv/Purgatory.mp4",
+          "collection_id": "adrenalin_fear_the_rush",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "01:34:00",
+          "file": "/home/akira/Videos/Akiratv/barb wire.mp4",
+          "collection_id": "adrenalin_fear_the_rush",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "03:07:00",
+          "file": "/home/akira/Videos/Akiratv/Aliens/Predator 2.mp4",
+          "collection_id": "adrenalin_fear_the_rush",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "04:45:00",
+          "file": "/home/akira/Videos/Akiratv/Tron legacy.mp4",
+          "collection_id": "adrenalin_fear_the_rush",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "06:50:00",
+          "file": "/home/akira/Videos/Akiratv/Teenage Mutant Ninja Turtles III.mp4",
+          "collection_id": "adrenalin_fear_the_rush",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "08:21:00",
+          "file": "/home/akira/Videos/Akiratv/The Cloverfield Paradox.mp4",
+          "collection_id": "adrenalin_fear_the_rush",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "10:00:00",
+          "file": "",
+          "collection_id": "",
+          "channel": "",
+          "source": "random"
+        },
+        {
+          "time": "10:39:00",
+          "file": "/home/akira/Videos/Akiratv/Purgatory.mp4",
+          "collection_id": "adrenalin_fear_the_rush",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "12:13:00",
+          "file": "/home/akira/Videos/Akiratv/barb wire.mp4",
+          "collection_id": "adrenalin_fear_the_rush",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "13:00:00",
+          "file": "",
+          "collection_id": "",
+          "channel": "",
+          "source": "random"
+        },
+        {
+          "time": "14:46:00",
+          "file": "/home/akira/Videos/Akiratv/Purgatory.mp4",
+          "collection_id": "adrenalin_fear_the_rush",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "16:20:00",
+          "file": "/home/akira/Videos/Akiratv/barb wire.mp4",
+          "collection_id": "adrenalin_fear_the_rush",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "17:53:00",
+          "file": "/home/akira/Videos/Akiratv/Aliens/Predator 2.mp4",
+          "collection_id": "adrenalin_fear_the_rush",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "19:31:00",
+          "file": "/home/akira/Videos/Akiratv/Tron legacy.mp4",
+          "collection_id": "adrenalin_fear_the_rush",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "21:36:00",
+          "file": "/home/akira/Videos/Akiratv/Teenage Mutant Ninja Turtles III.mp4",
+          "collection_id": "adrenalin_fear_the_rush",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "23:07:00",
+          "file": "/home/akira/Videos/Akiratv/The Cloverfield Paradox.mp4",
+          "collection_id": "adrenalin_fear_the_rush",
+          "channel": "akiratv",
+          "source": "random"
+        }
+      ]
+    }
+  }
+}
