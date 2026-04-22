@@ -1021,10 +1021,17 @@ class SeriesDialog(BaseTagDialog):
         if index <= 0:
             return
         file_name = self.collection_profile_combo.currentText()
-        collection_path, _ = get_config_paths()
+        collection_path, blacklist_path = get_config_paths()
         file_path = Path(collection_path) / file_name
         if file_path.exists():
             self.load_collection(str(file_path))
+        
+        collection_name = Path(file_name).stem
+        for i in range(self.blacklist_profile_combo.count()):
+            bl_name = self.blacklist_profile_combo.itemText(i)
+            if collection_name in bl_name:
+                self.blacklist_profile_combo.setCurrentIndex(i)
+                break
 
     def blacklist_profile_selected(self, index):
         pass
