@@ -526,7 +526,7 @@ class ScheduleGenerator:
                     original_start = qtime_to_minutes(ct.start_time)
                     original_end = qtime_to_minutes(ct.end_time)
 
-                    custom_start = max(original_start, next_custom_pos)
+                    custom_start = max(original_start, next_custom_pos) + (day_offset * 24 * 60)
                     custom_end = custom_start + (original_end - original_start)
 
                     if ct.collection_videos:
@@ -535,27 +535,27 @@ class ScheduleGenerator:
                         video_count = getattr(ct, 'video_count', 1)
                         videos = ct.collection_videos.copy()
                         random.shuffle(videos)
-                    pos = custom_start
-                    vid_idx = 0
-                    while pos < custom_end and vid_idx < video_count and vid_idx < len(videos):
-                        video = videos[vid_idx % len(videos)]
-                        video_name = get_video_display_name(video)
-                        duration = int(video.get('duration', 90)) // 60
-                        if duration < 1:
-                            duration = 1
-                        duration = min(duration, custom_end - pos)
-                        if duration < 1:
-                            break
-                        final.append(self._create_video_entry(pos, duration, video_name, ct.name))
-                        pos += duration
-                        vid_idx += 1
-                    current_pos = custom_end
-                else:
-                    if custom_start < current_pos:
-                        custom_start = current_pos
-                        custom_end = custom_start + (original_end - original_start)
-                    final.append(ScheduleEntry(1, custom_start, custom_end, ct.name))
-                    current_pos = custom_end
+                        pos = custom_start
+                        vid_idx = 0
+                        while pos < custom_end and vid_idx < video_count and vid_idx < len(videos):
+                            video = videos[vid_idx % len(videos)]
+                            video_name = get_video_display_name(video)
+                            duration = int(video.get('duration', 90)) // 60
+                            if duration < 1:
+                                duration = 1
+                            duration = min(duration, custom_end - pos)
+                            if duration < 1:
+                                break
+                            final.append(self._create_video_entry(pos, duration, video_name, ct.name))
+                            pos += duration
+                            vid_idx += 1
+                        current_pos = custom_end
+                    else:
+                        if custom_start < current_pos:
+                            custom_start = current_pos
+                            custom_end = custom_start + (original_end - original_start)
+                        final.append(ScheduleEntry(1, custom_start, custom_end, ct.name))
+                        current_pos = custom_end
 
                 next_custom_pos = current_pos
                 while rand_idx < len(base_entries) and base_entries[rand_idx].start_minutes < current_pos:
