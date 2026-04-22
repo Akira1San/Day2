@@ -544,10 +544,20 @@ class RandomFillDialog(BaseTagDialog):
         if index <= 0:
             return
         file_name = self.collection_profile_combo.currentText()
-        collection_path, _ = get_config_paths()
+        collection_path, blacklist_path = get_config_paths()
         file_path = Path(collection_path) / file_name
         if file_path.exists():
             self.load_collection(str(file_path))
+        
+        collection_name = Path(file_name).stem
+        for i in range(self.blacklist_profile_combo.count()):
+            bl_name = self.blacklist_profile_combo.itemText(i)
+            if collection_name in bl_name:
+                self.blacklist_profile_combo.setCurrentIndex(i)
+                bl_file = Path(blacklist_path) / bl_name
+                if bl_file.exists():
+                    self.load_blacklist_file(str(bl_file))
+                break
 
     def blacklist_profile_selected(self, index):
         if index <= 0:
@@ -673,10 +683,11 @@ class RandomFillDialog(BaseTagDialog):
         self.added_count_label.setText(f"Count: {len(self.added_videos)}")
         self.blacklist_count_label.setText(f"Count: {len(self.blacklist)}")
 
-    def load_blacklist_file(self):
-        file_path, _ = QFileDialog.getOpenFileName(
-            self, "Select Blacklist File", "", "INI Files (*.ini);;JSON Files (*.json);;All Files (*)"
-        )
+    def load_blacklist_file(self, file_path: str = ""):
+        if not file_path:
+            file_path, _ = QFileDialog.getOpenFileName(
+                self, "Select Blacklist File", "", "INI Files (*.ini);;JSON Files (*.json);;All Files (*)"
+            )
         if not file_path:
             return
         
