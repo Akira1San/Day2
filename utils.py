@@ -11,7 +11,6 @@ def load_collection_json(file_path: str) -> Tuple[List[Dict[str, Any]], Dict[str
     collection_info = {}
     
     if not file_path or not Path(file_path).exists():
-        print(f"DEBUG: load_collection_json - file does not exist: {file_path}")
         return collection_videos, collection_info
     
     try:
@@ -19,13 +18,11 @@ def load_collection_json(file_path: str) -> Tuple[List[Dict[str, Any]], Dict[str
             data = json.load(f)
         
         collections = data.get('collections', [])
-        print(f"DEBUG: load_collection_json - {file_path}, {len(collections)} collections")
         if collections:
             collection_info = collections[0]
             for coll in collections:
                 for video in coll.get('videos', []):
                     collection_videos.append(video)
-            print(f"DEBUG: load_collection_json returning {len(collection_videos)} total videos")
     except Exception:
         pass
     
@@ -34,7 +31,6 @@ def load_collection_json(file_path: str) -> Tuple[List[Dict[str, Any]], Dict[str
 
 def load_collection_videos_only(file_path: str) -> List[Dict[str, Any]]:
     if not file_path or not Path(file_path).exists():
-        print(f"DEBUG: file_path does not exist: {file_path}")
         return []
 
     try:
@@ -42,12 +38,10 @@ def load_collection_videos_only(file_path: str) -> List[Dict[str, Any]]:
             data = json.load(f)
 
         collections = data.get('collections', [])
-        print(f"DEBUG: loaded {len(collections)} collections from {file_path}")
         if not collections:
             return []
 
         first_videos = collections[0].get('videos', [])
-        print(f"DEBUG: first collection has {len(first_videos)} videos")
 
         if len(first_videos) > 1:
             return first_videos
@@ -56,12 +50,10 @@ def load_collection_videos_only(file_path: str) -> List[Dict[str, Any]]:
             videos = []
             for c in collections:
                 videos.extend(c.get('videos', []))
-            print(f"DEBUG: collected {len(videos)} videos from {len(collections)} collections")
             return videos
 
         return first_videos
     except Exception as e:
-        print(f"DEBUG: Exception in load_collection_videos_only: {e}")
         return []
 
     try:

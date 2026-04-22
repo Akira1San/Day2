@@ -174,13 +174,11 @@ class TagDialog(BaseTagDialog):
             self.load_collection(file_path)
 
     def load_collection(self, file_path: str):
-        print(f"DEBUG: TagDialog.load_collection called with: {file_path}")
         self.collection_path.setText(file_path)
         self.videos_list.clear()
         self.collection_videos.clear()
 
         collection_videos, _ = load_collection_json(file_path)
-        print(f"DEBUG: TagDialog.load_collection got {len(collection_videos)} videos")
         self.collection_videos = collection_videos
 
         for video in collection_videos:
@@ -586,9 +584,7 @@ class RandomFillDialog(BaseTagDialog):
             self.load_blacklist_file(str(file_path))
 
     def load_collection(self, file_path: str):
-        print(f"DEBUG: load_collection called with: {file_path}")
         collection_videos, collection_info = load_collection_json(file_path)
-        print(f"DEBUG: load_collection_json returned {len(collection_videos)} videos")
         self.collection_path.setText(file_path)
         self.videos_list.clear()
         self.collection_videos = []
@@ -1010,9 +1006,7 @@ class SeriesDialog(BaseTagDialog):
             self.load_collection(file_path)
 
     def load_collection(self, file_path: str):
-        print(f"DEBUG: RandomFillDialog.load_collection called with: {file_path}")
         collection_videos, _ = load_collection_json(file_path)
-        print(f"DEBUG: RandomFillDialog.load_collection got {len(collection_videos)} videos from load_collection_json")
         self.collection_path.setText(file_path)
         self.videos_list.clear()
         self.collection_videos = collection_videos
