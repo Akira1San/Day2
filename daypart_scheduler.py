@@ -1831,50 +1831,58 @@ class MainWindow(QMainWindow):
     def generate_weekly_preview(self):
         self.preview_list.clear()
         self.preview_title.setText("Weekly Schedule Preview (7 Days)")
-        
+
         from datetime import date
         start_date = date.today()
         days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-        
+
+        self.tag_manager.clear_cache()
+        entries = self.schedule_generator.apply_custom_tags(num_days=7) if not self.approximate_enabled else self.schedule_generator.apply_approximate(num_days=7)
+
         for day_offset in range(7):
             current_date = start_date + __import__('datetime').timedelta(days=day_offset)
             day_name = days[current_date.weekday()]
             self.preview_list.addItem(f"=== {current_date} - {day_name} ===")
-            self.tag_manager.clear_cache()
-            entries = self.schedule_generator.apply_custom_tags(num_days=7) if not self.approximate_enabled else self.schedule_generator.apply_approximate(num_days=7)
             for entry in entries:
                 start_h = (entry.start_minutes // 60) % 24
                 start_m = entry.start_minutes % 60
                 end_h = (entry.end_minutes // 60) % 24
                 end_m = entry.end_minutes % 60
-                if entry.start_minutes == 0:
-                    self.preview_list.addItem(f"Day {day_offset + 1}\n{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {entry.video_name}")
-                else:
-                    self.preview_list.addItem(f"{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {entry.video_name}")
+                day_start = day_offset * 24 * 60
+                day_end = (day_offset + 1) * 24 * 60
+                if entry.start_minutes >= day_start and entry.start_minutes < day_end:
+                    if entry.start_minutes == day_start:
+                        self.preview_list.addItem(f"Day {day_offset + 1}\n{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {entry.video_name}")
+                    else:
+                        self.preview_list.addItem(f"{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {entry.video_name}")
 
     def generate_monthly_preview(self):
         self.preview_list.clear()
         self.preview_title.setText("Calendar Schedule Preview (30 Days)")
-        
+
         from datetime import date
         start_date = date.today()
         days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-        
+
+        self.tag_manager.clear_cache()
+        entries = self.schedule_generator.apply_custom_tags(num_days=30) if not self.approximate_enabled else self.schedule_generator.apply_approximate(num_days=30)
+
         for day_offset in range(30):
             current_date = start_date + __import__('datetime').timedelta(days=day_offset)
             day_name = days[current_date.weekday()]
             self.preview_list.addItem(f"=== {current_date} - {day_name} ===")
-            self.tag_manager.clear_cache()
-            entries = self.schedule_generator.apply_custom_tags() if not self.approximate_enabled else self.schedule_generator.apply_approximate()
             for entry in entries:
                 start_h = (entry.start_minutes // 60) % 24
                 start_m = entry.start_minutes % 60
                 end_h = (entry.end_minutes // 60) % 24
                 end_m = entry.end_minutes % 60
-                if entry.start_minutes == 0:
-                    self.preview_list.addItem(f"Day {day_offset + 1}\n{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {entry.video_name}")
-                else:
-                    self.preview_list.addItem(f"{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {entry.video_name}")
+                day_start = day_offset * 24 * 60
+                day_end = (day_offset + 1) * 24 * 60
+                if entry.start_minutes >= day_start and entry.start_minutes < day_end:
+                    if entry.start_minutes == day_start:
+                        self.preview_list.addItem(f"Day {day_offset + 1}\n{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {entry.video_name}")
+                    else:
+                        self.preview_list.addItem(f"{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {entry.video_name}")
 
     def save_tags(self):
         self.tag_manager.save_tags("tags.ini")
