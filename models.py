@@ -608,8 +608,10 @@ class ScheduleGenerator:
             current_pos = day_start
             
             for ct, orig_start, orig_end, custom_start, custom_end in day_customs:
-                # Find random entry to "replace" (move custom tag after it)
-                randoms_in_range = [e for e in day_unused if e.start_minutes < custom_end and e.end_minutes > custom_start]
+                # Find random entries that overlap OR end close to custom start
+                overlapping = [e for e in day_unused if e.start_minutes < custom_end and e.end_minutes > custom_start]
+                close_before = [e for e in day_unused if e.end_minutes <= custom_start and e.end_minutes > custom_start - APPROXIMATE_THRESHOLD]
+                randoms_in_range = overlapping + close_before
                 
                 if randoms_in_range:
                     best_rand = None
@@ -617,37 +619,36 @@ class ScheduleGenerator:
                     best_idx = -1
                     
                     for rand_e in randoms_in_range:
-                        if rand_e.end_minutes > custom_start:
-                            gap = abs(rand_e.end_minutes - custom_start)
-                            if gap < best_gap and gap <= APPROXIMATE_THRESHOLD:
-                                best_gap = gap
-                                best_rand = rand_e
-                                for idx, re in enumerate(random_entries):
-                                    if re is rand_e and (idx not in used_random):
-                                        best_idx = idx
-                                        break
+                        gap = abs(rand_e.end_minutes - custom_start)
+                        if gap < best_gap and gap <= APPROXIMATE_THRESHOLD:
+                            best_gap = gap
+                            best_rand = rand_e
+                            for idx, re in enumerate(random_entries):
+                                if re is rand_e and (idx not in used_random):
+                                    best_idx = idx
+                                    break
                     
                     if best_rand and best_idx >= 0:
-                        rand_start = max(best_rand.end_minutes, day_start)
-                        if rand_start < current_pos:
-                            rand_start = current_pos
-                        if rand_start < best_rand.end_minutes:
-                            final.append(ScheduleEntry(1, rand_start, best_rand.end_minutes, best_rand.video_name))
+                        # Add the random entry to final before placing custom tag
+                        if current_pos <= best_rand.start_minutes:
+                            final.append(best_rand)
+                            used_random.add(best_idx)
+                            if best_rand in day_unused:
+                                day_unused.remove(best_rand)
                             current_pos = best_rand.end_minutes
-                        
-                        used_random.add(best_idx)
+                        elif current_pos < best_rand.end_minutes:
+                            final.append(ScheduleEntry(1, current_pos, best_rand.end_minutes, best_rand.video_name))
+                            used_random.add(best_idx)
+                            if best_rand in day_unused:
+                                day_unused.remove(best_rand)
+                            current_pos = best_rand.end_minutes
+                        else:
+                            used_random.add(best_idx)
+                            if best_rand in day_unused:
+                                day_unused.remove(best_rand)
                         
                         new_start = best_rand.end_minutes
                         new_end = new_start + (orig_end - orig_start)
-                        
-                        # Remove overlapping random entries from day_unused
-                        for re in day_unused[:]:
-                            if re.start_minutes < custom_end and re.end_minutes > new_start:
-                                for idx, orig_re in enumerate(random_entries):
-                                    if orig_re is re and idx not in used_random:
-                                        used_random.add(idx)
-                                        day_unused.remove(re)
-                                        break
                         
                         if ct.collection_videos:
                             video_count = getattr(ct, 'video_count', 1)
@@ -667,10 +668,22 @@ class ScheduleGenerator:
                                 final.append(self._create_video_entry(pos, duration, video_name, ct.name))
                                 pos += duration
                                 vid_idx += 1
-                            current_pos = new_end
+                            current_pos = pos
                         else:
                             final.append(ScheduleEntry(1, new_start, new_end, ct.name))
                             current_pos = new_end
+                        
+                        # Mark random entries that overlap with placed custom tag as used, add remaining portion to final
+                        for re in day_unused[:]:
+                            if re.start_minutes < current_pos and re.end_minutes > new_start:
+                                for idx, orig_re in enumerate(random_entries):
+                                    if orig_re is re and idx not in used_random:
+                                        used_random.add(idx)
+                                        remaining_start = current_pos
+                                        remaining_end = re.end_minutes
+                                        if remaining_end > remaining_start:
+                                            final.append(ScheduleEntry(1, remaining_start, remaining_end, re.video_name))
+                                        break
                     else:
                         if custom_start < current_pos:
                             custom_start = current_pos
