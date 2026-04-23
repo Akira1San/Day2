@@ -589,11 +589,12 @@ class ScheduleGenerator:
             day_start = day_offset * 24 * 60
             day_end = (day_offset + 1) * 24 * 60
             
-            day_randoms = [e for i, e in enumerate(random_entries) 
-                          if i not in used_random 
-                          and e.start_minutes >= day_start 
-                          and e.end_minutes <= day_end]
-            day_randoms.sort(key=lambda e: e.start_minutes)
+            # Get fresh list of unused random entries for this day
+            day_unused = [e for i, e in enumerate(random_entries) 
+                              if i not in used_random 
+                              and e.start_minutes < day_end 
+                              and e.end_minutes > day_start]
+            day_unused.sort(key=lambda e: e.start_minutes)
             
             day_customs = []
             for ct in all_custom_sorted:
@@ -607,12 +608,15 @@ class ScheduleGenerator:
             current_pos = day_start
             
             for ct, orig_start, orig_end, custom_start, custom_end in day_customs:
-                best_rand = None
-                best_gap = float('inf')
-                best_idx = -1
+                # Find random entry to "replace" (move custom tag after it)
+                randoms_in_range = [e for e in day_unused if e.start_minutes < custom_end and e.end_minutes > custom_start]
                 
-                for i, rand_e in enumerate(day_randoms):
-                    if rand_e.start_minutes < custom_end and rand_e.end_minutes > custom_start:
+                if randoms_in_range:
+                    best_rand = None
+                    best_gap = float('inf')
+                    best_idx = -1
+                    
+                    for rand_e in randoms_in_range:
                         if rand_e.end_minutes > custom_start:
                             gap = abs(rand_e.end_minutes - custom_start)
                             if gap < best_gap and gap <= APPROXIMATE_THRESHOLD:
@@ -622,41 +626,100 @@ class ScheduleGenerator:
                                     if re is rand_e and (idx not in used_random):
                                         best_idx = idx
                                         break
-                
-                if best_rand and best_idx >= 0:
-                    final.append(best_rand)
-                    used_random.add(best_idx)
-                    current_pos = best_rand.end_minutes
                     
-                    new_start = best_rand.end_minutes
-                    new_end = new_start + (orig_end - orig_start)
-                    
-                    if ct.collection_videos:
-                        video_count = getattr(ct, 'video_count', 1)
-                        videos = ct.collection_videos.copy()
-                        random.shuffle(videos)
-                        pos = new_start
-                        vid_idx = 0
-                        while pos < new_end and vid_idx < video_count and vid_idx < len(videos):
-                            video = videos[vid_idx % len(videos)]
-                            video_name = get_video_display_name(video)
-                            duration = int(video.get('duration', 90)) // 60
-                            if duration < 1:
-                                duration = 1
-                            duration = min(duration, new_end - pos)
-                            if duration < 1:
-                                break
-                            final.append(self._create_video_entry(pos, duration, video_name, ct.name))
-                            pos += duration
-                            vid_idx += 1
-                        current_pos = new_end
+                    if best_rand and best_idx >= 0:
+                        rand_start = max(best_rand.end_minutes, day_start)
+                        if rand_start < current_pos:
+                            rand_start = current_pos
+                        if rand_start < best_rand.end_minutes:
+                            final.append(ScheduleEntry(1, rand_start, best_rand.end_minutes, best_rand.video_name))
+                            current_pos = best_rand.end_minutes
+                        
+                        used_random.add(best_idx)
+                        
+                        new_start = best_rand.end_minutes
+                        new_end = new_start + (orig_end - orig_start)
+                        
+                        # Remove overlapping random entries from day_unused
+                        for re in day_unused[:]:
+                            if re.start_minutes < custom_end and re.end_minutes > new_start:
+                                for idx, orig_re in enumerate(random_entries):
+                                    if orig_re is re and idx not in used_random:
+                                        used_random.add(idx)
+                                        day_unused.remove(re)
+                                        break
+                        
+                        if ct.collection_videos:
+                            video_count = getattr(ct, 'video_count', 1)
+                            videos = ct.collection_videos.copy()
+                            random.shuffle(videos)
+                            pos = new_start
+                            vid_idx = 0
+                            while pos < new_end and vid_idx < video_count and vid_idx < len(videos):
+                                video = videos[vid_idx % len(videos)]
+                                video_name = get_video_display_name(video)
+                                duration = int(video.get('duration', 90)) // 60
+                                if duration < 1:
+                                    duration = 1
+                                duration = min(duration, new_end - pos)
+                                if duration < 1:
+                                    break
+                                final.append(self._create_video_entry(pos, duration, video_name, ct.name))
+                                pos += duration
+                                vid_idx += 1
+                            current_pos = new_end
+                        else:
+                            final.append(ScheduleEntry(1, new_start, new_end, ct.name))
+                            current_pos = new_end
                     else:
-                        final.append(ScheduleEntry(1, new_start, new_end, ct.name))
-                        current_pos = new_end
+                        if custom_start < current_pos:
+                            custom_start = current_pos
+                            custom_end = custom_start + (orig_end - orig_start)
+                        
+                        # Remove overlapping random entries from day_unused
+                        for re in day_unused[:]:
+                            if re.start_minutes < custom_end and re.end_minutes > custom_start:
+                                for idx, orig_re in enumerate(random_entries):
+                                    if orig_re is re and idx not in used_random:
+                                        used_random.add(idx)
+                                        day_unused.remove(re)
+                                        break
+                        
+                        if ct.collection_videos:
+                            video_count = getattr(ct, 'video_count', 1)
+                            videos = ct.collection_videos.copy()
+                            random.shuffle(videos)
+                            pos = custom_start
+                            vid_idx = 0
+                            while pos < custom_end and vid_idx < video_count and vid_idx < len(videos):
+                                video = videos[vid_idx % len(videos)]
+                                video_name = get_video_display_name(video)
+                                duration = int(video.get('duration', 90)) // 60
+                                if duration < 1:
+                                    duration = 1
+                                duration = min(duration, custom_end - pos)
+                                if duration < 1:
+                                    break
+                                final.append(self._create_video_entry(pos, duration, video_name, ct.name))
+                                pos += duration
+                                vid_idx += 1
+                            current_pos = custom_end
+                        else:
+                            final.append(ScheduleEntry(1, custom_start, custom_end, ct.name))
+                            current_pos = custom_end
                 else:
                     if custom_start < current_pos:
                         custom_start = current_pos
                         custom_end = custom_start + (orig_end - orig_start)
+                    
+                    # Remove overlapping random entries from day_unused
+                    for re in day_unused[:]:
+                        if re.start_minutes < custom_end and re.end_minutes > custom_start:
+                            for idx, orig_re in enumerate(random_entries):
+                                if orig_re is re and idx not in used_random:
+                                    used_random.add(idx)
+                                    day_unused.remove(re)
+                                    break
                     
                     if ct.collection_videos:
                         video_count = getattr(ct, 'video_count', 1)
@@ -681,8 +744,17 @@ class ScheduleGenerator:
                         final.append(ScheduleEntry(1, custom_start, custom_end, ct.name))
                         current_pos = custom_end
             
-            for rand_e in day_randoms:
+            # Add unused random entries from day_start to current_pos
+            day_unused = [e for i, e in enumerate(random_entries) 
+                              if i not in used_random 
+                              and e.start_minutes < day_end 
+                              and e.end_minutes > day_start]
+            day_unused.sort(key=lambda e: e.start_minutes)
+            
+            for rand_e in day_unused:
                 if rand_e.start_minutes >= current_pos:
+                    continue
+                if rand_e.end_minutes <= current_pos:
                     final.append(rand_e)
                     for idx, re in enumerate(random_entries):
                         if re is rand_e and idx not in used_random:
@@ -698,6 +770,22 @@ class ScheduleGenerator:
                                 used_random.add(idx)
                                 break
                         current_pos = rand_e.end_minutes
+            
+            # Add remaining unused random entries
+            day_unused2 = [e for i, e in enumerate(random_entries) 
+                              if i not in used_random 
+                              and e.start_minutes < day_end 
+                              and e.end_minutes > day_start]
+            day_unused2.sort(key=lambda e: e.start_minutes)
+            
+            for rand_e in day_unused2:
+                if rand_e.start_minutes >= current_pos:
+                    final.append(rand_e)
+                    for idx, re in enumerate(random_entries):
+                        if re is rand_e and idx not in used_random:
+                            used_random.add(idx)
+                            break
+                    current_pos = rand_e.end_minutes
         
         final.sort(key=lambda e: e.start_minutes)
         
