@@ -521,7 +521,190 @@ class ScheduleGenerator:
         final.sort(key=lambda e: e.start_minutes)
         return final
 
-    def apply_approximate(self, num_days: int = 1) -> List[ScheduleEntry]:
+    def apply_approximate(self, num_days: int = 1, mode: str = "find_replace") -> List[ScheduleEntry]:
+        all_tags = self.tag_manager.get_all_tags()
+        
+        custom_tags = [t for t in all_tags if t.tag_type == "custom" and not t.is_random_fill and not t.is_series]
+        series_tags = [t for t in all_tags if t.is_series]
+        random_fill_tags = [t for t in all_tags if t.is_random_fill]
+        
+        rf_24h_tags = [t for t in random_fill_tags if getattr(t, 'fill_24h', False)]
+        
+        if rf_24h_tags and not custom_tags and not series_tags:
+            return self.generate_random_fill(24 * 60 * num_days)
+        
+        has_24h_fill = bool(rf_24h_tags)
+        
+        if has_24h_fill:
+            base_entries = []
+        else:
+            base_entries = self.generate_random_fill(24 * 60) if (custom_tags or series_tags) else []
+
+        if not custom_tags and not series_tags and not random_fill_tags:
+            return base_entries
+
+        if mode == "linear":
+            return self._apply_approximate_linear(num_days, custom_tags, series_tags, random_fill_tags, has_24h_fill)
+        else:
+            return self._apply_approximate_find_replace(num_days, custom_tags, series_tags, random_fill_tags, has_24h_fill)
+
+    def _apply_approximate_find_replace(self, num_days: int, custom_tags: list, series_tags: list, random_fill_tags: list, has_24h_fill: bool) -> List[ScheduleEntry]:
+        """Find-and-replace algorithm: Don't truncate random fill, move custom tags instead."""
+        rf_sorted = sorted(random_fill_tags, key=lambda t: qtime_to_minutes(t.start_time))
+        
+        if not rf_sorted:
+            return self._apply_approximate_linear(num_days, custom_tags, series_tags, random_fill_tags, has_24h_fill)
+        
+        rf_name = rf_sorted[0].name
+        rf_videos = rf_sorted[0].collection_videos.copy() if rf_sorted and rf_sorted[0].collection_videos else []
+        if rf_videos:
+            random.shuffle(rf_videos)
+        
+        total_minutes = num_days * 24 * 60
+        
+        random_entries = []
+        pos = 0
+        vid_idx = 0
+        while pos < total_minutes:
+            if not rf_videos:
+                random_entries.append(ScheduleEntry(1, pos, pos + 60, f"{rf_name} - No videos"))
+                break
+            video = rf_videos[vid_idx % len(rf_videos)]
+            video_name = get_video_display_name(video)
+            duration = int(video.get('duration', 90)) // 60
+            if duration < 1:
+                duration = 1
+            random_entries.append(ScheduleEntry(1, pos, pos + duration, f"{rf_name} - {video_name}"))
+            pos += duration
+            vid_idx += 1
+        
+        final = []
+        APPROXIMATE_THRESHOLD = 40
+        
+        all_custom_sorted = sorted(custom_tags + series_tags, key=lambda t: qtime_to_minutes(t.start_time))
+        
+        used_random = set()
+        
+        for day_offset in range(num_days):
+            day_start = day_offset * 24 * 60
+            day_end = (day_offset + 1) * 24 * 60
+            
+            day_randoms = [e for i, e in enumerate(random_entries) 
+                          if i not in used_random 
+                          and e.start_minutes >= day_start 
+                          and e.end_minutes <= day_end]
+            day_randoms.sort(key=lambda e: e.start_minutes)
+            
+            day_customs = []
+            for ct in all_custom_sorted:
+                orig_start = qtime_to_minutes(ct.start_time)
+                orig_end = qtime_to_minutes(ct.end_time)
+                custom_start = orig_start + day_start
+                custom_end = orig_end + day_start
+                day_customs.append((ct, orig_start, orig_end, custom_start, custom_end))
+            day_customs.sort(key=lambda x: x[3])
+            
+            current_pos = day_start
+            
+            for ct, orig_start, orig_end, custom_start, custom_end in day_customs:
+                best_rand = None
+                best_gap = float('inf')
+                best_idx = -1
+                
+                for i, rand_e in enumerate(day_randoms):
+                    if rand_e.start_minutes < custom_end and rand_e.end_minutes > custom_start:
+                        if rand_e.end_minutes > custom_start:
+                            gap = abs(rand_e.end_minutes - custom_start)
+                            if gap < best_gap and gap <= APPROXIMATE_THRESHOLD:
+                                best_gap = gap
+                                best_rand = rand_e
+                                for idx, re in enumerate(random_entries):
+                                    if re is rand_e and (idx not in used_random):
+                                        best_idx = idx
+                                        break
+                
+                if best_rand and best_idx >= 0:
+                    final.append(best_rand)
+                    used_random.add(best_idx)
+                    current_pos = best_rand.end_minutes
+                    
+                    new_start = best_rand.end_minutes
+                    new_end = new_start + (orig_end - orig_start)
+                    
+                    if ct.collection_videos:
+                        video_count = getattr(ct, 'video_count', 1)
+                        videos = ct.collection_videos.copy()
+                        random.shuffle(videos)
+                        pos = new_start
+                        vid_idx = 0
+                        while pos < new_end and vid_idx < video_count and vid_idx < len(videos):
+                            video = videos[vid_idx % len(videos)]
+                            video_name = get_video_display_name(video)
+                            duration = int(video.get('duration', 90)) // 60
+                            if duration < 1:
+                                duration = 1
+                            duration = min(duration, new_end - pos)
+                            if duration < 1:
+                                break
+                            final.append(self._create_video_entry(pos, duration, video_name, ct.name))
+                            pos += duration
+                            vid_idx += 1
+                        current_pos = new_end
+                    else:
+                        final.append(ScheduleEntry(1, new_start, new_end, ct.name))
+                        current_pos = new_end
+                else:
+                    if custom_start < current_pos:
+                        custom_start = current_pos
+                        custom_end = custom_start + (orig_end - orig_start)
+                    
+                    if ct.collection_videos:
+                        video_count = getattr(ct, 'video_count', 1)
+                        videos = ct.collection_videos.copy()
+                        random.shuffle(videos)
+                        pos = custom_start
+                        vid_idx = 0
+                        while pos < custom_end and vid_idx < video_count and vid_idx < len(videos):
+                            video = videos[vid_idx % len(videos)]
+                            video_name = get_video_display_name(video)
+                            duration = int(video.get('duration', 90)) // 60
+                            if duration < 1:
+                                duration = 1
+                            duration = min(duration, custom_end - pos)
+                            if duration < 1:
+                                break
+                            final.append(self._create_video_entry(pos, duration, video_name, ct.name))
+                            pos += duration
+                            vid_idx += 1
+                        current_pos = custom_end
+                    else:
+                        final.append(ScheduleEntry(1, custom_start, custom_end, ct.name))
+                        current_pos = custom_end
+            
+            for rand_e in day_randoms:
+                if rand_e.start_minutes >= current_pos:
+                    final.append(rand_e)
+                    for idx, re in enumerate(random_entries):
+                        if re is rand_e and idx not in used_random:
+                            used_random.add(idx)
+                            break
+                    current_pos = rand_e.end_minutes
+                elif rand_e.start_minutes < current_pos < rand_e.end_minutes:
+                    dur = rand_e.end_minutes - current_pos
+                    if dur > 0:
+                        final.append(ScheduleEntry(1, current_pos, rand_e.end_minutes, rand_e.video_name))
+                        for idx, re in enumerate(random_entries):
+                            if re is rand_e and idx not in used_random:
+                                used_random.add(idx)
+                                break
+                        current_pos = rand_e.end_minutes
+        
+        final.sort(key=lambda e: e.start_minutes)
+        
+        return final
+
+    def _apply_approximate_linear(self, num_days: int, custom_tags: list, series_tags: list, random_fill_tags: list, has_24h_fill: bool) -> List[ScheduleEntry]:
+        """Linear placement: Truncate random fill to make room for custom tags."""
         all_tags = self.tag_manager.get_all_tags()
         
         custom_tags = [t for t in all_tags if t.tag_type == "custom" and not t.is_random_fill and not t.is_series]

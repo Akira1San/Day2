@@ -164,6 +164,12 @@ class MainWindow(QMainWindow):
 
         bottom_btn_layout.addStretch()
 
+        self.approx_mode_combo = QComboBox()
+        self.approx_mode_combo.addItems(["Linear", "Find-Replace"])
+        self.approx_mode_combo.setToolTip("Approximate algorithm mode")
+        self.approx_mode_combo.setFixedWidth(120)
+        bottom_btn_layout.addWidget(self.approx_mode_combo)
+
         self.approx_btn = QPushButton("Approximate OFF")
         self.approx_btn.setToolTip("Toggle approximate scheduling mode")
         self.approx_btn.setStyleSheet("background-color: #4a4a5e; color: #a0a0b0; font-weight: bold; padding: 10px 20px; border-radius: 6px;")
@@ -548,12 +554,15 @@ class MainWindow(QMainWindow):
     def run_approximate(self):
         self.approximate_enabled = not self.approximate_enabled
         self.tag_manager.clear_cache()
+        mode = self.approx_mode_combo.currentText().lower().replace("-", "_")
         if self.approximate_enabled:
-            self.preview_title.setText("24-Hour Schedule Preview [APPROXIMATE ON]")
+            self.schedule_entries = self.schedule_generator.apply_approximate(mode=mode)
+            self.preview_title.setText(f"24-Hour Schedule Preview [APPROXIMATE {mode.upper()}]")
             self.approx_btn.setText("APPROXIMATE ON")
             self.approx_btn.setStyleSheet("background-color: #22c55e; color: white; font-weight: bold; padding: 10px 20px; border-radius: 6px;")
             self.statusBar().showMessage("Approximate: ON")
         else:
+            self.schedule_entries = self.schedule_generator.apply_custom_tags()
             self.preview_title.setText("24-Hour Schedule Preview [Approximate OFF]")
             self.approx_btn.setText("Approximate OFF")
             self.approx_btn.setStyleSheet("background-color: #4a4a5e; color: #a0a0b0; font-weight: bold; padding: 10px 20px; border-radius: 6px;")
