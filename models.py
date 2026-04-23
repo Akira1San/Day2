@@ -857,6 +857,9 @@ class ScheduleGenerator:
         current_pos = 0
         next_custom_pos = 0
         
+        # Track actual placed ranges for 24h fill mode
+        actual_placed_ranges = []
+        
         custom_sorted = sorted(custom_tags, key=lambda t: qtime_to_minutes(t.start_time))
 
         if not has_24h_fill:
@@ -877,6 +880,7 @@ class ScheduleGenerator:
                         random.shuffle(videos)
                         pos = custom_start
                         vid_idx = 0
+                        actual_end = custom_start
                         while pos < custom_end and vid_idx < video_count and vid_idx < len(videos):
                             video = videos[vid_idx % len(videos)]
                             video_name = get_video_display_name(video)
@@ -887,9 +891,13 @@ class ScheduleGenerator:
                             if duration < 1:
                                 break
                             final.append(self._create_video_entry(pos, duration, video_name, ct.name))
+                            actual_end = pos + duration
                             pos += duration
                             vid_idx += 1
-                        current_pos = custom_end
+                        current_pos = actual_end
+                        next_custom_pos = actual_end
+                        if has_24h_fill:
+                            actual_placed_ranges.append((custom_start, actual_end))
                     else:
                         if custom_start < current_pos:
                             custom_start = current_pos
@@ -900,58 +908,8 @@ class ScheduleGenerator:
                 next_custom_pos = current_pos
                 while rand_idx < len(base_entries) and base_entries[rand_idx].start_minutes < current_pos:
                     rand_idx += 1
-
-            for day_offset in range(num_days):
-                day_offset_minutes = day_offset * 24 * 60
-                for st in series_tags:
-                    original_start = qtime_to_minutes(st.start_time)
-                    original_end = qtime_to_minutes(st.end_time)
-                    if original_start >= original_end:
-                        continue
-
-                    series_start = max(original_start, next_custom_pos) + day_offset_minutes
-                    series_end = series_start + (original_end - original_start)
-
-                    base_start_episode = getattr(st, 'start_episode', 1)
-                    video_count = getattr(st, 'video_count', 1)
-                    start_episode = base_start_episode + (day_offset * video_count)
-
-                    videos_to_use = []
-                    if st.collection_videos:
-                        for m in range(series_start, series_end):
-                            occupied.add(m)
-
-                        videos_to_use, _ = parse_videos_for_series(
-                            st.collection_videos,
-                            getattr(st, 'start_season', 1),
-                            start_episode,
-                            getattr(st, 'play_mode', 'sequence'),
-                            video_count
-                        )
-                        
-                        pos = series_start
-                        for v in videos_to_use:
-                            if pos >= series_end:
-                                break
-                            video = v['video']
-                            video_name = get_video_display_name(video)
-                            duration = int(video.get('duration', 90)) // 60
-                            if duration < 1:
-                                duration = 1
-                            duration = min(duration, series_end - pos)
-                            if duration < 1:
-                                break
-                            final.append(self._create_video_entry(pos, duration, video_name, st.name))
-                            pos += duration
-                        current_pos = series_end
-                    else:
-                        final.append(ScheduleEntry(1, series_start, series_end, st.name))
-                        current_pos = series_end
-
-                next_custom_pos = current_pos
-                while rand_idx < len(base_entries) and base_entries[rand_idx].start_minutes < current_pos:
-                    rand_idx += 1
         else:
+            # Process custom tags for 24h fill mode
             for day_offset in range(num_days):
                 day_offset_minutes = day_offset * 24 * 60
                 for ct in custom_sorted:
@@ -969,6 +927,7 @@ class ScheduleGenerator:
                         random.shuffle(videos)
                         pos = custom_start
                         vid_idx = 0
+                        actual_end = custom_start
                         while pos < custom_end and vid_idx < video_count and vid_idx < len(videos):
                             video = videos[vid_idx % len(videos)]
                             video_name = get_video_display_name(video)
@@ -979,51 +938,67 @@ class ScheduleGenerator:
                             if duration < 1:
                                 break
                             final.append(self._create_video_entry(pos, duration, video_name, ct.name))
+                            actual_end = pos + duration
                             pos += duration
                             vid_idx += 1
+                        actual_placed_ranges.append((custom_start, actual_end))
                     else:
                         final.append(ScheduleEntry(1, custom_start, custom_end, ct.name))
+                        actual_placed_ranges.append((custom_start, custom_end))
 
-            for day_offset in range(num_days):
-                day_offset_minutes = day_offset * 24 * 60
-                for st in series_tags:
-                    original_start = qtime_to_minutes(st.start_time)
-                    original_end = qtime_to_minutes(st.end_time)
-                    if original_start >= original_end:
-                        continue
+        # Series tags processing (outside if/else to handle both cases)
+        for day_offset in range(num_days):
+            day_offset_minutes = day_offset * 24 * 60
+            for st in series_tags:
+                original_start = qtime_to_minutes(st.start_time)
+                original_end = qtime_to_minutes(st.end_time)
+                if original_start >= original_end:
+                    continue
 
-                    series_start = original_start + day_offset_minutes
-                    series_end = original_end + day_offset_minutes
+                series_start = max(original_start, next_custom_pos) + day_offset_minutes
+                series_end = series_start + (original_end - original_start)
 
-                    videos_to_use = []
-                    if st.collection_videos:
-                        for m in range(series_start, series_end):
-                            occupied.add(m)
+                base_start_episode = getattr(st, 'start_episode', 1)
+                video_count = getattr(st, 'video_count', 1)
+                start_episode = base_start_episode + (day_offset * video_count)
 
-                        videos_to_use, _ = parse_videos_for_series(
-                            st.collection_videos,
-                            getattr(st, 'start_season', 1),
-                            getattr(st, 'start_episode', 1),
-                            getattr(st, 'play_mode', 'sequence'),
-                            getattr(st, 'video_count', 1)
-                        )
-                        
-                        pos = series_start
-                        for v in videos_to_use:
-                            if pos >= series_end:
-                                break
-                            video = v['video']
-                            video_name = get_video_display_name(video)
-                            duration = int(video.get('duration', 90)) // 60
-                            if duration < 1:
-                                duration = 1
-                            duration = min(duration, series_end - pos)
-                            if duration < 1:
-                                break
-                            final.append(self._create_video_entry(pos, duration, video_name, st.name))
-                            pos += duration
-                    else:
-                        final.append(ScheduleEntry(1, series_start, series_end, st.name))
+                videos_to_use = []
+                if st.collection_videos:
+                    for m in range(series_start, series_end):
+                        occupied.add(m)
+
+                    videos_to_use, _ = parse_videos_for_series(
+                        st.collection_videos,
+                        getattr(st, 'start_season', 1),
+                        start_episode,
+                        getattr(st, 'play_mode', 'sequence'),
+                        video_count
+                    )
+                    
+                    pos = series_start
+                    actual_end = series_start
+                    for v in videos_to_use:
+                        if pos >= series_end:
+                            break
+                        video = v['video']
+                        video_name = get_video_display_name(video)
+                        duration = int(video.get('duration', 90)) // 60
+                        if duration < 1:
+                            duration = 1
+                        duration = min(duration, series_end - pos)
+                        if duration < 1:
+                            break
+                        final.append(self._create_video_entry(pos, duration, video_name, st.name))
+                        actual_end = pos + duration
+                        pos += duration
+                    current_pos = actual_end
+                    next_custom_pos = actual_end
+                    if has_24h_fill:
+                        actual_placed_ranges.append((series_start, actual_end))
+                else:
+                    final.append(ScheduleEntry(1, series_start, series_end, st.name))
+                    actual_placed_ranges.append((series_start, series_end))
+                current_pos = actual_end
 
         rf_sorted = sorted(random_fill_tags, key=lambda t: qtime_to_minutes(t.start_time))
         
@@ -1055,7 +1030,8 @@ class ScheduleGenerator:
             for day_offset in range(num_days):
                 day_offset_minutes = day_offset * 24 * 60
                 for rf in rf_sorted:
-                    self._process_random_fill_tag(rf, final, merged_ranges, 0, day_offset_minutes)
+                    ranges_to_use = actual_placed_ranges if actual_placed_ranges else merged_ranges
+                    self._process_random_fill_tag(rf, final, ranges_to_use, 0, day_offset_minutes)
 
         if len(final) == 0 and not has_24h_fill:
             while current_pos < 24 * 60 * num_days and rand_idx < len(base_entries):
