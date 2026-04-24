@@ -585,19 +585,24 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(f"Tag saved to {file_path}")
 
     def load_single_tag(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Load Tag", "", "INI Files (*.ini);;All Files (*)")
-        if not file_path:
+        file_paths, _ = QFileDialog.getOpenFileNames(self, "Load Tags", "", "INI Files (*.ini);;All Files (*)")
+        if not file_paths:
             return
 
         from serialization import load_single_tag_from_ini
-        tag = load_single_tag_from_ini(file_path, Tag, QTime.fromString)
-        if tag:
-            self.tag_manager.add_tag(tag)
+        loaded_count = 0
+        for file_path in file_paths:
+            tag = load_single_tag_from_ini(file_path, Tag, QTime.fromString)
+            if tag:
+                self.tag_manager.add_tag(tag)
+                loaded_count += 1
+
+        if loaded_count > 0:
             self.refresh_tags_list()
             self.refresh_preview()
-            self.statusBar().showMessage(f"Tag loaded from {file_path}")
+            self.statusBar().showMessage(f"Loaded {loaded_count} tag(s)")
         else:
-            QMessageBox.warning(self, "Error", "Failed to load tag.")
+            QMessageBox.warning(self, "Error", "Failed to load tags.")
 
 
 def main():

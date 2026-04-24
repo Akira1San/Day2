@@ -28,7 +28,9 @@ def serialize_tag_to_string(tag) -> str:
         tag_type = "custom"
         is_random = "1" if getattr(tag, 'randomize_videos', False) else "0"
         video_count = str(getattr(tag, 'video_count', 1))
-        return f"{tag_type}|{tag.name}|{tag.start_time.toString('HH:mm')}|{tag.end_time.toString('HH:mm')}|{is_random}|{video_count}|{getattr(tag, 'collection_path', '')}"
+        collection_profile = getattr(tag, 'collection_profile', '')
+        blacklist_profile = getattr(tag, 'blacklist_profile', '')
+        return f"{tag_type}|{tag.name}|{tag.start_time.toString('HH:mm')}|{tag.end_time.toString('HH:mm')}|{is_random}|{video_count}|{getattr(tag, 'collection_path', '')}|{collection_profile}|{blacklist_profile}"
 
 
 def save_tags_to_ini(tags: List[Any], filepath: str = "tags.ini"):
@@ -105,11 +107,19 @@ def deserialize_tag_from_string(data: str, tag_class, qtime_from_string):
         video_count = int(parts[5]) if len(parts) >= 6 and parts[5].isdigit() else 1
         collection_path = parts[6] if len(parts) >= 7 else ""
         
+        if len(parts) >= 9:
+            collection_profile = parts[7] if parts[7] else ""
+            blacklist_profile = parts[8] if parts[8] else ""
+        else:
+            collection_profile = ""
+            blacklist_profile = ""
+        
         if collection_path:
             collection_videos = load_collection_videos_only(collection_path)
         
         return tag_class('custom', name, qtime_from_string(start, 'HH:mm'), qtime_from_string(end, 'HH:mm'),
-                        collection_videos, collection_path, is_random_videos, video_count)
+                        collection_videos, collection_path, is_random_videos, video_count,
+                        collection_profile=collection_profile, blacklist_profile=blacklist_profile)
 
 
 def load_tags_from_ini(filepath: str, tag_class, qtime_from_string) -> List[Any]:

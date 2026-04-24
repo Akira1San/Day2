@@ -86,6 +86,22 @@ class TagDialog(BaseTagDialog):
                         duration = video.get('duration', 0)
                         display_name = get_video_display_name(video)
                         self.videos_list.addItem(f"{display_name} ({format_duration(duration)})")
+            if hasattr(tag, 'collection_profile') and tag.collection_profile:
+                index = self.collection_profile_combo.findText(tag.collection_profile)
+                if index >= 0:
+                    self.collection_profile_combo.setCurrentIndex(index)
+                else:
+                    self.collection_profile_combo.setCurrentIndex(0)
+            else:
+                self.collection_profile_combo.setCurrentIndex(0)
+            if hasattr(tag, 'blacklist_profile') and tag.blacklist_profile:
+                index = self.blacklist_profile_combo.findText(tag.blacklist_profile)
+                if index >= 0:
+                    self.blacklist_profile_combo.setCurrentIndex(index)
+                else:
+                    self.blacklist_profile_combo.setCurrentIndex(0)
+            else:
+                self.blacklist_profile_combo.setCurrentIndex(0)
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
@@ -251,6 +267,12 @@ class TagDialog(BaseTagDialog):
                 self.channel_combo.setCurrentText(self.tag.channel)
 
     def get_tag(self) -> Tag:
+        collection_profile = self.collection_profile_combo.currentText()
+        if collection_profile == "-- None --":
+            collection_profile = ""
+        blacklist_profile = self.blacklist_profile_combo.currentText()
+        if blacklist_profile == "-- None --":
+            blacklist_profile = ""
         return Tag(
             tag_type="custom",
             name=self.name_input.text() or "Custom Video",
@@ -258,8 +280,11 @@ class TagDialog(BaseTagDialog):
             end_time=self.end_time_edit.time(),
             collection_videos=self.collection_videos.copy(),
             collection_path=self.collection_path.text(),
+            randomize_videos=self.randomize_videos_check.isChecked(),
             video_count=self.video_count_spin.value(),
-            blacklist=self.blacklist.copy()
+            blacklist=self.blacklist.copy(),
+            collection_profile=collection_profile,
+            blacklist_profile=blacklist_profile
         )
 
     def auto_calc_end_time(self):
