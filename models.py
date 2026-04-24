@@ -151,9 +151,10 @@ class TagManager:
              collection_videos: List[dict] = None, collection_path: str = "",
              video_count: int = 1, is_series: bool = False,
              start_season: int = 1, start_episode: int = 1, play_mode: str = "sequence",
-is_random_fill: bool = False, blacklist: List[dict] = None,
-                   blacklist_path: str = "", fill_24h: bool = False,
-                   collection_profile: str = "", blacklist_profile: str = "") -> bool:
+             is_random_fill: bool = False, blacklist: List[dict] = None,
+                    blacklist_path: str = "", fill_24h: bool = False,
+                    collection_profile: str = "", blacklist_profile: str = "",
+                    randomize_videos: bool = False) -> bool:
         if 0 <= index < len(self.tags):
             t = self.tags[index]
             t.name = name
@@ -172,6 +173,7 @@ is_random_fill: bool = False, blacklist: List[dict] = None,
             t.fill_24h = fill_24h
             t.collection_profile = collection_profile
             t.blacklist_profile = blacklist_profile
+            t.randomize_videos = randomize_videos
             return True
         return False
 
