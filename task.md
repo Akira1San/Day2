@@ -1,13 +1,14 @@
 # Daypart Scheduler — Code Review Action Items
 
-> Generated from review on 2026-04-25. Last updated after commit `827c785`.
+> Generated from review on 2026-04-25. Last updated after commit `c4704a6`.
 
 ---
 
-## 0. ✅ Completed (2/13)
+## 0. ✅ Completed (3/13)
 
 - [x] **Extract `_place_tag_videos()`** — DRY up 3 duplicated blocks in `_apply_approximate_find_replace()` (`961c241`)
 - [x] **Extract `_build_random_entries()`** — DRY up 3 random-fill generation loops (`827c785`)
+- [x] **Extract `CustomTagMergeStrategy`** — Moved `apply_custom_tags()` and `_inject_custom_tags()` out of `ScheduleGenerator` (`c4704a6`)
 
 ---
 
@@ -61,7 +62,7 @@
 
 ---
 
-## 3. 🏗️ Architecture / Refactoring (4 items — 0 done)
+## 3. 🏗️ Architecture / Refactoring (4 items — 1 done)
 
 - [ ] **3.1 Reduce `edit_tag()` Argument Count**
   - **File:** `daypart_scheduler.py`
@@ -83,7 +84,7 @@
     LinearApproximateStrategy
     FindReplaceApproximateStrategy
     ```
-  - **Status:** Steps 1 & 2 done (`_place_tag_videos()`, `_build_random_entries()` extracted). Next: extract `CustomTagMergeStrategy`, then `LinearApproximateStrategy`, then `FindReplaceApproximateStrategy`.
+  - **Status:** Steps 1–3 done (`_place_tag_videos()`, `_build_random_entries()`, `CustomTagMergeStrategy` extracted). Next: `LinearApproximateStrategy`, then `FindReplaceApproximateStrategy`.
 
 - [ ] **3.4 Refactor `Tag` God Object**
   - **File:** `models.py`
@@ -121,8 +122,8 @@
 | Code Quality | 3 | 0 | 3 |
 | Architecture | 4 | 0 | 4 |
 | Missing Features | 2 | 0 | 2 |
-| **Completed** | **2** | **2** | **0** |
-| **Grand Total** | **14** | **2** | **12** |
+| **Completed** | **3** | **3** | **0** |
+| **Grand Total** | **14** | **3** | **11** |
 
 ---
 
