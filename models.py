@@ -626,31 +626,10 @@ class ScheduleGenerator:
         return entries
 
     def apply_approximate(self, num_days: int = 1, mode: str = "find_replace") -> List[ScheduleEntry]:
-        all_tags = self.tag_manager.get_all_tags()
-        
-        custom_tags = [t for t in all_tags if t.tag_type == "custom" and not t.is_random_fill and not t.is_series]
-        series_tags = [t for t in all_tags if t.is_series]
-        random_fill_tags = [t for t in all_tags if t.is_random_fill]
-        
-        rf_24h_tags = [t for t in random_fill_tags if getattr(t, 'fill_24h', False)]
-        
-        if rf_24h_tags and not custom_tags and not series_tags:
-            return self.generate_random_fill(24 * 60 * num_days)
-        
-        has_24h_fill = bool(rf_24h_tags)
-        
-        if has_24h_fill:
-            base_entries = []
-        else:
-            base_entries = self.generate_random_fill(24 * 60) if (custom_tags or series_tags) else []
-
-        if not custom_tags and not series_tags and not random_fill_tags:
-            return base_entries
-
+        """Dispatch to the appropriate approximate scheduling strategy."""
         if mode == "linear":
             return LinearApproximateStrategy(self).generate(num_days)
-        else:
-            return FindReplaceApproximateStrategy(self).generate(num_days)
+        return FindReplaceApproximateStrategy(self).generate(num_days)
 
     def _apply_approximate_find_replace(self, num_days: int, custom_tags: list, series_tags: list, random_fill_tags: list, has_24h_fill: bool) -> List[ScheduleEntry]:
         """Find-and-replace algorithm: Don't truncate random fill, move custom tags instead."""
