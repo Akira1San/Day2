@@ -317,6 +317,37 @@ class CustomTagMergeStrategy:
         return final
 
 
+class LinearApproximateStrategy:
+    """Strategy for linear approximate scheduling: truncates random fill to make room for custom tags."""
+
+    def __init__(self, schedule_generator: 'ScheduleGenerator'):
+        self.sg = schedule_generator
+
+    def generate(self, num_days: int = 1) -> List[ScheduleEntry]:
+        all_tags = self.sg.tag_manager.get_all_tags()
+
+        custom_tags = [t for t in all_tags if t.tag_type == "custom" and not t.is_random_fill and not t.is_series]
+        series_tags = [t for t in all_tags if t.is_series]
+        random_fill_tags = [t for t in all_tags if t.is_random_fill]
+
+        rf_24h_tags = [t for t in random_fill_tags if getattr(t, 'fill_24h', False)]
+
+        if rf_24h_tags and not custom_tags and not series_tags:
+            return self.sg.generate_random_fill(24 * 60 * num_days)
+
+        has_24h_fill = bool(rf_24h_tags)
+
+        if has_24h_fill:
+            base_entries = []
+        else:
+            base_entries = self.sg.generate_random_fill(24 * 60) if (custom_tags or series_tags) else []
+
+        if not custom_tags and not series_tags and not random_fill_tags:
+            return base_entries
+
+        return self.sg._apply_approximate_linear(num_days, custom_tags, series_tags, random_fill_tags, has_24h_fill)
+
+
 class ScheduleGenerator:
     def __init__(self, tag_manager: TagManager):
         self.tag_manager = tag_manager
@@ -591,7 +622,7 @@ class ScheduleGenerator:
             return base_entries
 
         if mode == "linear":
-            return self._apply_approximate_linear(num_days, custom_tags, series_tags, random_fill_tags, has_24h_fill)
+            return LinearApproximateStrategy(self).generate(num_days)
         else:
             return self._apply_approximate_find_replace(num_days, custom_tags, series_tags, random_fill_tags, has_24h_fill)
 
