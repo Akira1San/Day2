@@ -198,6 +198,31 @@ class ScheduleGenerator:
         video_name = f"{tag_name} - {name}" if tag_name else name
         return ScheduleEntry(1, pos, pos + duration, video_name)
 
+    def _place_tag_videos(self, ct, start: int, end: int, final: List[ScheduleEntry]) -> int:
+        """Place custom/series tag videos into final schedule. Returns new current_pos."""
+        if ct.collection_videos:
+            video_count = getattr(ct, 'video_count', 1)
+            videos = ct.collection_videos.copy()
+            random.shuffle(videos)
+            pos = start
+            vid_idx = 0
+            while pos < end and vid_idx < video_count and vid_idx < len(videos):
+                video = videos[vid_idx % len(videos)]
+                video_name = get_video_display_name(video)
+                duration = int(video.get('duration', 90)) // 60
+                if duration < 1:
+                    duration = 1
+                duration = min(duration, end - pos)
+                if duration < 1:
+                    break
+                final.append(self._create_video_entry(pos, duration, video_name, ct.name))
+                pos += duration
+                vid_idx += 1
+            return pos
+        else:
+            final.append(ScheduleEntry(1, start, end, ct.name))
+            return end
+
     def _get_all_videos(self, tags: List[Tag]) -> List[dict]:
         videos = []
         for tag in tags:
@@ -652,28 +677,7 @@ class ScheduleGenerator:
                         new_start = best_rand.end_minutes
                         new_end = new_start + (orig_end - orig_start)
                         
-                        if ct.collection_videos:
-                            video_count = getattr(ct, 'video_count', 1)
-                            videos = ct.collection_videos.copy()
-                            random.shuffle(videos)
-                            pos = new_start
-                            vid_idx = 0
-                            while pos < new_end and vid_idx < video_count and vid_idx < len(videos):
-                                video = videos[vid_idx % len(videos)]
-                                video_name = get_video_display_name(video)
-                                duration = int(video.get('duration', 90)) // 60
-                                if duration < 1:
-                                    duration = 1
-                                duration = min(duration, new_end - pos)
-                                if duration < 1:
-                                    break
-                                final.append(self._create_video_entry(pos, duration, video_name, ct.name))
-                                pos += duration
-                                vid_idx += 1
-                            current_pos = pos
-                        else:
-                            final.append(ScheduleEntry(1, new_start, new_end, ct.name))
-                            current_pos = new_end
+                        current_pos = self._place_tag_videos(ct, new_start, new_end, final)
                         
                         # Mark random entries that overlap with placed custom tag as used, add remaining portion to final
                         for re in day_unused[:]:
@@ -700,28 +704,7 @@ class ScheduleGenerator:
                                         day_unused.remove(re)
                                         break
                         
-                        if ct.collection_videos:
-                            video_count = getattr(ct, 'video_count', 1)
-                            videos = ct.collection_videos.copy()
-                            random.shuffle(videos)
-                            pos = custom_start
-                            vid_idx = 0
-                            while pos < custom_end and vid_idx < video_count and vid_idx < len(videos):
-                                video = videos[vid_idx % len(videos)]
-                                video_name = get_video_display_name(video)
-                                duration = int(video.get('duration', 90)) // 60
-                                if duration < 1:
-                                    duration = 1
-                                duration = min(duration, custom_end - pos)
-                                if duration < 1:
-                                    break
-                                final.append(self._create_video_entry(pos, duration, video_name, ct.name))
-                                pos += duration
-                                vid_idx += 1
-                            current_pos = custom_end
-                        else:
-                            final.append(ScheduleEntry(1, custom_start, custom_end, ct.name))
-                            current_pos = custom_end
+                        current_pos = self._place_tag_videos(ct, custom_start, custom_end, final)
                 else:
                     if custom_start < current_pos:
                         custom_start = current_pos
@@ -736,28 +719,7 @@ class ScheduleGenerator:
                                     day_unused.remove(re)
                                     break
                     
-                    if ct.collection_videos:
-                        video_count = getattr(ct, 'video_count', 1)
-                        videos = ct.collection_videos.copy()
-                        random.shuffle(videos)
-                        pos = custom_start
-                        vid_idx = 0
-                        while pos < custom_end and vid_idx < video_count and vid_idx < len(videos):
-                            video = videos[vid_idx % len(videos)]
-                            video_name = get_video_display_name(video)
-                            duration = int(video.get('duration', 90)) // 60
-                            if duration < 1:
-                                duration = 1
-                            duration = min(duration, custom_end - pos)
-                            if duration < 1:
-                                break
-                            final.append(self._create_video_entry(pos, duration, video_name, ct.name))
-                            pos += duration
-                            vid_idx += 1
-                        current_pos = custom_end
-                    else:
-                        final.append(ScheduleEntry(1, custom_start, custom_end, ct.name))
-                        current_pos = custom_end
+                    current_pos = self._place_tag_videos(ct, custom_start, custom_end, final)
             
             # Add unused random entries from day_start to current_pos
             day_unused = [e for i, e in enumerate(random_entries) 
