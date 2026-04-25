@@ -190,6 +190,133 @@ class TagManager:
         return list(self.tags)
 
 
+class CustomTagMergeStrategy:
+    """Strategy for merging custom/series tags into random fill."""
+
+    def __init__(self, schedule_generator: 'ScheduleGenerator'):
+        self.sg = schedule_generator
+
+    def generate(self, num_days: int = 1) -> List[ScheduleEntry]:
+        """Build a schedule combining custom tags, series tags, and random fill."""
+        all_tags = self.sg.tag_manager.get_all_tags()
+
+        custom_tags = [t for t in all_tags if t.tag_type == "custom" and not t.is_random_fill and not t.is_series]
+        series_tags = [t for t in all_tags if t.is_series]
+        random_fill_tags = [t for t in all_tags if t.is_random_fill]
+
+        if not custom_tags and not series_tags and not random_fill_tags:
+            entries = self.sg.generate_random_fill(24 * 60 * num_days)
+            return entries
+
+        occupied = set()
+        custom_entries = []
+        series_entries = []
+        fill_entries = []
+
+        for day_offset in range(num_days):
+            day_offset_minutes = day_offset * 24 * 60
+            for ct in custom_tags:
+                self.sg._process_custom_tag(ct, custom_entries, occupied, day_offset_minutes)
+
+            for st in series_tags:
+                self.sg._process_series_tag(st, series_entries, occupied, day_offset, day_offset_minutes)
+
+        rf_sorted = sorted(random_fill_tags, key=lambda t: qtime_to_minutes(t.start_time))
+
+        if any(getattr(rf, 'fill_24h', False) for rf in rf_sorted):
+            for day_offset in range(num_days):
+                day_offset_minutes = day_offset * 24 * 60
+                for rf in rf_sorted:
+                    if getattr(rf, 'fill_24h', False):
+                        merged = [(e.start_minutes, e.end_minutes) for e in custom_entries + series_entries]
+                        self.sg._process_random_fill_tag(rf, fill_entries, merged, 0, day_offset_minutes)
+        else:
+            rf_start = qtime_to_minutes(rf_sorted[0].start_time) if rf_sorted else 0
+            rf_end = qtime_to_minutes(rf_sorted[0].end_time) if rf_sorted else 24 * 60
+
+            rf_videos = rf_sorted[0].collection_videos.copy() if rf_sorted and rf_sorted[0].collection_videos else []
+            if rf_videos:
+                random.shuffle(rf_videos)
+
+            total_minutes = num_days * 24 * 60
+            fill_entries.extend(self.sg._build_random_entries(rf_videos, rf_start, total_minutes, rf_sorted[0].name))
+
+        rf_24h_tags = [rf for rf in rf_sorted if getattr(rf, 'fill_24h', False)]
+        if fill_entries and rf_24h_tags:
+            fill_entries.sort(key=lambda e: e.start_minutes)
+            total_duration = sum(e.end_minutes - e.start_minutes for e in fill_entries)
+            rf_videos = rf_sorted[0].collection_videos.copy() if rf_sorted else []
+            if rf_videos:
+                total_mins = sum(int(v.get('duration', 90) // 60) for v in rf_videos)
+                avg_duration = total_mins // len(rf_videos) if rf_videos else 0
+                if avg_duration > 0:
+                    start_vid_idx = (total_duration // avg_duration) % len(rf_videos)
+                    for day_offset in range(1, num_days):
+                        day_offset_minutes = day_offset * 24 * 60
+                        for rf in rf_sorted[1:]:
+                            merged = [(e.start_minutes, e.end_minutes) for e in custom_entries + series_entries]
+                            self.sg._process_random_fill_tag(rf, fill_entries, merged, start_vid_idx, day_offset_minutes)
+
+        entries = custom_entries + series_entries + fill_entries
+        entries.sort(key=lambda e: e.start_minutes)
+        return entries
+
+    def inject_into_random(self, random_entries: List[ScheduleEntry]) -> List[ScheduleEntry]:
+        """Inject custom tags into existing random entries."""
+        custom_tags = self.sg.tag_manager.get_custom_tags()
+        if not custom_tags:
+            return list(random_entries)
+
+        final = []
+        rand_idx = 0
+        custom_sorted = sorted(custom_tags, key=lambda t: qtime_to_minutes(t.start_time))
+
+        for ct in custom_sorted:
+            start = qtime_to_minutes(ct.start_time)
+            end = qtime_to_minutes(ct.end_time)
+            if start >= end or start >= 24 * 60:
+                continue
+
+            while rand_idx < len(random_entries) and random_entries[rand_idx].end_minutes <= start:
+                final.append(random_entries[rand_idx])
+                rand_idx += 1
+
+            if rand_idx < len(random_entries) and random_entries[rand_idx].start_minutes < start:
+                final.append(random_entries[rand_idx])
+                rand_idx += 1
+
+            if ct.collection_videos and getattr(ct, 'randomize_videos', False):
+                video_count = getattr(ct, 'video_count', 1)
+                videos = ct.collection_videos.copy()
+                random.shuffle(videos)
+                pos = start
+                vid_idx = 0
+                while pos < end and vid_idx < video_count and vid_idx < len(videos):
+                    video = videos[vid_idx % len(videos)]
+                    video_name = get_video_display_name(video)
+                    duration = int(video.get('duration', 90)) // 60
+                    if duration < 1:
+                        duration = 1
+                    duration = min(duration, end - pos)
+                    if duration < 1:
+                        break
+                    final.append(ScheduleEntry(1, pos, pos + duration, video_name))
+                    pos += duration
+                    vid_idx += 1
+            else:
+                final.append(ScheduleEntry(1, start, end, ct.name))
+
+            while rand_idx < len(random_entries) and random_entries[rand_idx].start_minutes < end:
+                rand_idx += 1
+
+        while rand_idx < len(random_entries):
+            final.append(random_entries[rand_idx])
+            rand_idx += 1
+
+        final.sort(key=lambda e: e.start_minutes)
+        return final
+
+
 class ScheduleGenerator:
     def __init__(self, tag_manager: TagManager):
         self.tag_manager = tag_manager
@@ -433,129 +560,13 @@ class ScheduleGenerator:
                 vid_idx += 1
 
     def apply_custom_tags(self, use_cache: bool = True, num_days: int = 1) -> List[ScheduleEntry]:
-        all_tags = self.tag_manager.get_all_tags()
-
         cached = self.tag_manager.get_cached_random_entries()
+        strategy = CustomTagMergeStrategy(self)
         if use_cache and cached is not None:
-            return self._inject_custom_tags(cached)
-
-        custom_tags = [t for t in all_tags if t.tag_type == "custom" and not t.is_random_fill and not t.is_series]
-        series_tags = [t for t in all_tags if t.is_series]
-        random_fill_tags = [t for t in all_tags if t.is_random_fill]
-
-        if not custom_tags and not series_tags and not random_fill_tags:
-            entries = self.generate_random_fill(24 * 60 * num_days)
-            self.tag_manager.set_cached_random_entries(entries)
-            return entries
-
-        occupied = set()
-        custom_entries = []
-        series_entries = []
-        fill_entries = []
-        continuation_pos = None
-        
-        for day_offset in range(num_days):
-            day_offset_minutes = day_offset * 24 * 60
-            for ct in custom_tags:
-                self._process_custom_tag(ct, custom_entries, occupied, day_offset_minutes)
-
-            for st in series_tags:
-                self._process_series_tag(st, series_entries, occupied, day_offset, day_offset_minutes)
-
-        rf_sorted = sorted(random_fill_tags, key=lambda t: qtime_to_minutes(t.start_time))
-        
-        if any(getattr(rf, 'fill_24h', False) for rf in rf_sorted):
-            for day_offset in range(num_days):
-                day_offset_minutes = day_offset * 24 * 60
-                for rf in rf_sorted:
-                    if getattr(rf, 'fill_24h', False):
-                        merged = [(e.start_minutes, e.end_minutes) for e in custom_entries + series_entries]
-                        self._process_random_fill_tag(rf, fill_entries, merged, 0, day_offset_minutes)
-        else:
-            rf_start = qtime_to_minutes(rf_sorted[0].start_time) if rf_sorted else 0
-            rf_end = qtime_to_minutes(rf_sorted[0].end_time) if rf_sorted else 24 * 60
-            
-            rf_videos = rf_sorted[0].collection_videos.copy() if rf_sorted and rf_sorted[0].collection_videos else []
-            if rf_videos:
-                random.shuffle(rf_videos)
-            
-            total_minutes = num_days * 24 * 60
-            fill_entries.extend(self._build_random_entries(rf_videos, rf_start, total_minutes, rf_sorted[0].name))
-
-        rf_24h_tags = [rf for rf in rf_sorted if getattr(rf, 'fill_24h', False)]
-        if fill_entries and rf_24h_tags:
-            fill_entries.sort(key=lambda e: e.start_minutes)
-            total_duration = sum(e.end_minutes - e.start_minutes for e in fill_entries)
-            rf_videos = rf_sorted[0].collection_videos.copy() if rf_sorted else []
-            if rf_videos:
-                total_mins = sum(int(v.get('duration', 90) // 60) for v in rf_videos)
-                avg_duration = total_mins // len(rf_videos) if rf_videos else 0
-                if avg_duration > 0:
-                    start_vid_idx = (total_duration // avg_duration) % len(rf_videos)
-                    for day_offset in range(1, num_days):
-                        day_offset_minutes = day_offset * 24 * 60
-                        for rf in rf_sorted[1:]:
-                            merged = [(e.start_minutes, e.end_minutes) for e in custom_entries + series_entries]
-                            self._process_random_fill_tag(rf, fill_entries, merged, start_vid_idx, day_offset_minutes)
-
-        entries = custom_entries + series_entries + fill_entries
-        entries.sort(key=lambda e: e.start_minutes)
+            return strategy.inject_into_random(cached)
+        entries = strategy.generate(num_days)
         self.tag_manager.set_cached_random_entries(entries)
         return entries
-
-    def _inject_custom_tags(self, random_entries: List[ScheduleEntry]) -> List[ScheduleEntry]:
-        custom_tags = self.tag_manager.get_custom_tags()
-        if not custom_tags:
-            return list(random_entries)
-
-        final = []
-        rand_idx = 0
-        custom_sorted = sorted(custom_tags, key=lambda t: qtime_to_minutes(t.start_time))
-
-        for ct in custom_sorted:
-            start = qtime_to_minutes(ct.start_time)
-            end = qtime_to_minutes(ct.end_time)
-            if start >= end or start >= 24 * 60:
-                continue
-
-            while rand_idx < len(random_entries) and random_entries[rand_idx].end_minutes <= start:
-                final.append(random_entries[rand_idx])
-                rand_idx += 1
-
-            if rand_idx < len(random_entries) and random_entries[rand_idx].start_minutes < start:
-                final.append(random_entries[rand_idx])
-                rand_idx += 1
-
-            if ct.collection_videos and getattr(ct, 'randomize_videos', False):
-                video_count = getattr(ct, 'video_count', 1)
-                videos = ct.collection_videos.copy()
-                random.shuffle(videos)
-                pos = start
-                vid_idx = 0
-                while pos < end and vid_idx < video_count and vid_idx < len(videos):
-                    video = videos[vid_idx % len(videos)]
-                    video_name = get_video_display_name(video)
-                    duration = int(video.get('duration', 90)) // 60
-                    if duration < 1:
-                        duration = 1
-                    duration = min(duration, end - pos)
-                    if duration < 1:
-                        break
-                    final.append(ScheduleEntry(1, pos, pos + duration, video_name))
-                    pos += duration
-                    vid_idx += 1
-            else:
-                final.append(ScheduleEntry(1, start, end, ct.name))
-
-            while rand_idx < len(random_entries) and random_entries[rand_idx].start_minutes < end:
-                rand_idx += 1
-
-        while rand_idx < len(random_entries):
-            final.append(random_entries[rand_idx])
-            rand_idx += 1
-
-        final.sort(key=lambda e: e.start_minutes)
-        return final
 
     def apply_approximate(self, num_days: int = 1, mode: str = "find_replace") -> List[ScheduleEntry]:
         all_tags = self.tag_manager.get_all_tags()
