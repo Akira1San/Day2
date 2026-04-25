@@ -223,6 +223,29 @@ class ScheduleGenerator:
             final.append(ScheduleEntry(1, start, end, ct.name))
             return end
 
+    def _build_random_entries(self, videos: List[dict], start_pos: int, end_pos: int, tag_name: str = "") -> List[ScheduleEntry]:
+        """Build schedule entries by cycling through videos from start_pos to end_pos."""
+        entries = []
+        pos = start_pos
+        if not videos:
+            placeholder = f"{tag_name} - No videos" if tag_name else "No videos"
+            entries.append(ScheduleEntry(1, pos, pos + 60, placeholder))
+            return entries
+        videos = videos.copy()
+        random.shuffle(videos)
+        vid_idx = 0
+        while pos < end_pos:
+            video = videos[vid_idx % len(videos)]
+            video_name = get_video_display_name(video)
+            duration = int(video.get('duration', 90)) // 60
+            if duration < 1:
+                duration = 1
+            name = f"{tag_name} - {video_name}" if tag_name else video_name
+            entries.append(ScheduleEntry(1, pos, pos + duration, name))
+            pos += duration
+            vid_idx += 1
+        return entries
+
     def _get_all_videos(self, tags: List[Tag]) -> List[dict]:
         videos = []
         for tag in tags:
@@ -456,22 +479,8 @@ class ScheduleGenerator:
             if rf_videos:
                 random.shuffle(rf_videos)
             
-            pos = rf_start
-            vid_idx = 0
             total_minutes = num_days * 24 * 60
-            
-            while pos < total_minutes:
-                if not rf_videos:
-                    fill_entries.append(ScheduleEntry(1, pos, pos + 60, f"No videos"))
-                    break
-                video = rf_videos[vid_idx % len(rf_videos)]
-                video_name = get_video_display_name(video)
-                duration = int(video.get('duration', 90)) // 60
-                if duration < 1:
-                    duration = 1
-                fill_entries.append(self._create_video_entry(pos, duration, video_name, rf_sorted[0].name))
-                pos += duration
-                vid_idx += 1
+            fill_entries.extend(self._build_random_entries(rf_videos, rf_start, total_minutes, rf_sorted[0].name))
 
         rf_24h_tags = [rf for rf in rf_sorted if getattr(rf, 'fill_24h', False)]
         if fill_entries and rf_24h_tags:
@@ -588,22 +597,7 @@ class ScheduleGenerator:
             random.shuffle(rf_videos)
         
         total_minutes = num_days * 24 * 60
-        
-        random_entries = []
-        pos = 0
-        vid_idx = 0
-        while pos < total_minutes:
-            if not rf_videos:
-                random_entries.append(ScheduleEntry(1, pos, pos + 60, f"{rf_name} - No videos"))
-                break
-            video = rf_videos[vid_idx % len(rf_videos)]
-            video_name = get_video_display_name(video)
-            duration = int(video.get('duration', 90)) // 60
-            if duration < 1:
-                duration = 1
-            random_entries.append(ScheduleEntry(1, pos, pos + duration, f"{rf_name} - {video_name}"))
-            pos += duration
-            vid_idx += 1
+        random_entries = self._build_random_entries(rf_videos, 0, total_minutes, rf_name)
         
         final = []
         APPROXIMATE_THRESHOLD = 40
@@ -974,22 +968,8 @@ class ScheduleGenerator:
             if rf_videos:
                 random.shuffle(rf_videos)
             
-            pos = rf_start
-            vid_idx = 0
             total_minutes = num_days * 24 * 60
-            
-            while pos < total_minutes:
-                if not rf_videos:
-                    final.append(ScheduleEntry(1, pos, pos + 60, f"No videos"))
-                    break
-                video = rf_videos[vid_idx % len(rf_videos)]
-                video_name = get_video_display_name(video)
-                duration = int(video.get('duration', 90)) // 60
-                if duration < 1:
-                    duration = 1
-                final.append(self._create_video_entry(pos, duration, video_name, rf_sorted[0].name))
-                pos += duration
-                vid_idx += 1
+            final.extend(self._build_random_entries(rf_videos, rf_start, total_minutes, rf_sorted[0].name))
         else:
             for day_offset in range(num_days):
                 day_offset_minutes = day_offset * 24 * 60
