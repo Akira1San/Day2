@@ -239,7 +239,8 @@ class CustomTagMergeStrategy:
                 random.shuffle(rf_videos)
 
             total_minutes = num_days * 24 * 60
-            fill_entries.extend(self.sg._build_random_entries(rf_videos, rf_start, total_minutes, rf_sorted[0].name))
+            rf_name = rf_sorted[0].name if rf_sorted else ""
+            fill_entries.extend(self.sg._build_random_entries(rf_videos, rf_start, total_minutes, rf_name))
 
         rf_24h_tags = [rf for rf in rf_sorted if getattr(rf, 'fill_24h', False)]
         if fill_entries and rf_24h_tags:
