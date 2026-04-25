@@ -223,24 +223,20 @@ class CustomTagMergeStrategy:
 
         rf_sorted = sorted(random_fill_tags, key=lambda t: qtime_to_minutes(t.start_time))
 
-        if any(getattr(rf, 'fill_24h', False) for rf in rf_sorted):
+        if rf_sorted and any(getattr(rf, 'fill_24h', False) for rf in rf_sorted):
             for day_offset in range(num_days):
                 day_offset_minutes = day_offset * 24 * 60
                 for rf in rf_sorted:
                     if getattr(rf, 'fill_24h', False):
                         merged = [(e.start_minutes, e.end_minutes) for e in custom_entries + series_entries]
                         self.sg._process_random_fill_tag(rf, fill_entries, merged, 0, day_offset_minutes)
-        else:
-            rf_start = qtime_to_minutes(rf_sorted[0].start_time) if rf_sorted else 0
-            rf_end = qtime_to_minutes(rf_sorted[0].end_time) if rf_sorted else 24 * 60
-
-            rf_videos = rf_sorted[0].collection_videos.copy() if rf_sorted and rf_sorted[0].collection_videos else []
+        elif rf_sorted:
+            rf_start = qtime_to_minutes(rf_sorted[0].start_time)
+            rf_videos = rf_sorted[0].collection_videos.copy() if rf_sorted[0].collection_videos else []
             if rf_videos:
                 random.shuffle(rf_videos)
-
             total_minutes = num_days * 24 * 60
-            rf_name = rf_sorted[0].name if rf_sorted else ""
-            fill_entries.extend(self.sg._build_random_entries(rf_videos, rf_start, total_minutes, rf_name))
+            fill_entries.extend(self.sg._build_random_entries(rf_videos, rf_start, total_minutes, rf_sorted[0].name))
 
         rf_24h_tags = [rf for rf in rf_sorted if getattr(rf, 'fill_24h', False)]
         if fill_entries and rf_24h_tags:
@@ -504,15 +500,25 @@ class ScheduleGenerator:
         start_min = qtime_to_minutes(st.start_time)
         end_min = qtime_to_minutes(st.end_time)
 
-        start_min += day_offset * 24 * 60 + start_offset
-        end_min += day_offset * 24 * 60 + start_offset
+        start_min += start_offset
+        end_min += start_offset
 
         if start_min >= end_min:
             return
 
         base_start_episode = getattr(st, 'start_episode', 1)
         video_count = getattr(st, 'video_count', 1)
-        start_episode = base_start_episode + (day_offset * video_count)
+        raw_episode = base_start_episode + (day_offset * video_count)
+
+        # Wrap episode index so series cycles across days
+        if st.collection_videos:
+            total_episodes = len(st.collection_videos)
+            if total_episodes > 0:
+                start_episode = ((raw_episode - 1) % total_episodes) + 1
+            else:
+                start_episode = raw_episode
+        else:
+            start_episode = raw_episode
 
         if st.collection_videos:
             for m in range(start_min, end_min):
