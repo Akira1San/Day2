@@ -317,6 +317,32 @@ class CustomTagMergeStrategy:
         return final
 
 
+class FindReplaceApproximateStrategy:
+    """Strategy for find-replace approximate scheduling: moves custom tags to fit random fill boundaries."""
+
+    def __init__(self, schedule_generator: 'ScheduleGenerator'):
+        self.sg = schedule_generator
+
+    def generate(self, num_days: int = 1) -> List[ScheduleEntry]:
+        all_tags = self.sg.tag_manager.get_all_tags()
+
+        custom_tags = [t for t in all_tags if t.tag_type == "custom" and not t.is_random_fill and not t.is_series]
+        series_tags = [t for t in all_tags if t.is_series]
+        random_fill_tags = [t for t in all_tags if t.is_random_fill]
+
+        rf_24h_tags = [t for t in random_fill_tags if getattr(t, 'fill_24h', False)]
+
+        if rf_24h_tags and not custom_tags and not series_tags:
+            return self.sg.generate_random_fill(24 * 60 * num_days)
+
+        has_24h_fill = bool(rf_24h_tags)
+
+        if not custom_tags and not series_tags and not random_fill_tags:
+            return []
+
+        return self.sg._apply_approximate_find_replace(num_days, custom_tags, series_tags, random_fill_tags, has_24h_fill)
+
+
 class LinearApproximateStrategy:
     """Strategy for linear approximate scheduling: truncates random fill to make room for custom tags."""
 
@@ -624,14 +650,14 @@ class ScheduleGenerator:
         if mode == "linear":
             return LinearApproximateStrategy(self).generate(num_days)
         else:
-            return self._apply_approximate_find_replace(num_days, custom_tags, series_tags, random_fill_tags, has_24h_fill)
+            return FindReplaceApproximateStrategy(self).generate(num_days)
 
     def _apply_approximate_find_replace(self, num_days: int, custom_tags: list, series_tags: list, random_fill_tags: list, has_24h_fill: bool) -> List[ScheduleEntry]:
         """Find-and-replace algorithm: Don't truncate random fill, move custom tags instead."""
         rf_sorted = sorted(random_fill_tags, key=lambda t: qtime_to_minutes(t.start_time))
         
         if not rf_sorted:
-            return self._apply_approximate_linear(num_days, custom_tags, series_tags, random_fill_tags, has_24h_fill)
+            return LinearApproximateStrategy(self).generate(num_days)
         
         rf_name = rf_sorted[0].name
         rf_videos = rf_sorted[0].collection_videos.copy() if rf_sorted and rf_sorted[0].collection_videos else []
