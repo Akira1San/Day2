@@ -654,7 +654,7 @@ class ScheduleGenerator:
         random_entries = self._build_random_entries(rf_videos, 0, total_minutes, rf_name)
         
         final = []
-        APPROXIMATE_THRESHOLD = 40
+        APPROXIMATE_THRESHOLD = 60
         
         all_custom_sorted = sorted(custom_tags + series_tags, key=lambda t: qtime_to_minutes(t.start_time))
         
@@ -683,26 +683,33 @@ class ScheduleGenerator:
             current_pos = day_start
             
             for ct, orig_start, orig_end, custom_start, custom_end in day_customs:
-                # Find random entries that overlap OR end close to custom start
-                overlapping = [e for e in day_unused if e.start_minutes < custom_end and e.end_minutes > custom_start]
-                close_before = [e for e in day_unused if e.end_minutes <= custom_start and e.end_minutes > custom_start - APPROXIMATE_THRESHOLD]
-                randoms_in_range = overlapping + close_before
-                
-                if randoms_in_range:
+                THRESHOLD_AFTER = 30   # max minutes past custom_start a random video can end
+                # Always snap to the last random video ending before custom_start
+                before_candidates = [e for e in day_unused if e.end_minutes <= custom_start]
+                # Only entries that START at/after custom_start and end within threshold (clean snap forward)
+                close_after = [e for e in day_unused if e.start_minutes >= custom_start and e.end_minutes < custom_start + THRESHOLD_AFTER]
+                # Overlapping entries that span custom_start — just remove them
+                overlapping = [e for e in day_unused if e.start_minutes < custom_start and e.end_minutes > custom_start]
+
+                # Best before = the one ending closest to (but not after) custom_start
+                best_before = max(before_candidates, key=lambda e: e.end_minutes) if before_candidates else None
+                anchor_candidates = ([best_before] if best_before else []) + close_after
+
+                if anchor_candidates:
                     best_rand = None
                     best_gap = float('inf')
                     best_idx = -1
-                    
-                    for rand_e in randoms_in_range:
+
+                    for rand_e in anchor_candidates:
                         gap = abs(rand_e.end_minutes - custom_start)
-                        if gap < best_gap and gap <= APPROXIMATE_THRESHOLD:
+                        if gap < best_gap:
                             best_gap = gap
                             best_rand = rand_e
                             for idx, re in enumerate(random_entries):
-                                if re is rand_e and (idx not in used_random):
+                                if re is rand_e and idx not in used_random:
                                     best_idx = idx
                                     break
-                    
+
                     if best_rand and best_idx >= 0:
                         # Add the random entry to final before placing custom tag
                         if current_pos <= best_rand.start_minutes:
@@ -721,15 +728,15 @@ class ScheduleGenerator:
                             used_random.add(best_idx)
                             if best_rand in day_unused:
                                 day_unused.remove(best_rand)
-                        
+
                         new_start = best_rand.end_minutes
                         new_end = new_start + (orig_end - orig_start)
-                        
+
                         current_pos = self._place_tag_videos(ct, new_start, new_end, final)
-                        
-                        # Mark random entries that overlap with placed custom tag as used, add remaining portion to final
+
+                        # Append remaining portion of any random entry that overlapped the tag slot
                         for re in day_unused[:]:
-                            if re.start_minutes < current_pos and re.end_minutes > new_start:
+                            if re.start_minutes < new_end and re.end_minutes > new_start:
                                 for idx, orig_re in enumerate(random_entries):
                                     if orig_re is re and idx not in used_random:
                                         used_random.add(idx)
@@ -737,13 +744,14 @@ class ScheduleGenerator:
                                         remaining_end = re.end_minutes
                                         if remaining_end > remaining_start:
                                             final.append(ScheduleEntry(1, remaining_start, remaining_end, re.video_name))
+                                        if re in day_unused:
+                                            day_unused.remove(re)
                                         break
                     else:
+                        # No valid anchor found, place at original time and remove overlapping
                         if custom_start < current_pos:
                             custom_start = current_pos
                             custom_end = custom_start + (orig_end - orig_start)
-                        
-                        # Remove overlapping random entries from day_unused
                         for re in day_unused[:]:
                             if re.start_minutes < custom_end and re.end_minutes > custom_start:
                                 for idx, orig_re in enumerate(random_entries):
@@ -751,14 +759,12 @@ class ScheduleGenerator:
                                         used_random.add(idx)
                                         day_unused.remove(re)
                                         break
-                        
                         current_pos = self._place_tag_videos(ct, custom_start, custom_end, final)
                 else:
+                    # No anchor candidates — remove overlapping and place at original/current
                     if custom_start < current_pos:
                         custom_start = current_pos
                         custom_end = custom_start + (orig_end - orig_start)
-                    
-                    # Remove overlapping random entries from day_unused
                     for re in day_unused[:]:
                         if re.start_minutes < custom_end and re.end_minutes > custom_start:
                             for idx, orig_re in enumerate(random_entries):
@@ -766,7 +772,6 @@ class ScheduleGenerator:
                                     used_random.add(idx)
                                     day_unused.remove(re)
                                     break
-                    
                     current_pos = self._place_tag_videos(ct, custom_start, custom_end, final)
             
             # Add unused random entries from day_start to current_pos
