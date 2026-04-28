@@ -684,8 +684,8 @@ class ScheduleGenerator:
             
             for ct, orig_start, orig_end, custom_start, custom_end in day_customs:
                 THRESHOLD_AFTER = 30   # max minutes past custom_start a random video can end
-                # Always snap to the last random video ending before custom_start
-                before_candidates = [e for e in day_unused if e.end_minutes <= custom_start]
+                # Snap to the last random video ending before custom_start but not before current_pos
+                before_candidates = [e for e in day_unused if e.end_minutes <= custom_start and e.end_minutes >= current_pos]
                 # Only entries that START at/after custom_start and end within threshold (clean snap forward)
                 close_after = [e for e in day_unused if e.start_minutes >= custom_start and e.end_minutes < custom_start + THRESHOLD_AFTER]
                 # Overlapping entries that span custom_start — just remove them
@@ -694,6 +694,8 @@ class ScheduleGenerator:
                 # Best before = the one ending closest to (but not after) custom_start
                 best_before = max(before_candidates, key=lambda e: e.end_minutes) if before_candidates else None
                 anchor_candidates = ([best_before] if best_before else []) + close_after
+
+                print(f"[APPROX day={day_offset+1}] tag='{ct.name}' wanted={custom_start//60%24:02d}:{custom_start%60:02d} current_pos={current_pos//60%24:02d}:{current_pos%60:02d} day_unused={len(day_unused)} before={len(before_candidates)} close_after={len(close_after)} overlapping={len(overlapping)} best_before={'%02d:%02d'%(best_before.end_minutes//60%24,best_before.end_minutes%60) if best_before else 'none'}")
 
                 if anchor_candidates:
                     best_rand = None
@@ -711,6 +713,7 @@ class ScheduleGenerator:
                                     break
 
                     if best_rand and best_idx >= 0:
+                        print(f"[APPROX day={day_offset+1}]   BEST end={best_rand.end_minutes//60%24:02d}:{best_rand.end_minutes%60:02d} gap={best_gap} -> tag at {best_rand.end_minutes//60%24:02d}:{best_rand.end_minutes%60:02d}")
                         # Add the random entry to final before placing custom tag
                         if current_pos <= best_rand.start_minutes:
                             final.append(best_rand)
@@ -733,6 +736,7 @@ class ScheduleGenerator:
                         new_end = new_start + (orig_end - orig_start)
 
                         current_pos = self._place_tag_videos(ct, new_start, new_end, final)
+                        print(f"[APPROX day={day_offset+1}]   placed -> current_pos={current_pos//60%24:02d}:{current_pos%60:02d}")
 
                         # Append remaining portion of any random entry that overlapped the tag slot
                         for re in day_unused[:]:
@@ -742,37 +746,59 @@ class ScheduleGenerator:
                                         used_random.add(idx)
                                         remaining_start = current_pos
                                         remaining_end = re.end_minutes
+                                        print(f"[APPROX day={day_offset+1}]   remaining portion: {remaining_start//60%24:02d}:{remaining_start%60:02d}-{remaining_end//60%24:02d}:{remaining_end%60:02d} from re={re.start_minutes//60%24:02d}:{re.start_minutes%60:02d}-{re.end_minutes//60%24:02d}:{re.end_minutes%60:02d}")
                                         if remaining_end > remaining_start:
                                             final.append(ScheduleEntry(1, remaining_start, remaining_end, re.video_name))
+                                            current_pos = remaining_end
                                         if re in day_unused:
                                             day_unused.remove(re)
                                         break
                     else:
-                        # No valid anchor found, place at original time and remove overlapping
+                        print(f"[APPROX day={day_offset+1}]   no best_rand -> fallback {custom_start//60%24:02d}:{custom_start%60:02d}")
+                        # No valid anchor found, place at current_pos if past custom_start
                         if custom_start < current_pos:
                             custom_start = current_pos
                             custom_end = custom_start + (orig_end - orig_start)
+                        current_pos = self._place_tag_videos(ct, custom_start, custom_end, final)
                         for re in day_unused[:]:
-                            if re.start_minutes < custom_end and re.end_minutes > custom_start:
+                            if re.start_minutes < custom_end and re.end_minutes > current_pos:
                                 for idx, orig_re in enumerate(random_entries):
                                     if orig_re is re and idx not in used_random:
                                         used_random.add(idx)
-                                        day_unused.remove(re)
+                                        remaining_start = current_pos
+                                        remaining_end = re.end_minutes
+                                        print(f"[APPROX day={day_offset+1}]   remaining portion (fallback): {remaining_start//60%24:02d}:{remaining_start%60:02d}-{remaining_end//60%24:02d}:{remaining_end%60:02d}")
+                                        if remaining_end > remaining_start:
+                                            final.append(ScheduleEntry(1, remaining_start, remaining_end, re.video_name))
+                                            current_pos = remaining_end
+                                        if re in day_unused:
+                                            day_unused.remove(re)
                                         break
-                        current_pos = self._place_tag_videos(ct, custom_start, custom_end, final)
                 else:
-                    # No anchor candidates — remove overlapping and place at original/current
-                    if custom_start < current_pos:
+                    # No anchor candidates — always snap to current_pos if it's before custom_start
+                    if current_pos >= day_start and current_pos < custom_start:
                         custom_start = current_pos
                         custom_end = custom_start + (orig_end - orig_start)
+                    elif current_pos > custom_start:
+                        custom_start = current_pos
+                        custom_end = custom_start + (orig_end - orig_start)
+                    print(f"[APPROX day={day_offset+1}]   no anchors -> placing at {custom_start//60%24:02d}:{custom_start%60:02d} (current_pos={current_pos//60%24:02d}:{current_pos%60:02d})")
+                    current_pos = self._place_tag_videos(ct, custom_start, custom_end, final)
                     for re in day_unused[:]:
-                        if re.start_minutes < custom_end and re.end_minutes > custom_start:
+                        if re.start_minutes < custom_end and re.end_minutes > current_pos:
                             for idx, orig_re in enumerate(random_entries):
                                 if orig_re is re and idx not in used_random:
                                     used_random.add(idx)
-                                    day_unused.remove(re)
+                                    remaining_start = current_pos
+                                    remaining_end = re.end_minutes
+                                    print(f"[APPROX day={day_offset+1}]   remaining portion (no-anchor): {remaining_start//60%24:02d}:{remaining_start%60:02d}-{remaining_end//60%24:02d}:{remaining_end%60:02d}")
+                                    if remaining_end > remaining_start:
+                                        final.append(ScheduleEntry(1, remaining_start, remaining_end, re.video_name))
+                                        current_pos = remaining_end
+                                    if re in day_unused:
+                                        day_unused.remove(re)
                                     break
-                    current_pos = self._place_tag_videos(ct, custom_start, custom_end, final)
+                    print(f"[APPROX day={day_offset+1}]   placed -> current_pos={current_pos//60%24:02d}:{current_pos%60:02d}")
             
             # Add unused random entries from day_start to current_pos
             day_unused = [e for i, e in enumerate(random_entries) 
@@ -780,12 +806,23 @@ class ScheduleGenerator:
                               and e.start_minutes < day_end 
                               and e.end_minutes > day_start]
             day_unused.sort(key=lambda e: e.start_minutes)
-            
+            print(f"[APPROX day={day_offset+1}] POST-TAGS current_pos={current_pos//60%24:02d}:{current_pos%60:02d} day_unused={len(day_unused)}")
+            for e in day_unused:
+                print(f"[APPROX day={day_offset+1}]   unused: {e.start_minutes//60%24:02d}:{e.start_minutes%60:02d}-{e.end_minutes//60%24:02d}:{e.end_minutes%60:02d}")
+
+            # Build occupied ranges from already-placed entries this day
+            occupied_ranges = [(e.start_minutes, e.end_minutes) for e in final if e.start_minutes >= day_start]
+
             for rand_e in day_unused:
                 if rand_e.start_minutes >= current_pos:
                     continue
+                # Skip if this entry overlaps any already-placed entry
+                if any(rand_e.start_minutes < occ_end and rand_e.end_minutes > occ_start
+                       for occ_start, occ_end in occupied_ranges):
+                    continue
                 if rand_e.end_minutes <= current_pos:
                     final.append(rand_e)
+                    occupied_ranges.append((rand_e.start_minutes, rand_e.end_minutes))
                     for idx, re in enumerate(random_entries):
                         if re is rand_e and idx not in used_random:
                             used_random.add(idx)
@@ -1028,7 +1065,7 @@ class ScheduleGenerator:
                 random.shuffle(rf_videos)
             
             total_minutes = num_days * 24 * 60
-            final.extend(self._build_random_entries(rf_videos, rf_start, total_minutes, rf_sorted[0].name))
+            final.extend(self._build_random_entries(rf_videos, rf_start, total_minutes, rf_sorted[0].name if rf_sorted else ""))
         else:
             for day_offset in range(num_days):
                 day_offset_minutes = day_offset * 24 * 60
