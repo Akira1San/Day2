@@ -72,6 +72,11 @@ class MainWindow(QMainWindow):
         self.add_series_btn.clicked.connect(self.add_series_tag)
         btn_layout.addWidget(self.add_series_btn)
 
+        self.add_multi_series_btn = QPushButton("Multi-Series")
+        self.add_multi_series_btn.setToolTip("Add a multi-series container tag")
+        self.add_multi_series_btn.clicked.connect(self.add_multi_series_tag)
+        btn_layout.addWidget(self.add_multi_series_btn)
+
         self.edit_btn = QPushButton("Edit")
         self.edit_btn.setToolTip("Edit the selected tag")
         self.edit_btn.clicked.connect(self.edit_tag)
@@ -368,42 +373,62 @@ class MainWindow(QMainWindow):
             self.refresh_tags_list()
             self.refresh_preview()
 
-    def edit_tag(self):
-        current_row = self.tags_list.currentRow()
-        if current_row < 0:
-            QMessageBox.warning(self, "No Selection", "Please select a tag to edit.")
-            return
-
-        tag = self.tag_manager.tags[current_row]
-        if tag.is_random_fill:
-            dialog = RandomFillDialog(self, tag)
-        elif tag.is_series:
-            dialog = SeriesDialog(self, tag)
-        else:
-            dialog = TagDialog(self, tag)
-        
+    def add_multi_series_tag(self):
+        from dialogs import MultiSeriesDialog
+        dialog = MultiSeriesDialog(self)
         if dialog.exec():
-            new_tag = dialog.get_tag()
-            self.tag_manager.edit_tag(
-                current_row, new_tag.name,
-                new_tag.start_time, new_tag.end_time,
-                new_tag.collection_videos,
-                new_tag.collection_path,
-                new_tag.video_count,
-                new_tag.is_series,
-                new_tag.start_season,
-                new_tag.start_episode,
-                new_tag.play_mode,
-                new_tag.is_random_fill if hasattr(new_tag, 'is_random_fill') else False,
-                new_tag.blacklist if hasattr(new_tag, 'blacklist') else [],
-                new_tag.blacklist_path if hasattr(new_tag, 'blacklist_path') else '',
-                new_tag.fill_24h if hasattr(new_tag, 'fill_24h') else False,
-                new_tag.collection_profile if hasattr(new_tag, 'collection_profile') else '',
-                new_tag.blacklist_profile if hasattr(new_tag, 'blacklist_profile') else '',
-                new_tag.randomize_videos if hasattr(new_tag, 'randomize_videos') else False
-            )
+            tag = dialog.get_tag()
+            if tag is None:
+                return
+            self.tag_manager.add_tag(tag)
             self.refresh_tags_list()
             self.refresh_preview()
+
+    def edit_tag(self):
+         current_row = self.tags_list.currentRow()
+         if current_row < 0:
+             QMessageBox.warning(self, "No Selection", "Please select a tag to edit.")
+             return
+ 
+         tag = self.tag_manager.tags[current_row]
+         if tag.is_random_fill:
+             dialog = RandomFillDialog(self, tag)
+         elif tag.is_series:
+             dialog = SeriesDialog(self, tag)
+         elif getattr(tag, 'is_multi_series', False):
+             from dialogs import MultiSeriesDialog
+             dialog = MultiSeriesDialog(self, tag)
+             if dialog.exec():
+                 new_tag = dialog.get_tag()
+                 self.tag_manager.tags[current_row] = new_tag
+                 self.refresh_tags_list()
+                 self.refresh_preview()
+             return
+         else:
+             dialog = TagDialog(self, tag)
+         
+         if dialog.exec():
+             new_tag = dialog.get_tag()
+             self.tag_manager.edit_tag(
+                 current_row, new_tag.name,
+                 new_tag.start_time, new_tag.end_time,
+                 new_tag.collection_videos,
+                 new_tag.collection_path,
+                 new_tag.video_count,
+                 new_tag.is_series,
+                 new_tag.start_season,
+                 new_tag.start_episode,
+                 new_tag.play_mode,
+                 new_tag.is_random_fill if hasattr(new_tag, 'is_random_fill') else False,
+                 new_tag.blacklist if hasattr(new_tag, 'blacklist') else [],
+                 new_tag.blacklist_path if hasattr(new_tag, 'blacklist_path') else '',
+                 new_tag.fill_24h if hasattr(new_tag, 'fill_24h') else False,
+                 new_tag.collection_profile if hasattr(new_tag, 'collection_profile') else '',
+                 new_tag.blacklist_profile if hasattr(new_tag, 'blacklist_profile') else '',
+                 new_tag.randomize_videos if hasattr(new_tag, 'randomize_videos') else False
+             )
+             self.refresh_tags_list()
+             self.refresh_preview()
 
     def delete_tag(self):
         current_row = self.tags_list.currentRow()

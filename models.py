@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 import random
 from typing import List, Optional
 from PySide6.QtCore import QTime
@@ -72,6 +73,105 @@ class Tag:
         if self.randomize_videos:
             return f"[C] {self.name} ({self.start_time.toString('HH:mm')}-{self.end_time.toString('HH:mm')}) x{self.video_count}"
         return f"[C] {self.name} ({self.start_time.toString('HH:mm')}-{self.end_time.toString('HH:mm')})"
+
+
+class MultiSeriesTag(Tag):
+    """Tag that combines multiple series into one contiguous block."""
+    def __init__(self, name: str = "Multi-Series",
+                 series_list: List[dict] = None,
+                 start_time: Optional[QTime] = None,
+                 end_time: Optional[QTime] = None):
+        super().__init__(
+            tag_type="multi_series",
+            name=name,
+            start_time=start_time or QTime(0, 0),
+            end_time=end_time or QTime(0, 0)
+        )
+        self.series_list = series_list or []
+        self.is_multi_series = True
+
+    def to_display_string(self) -> str:
+        base = f"[M] {self.name}"
+        if self.series_list:
+            total_series = len(self.series_list)
+            base += f" ({total_series} series)"
+        if self.start_time and self.end_time:
+            base += f" ({self.start_time.toString('HH:mm')}-{self.end_time.toString('HH:mm')})"
+        return base
+
+    def calculate_schedule(self, start_time_minutes: int) -> List[ScheduleEntry]:
+        """Calculate contiguous episode schedule starting at given minute offset.
+        Returns list of ScheduleEntry objects with day=1 (absolute minutes)."""
+        entries = []
+        pos = start_time_minutes
+
+        for series_config in self.series_list:
+            collection_videos = series_config.get('collection_videos', [])
+            start_season = series_config.get('start_season', 1)
+            start_episode = series_config.get('start_episode', 1)
+            play_mode = series_config.get('play_mode', 'sequence')
+            video_count = series_config.get('video_count', 1)
+            series_name = series_config.get('name', 'Series')
+
+            if not collection_videos:
+                # Add placeholder entry
+                entries.append(self._create_video_entry(pos, 60, series_name, self.name))
+                pos += 60
+                continue
+
+            videos_to_use, _ = parse_videos_for_series(
+                collection_videos,
+                start_season,
+                start_episode,
+                play_mode,
+                video_count
+            )
+
+            for v in videos_to_use:
+                video = v['video']
+                video_name = get_video_display_name(video)
+                duration = int(video.get('duration', 90)) // 60
+                if duration < 1:
+                    duration = 1
+                entries.append(self._create_video_entry(pos, duration, video_name, series_name))
+                pos += duration
+
+        return entries
+
+    def _create_video_entry(self, pos: int, duration: int, name: str, tag_name: str = "") -> ScheduleEntry:
+        video_name = f"{tag_name} - {name}" if tag_name else name
+        return ScheduleEntry(1, pos, pos + duration, video_name)
+
+    def calculate_total_duration(self) -> int:
+        """Calculate total duration in minutes for all series episodes."""
+        total = 0
+        for series_config in self.series_list:
+            collection_videos = series_config.get('collection_videos', [])
+            start_season = series_config.get('start_season', 1)
+            start_episode = series_config.get('start_episode', 1)
+            play_mode = series_config.get('play_mode', 'sequence')
+            video_count = series_config.get('video_count', 1)
+
+            if not collection_videos:
+                total += 60
+                continue
+
+            videos_to_use, _ = parse_videos_for_series(
+                collection_videos,
+                start_season,
+                start_episode,
+                play_mode,
+                video_count
+            )
+
+            for v in videos_to_use:
+                video = v['video']
+                duration = int(video.get('duration', 90)) // 60
+                if duration < 1:
+                    duration = 1
+                total += duration
+
+        return total
 
 
 class ScheduleEntry:
@@ -183,6 +283,9 @@ class TagManager:
     def get_series_tags(self) -> List[Tag]:
         return [t for t in self.tags if t.is_series]
 
+    def get_multi_series_tags(self) -> List[Tag]:
+        return [t for t in self.tags if getattr(t, 'is_multi_series', False)]
+
     def get_random_tags(self) -> List[Tag]:
         return [t for t in self.tags if t.tag_type == "random" or t.is_random_fill]
 
@@ -197,20 +300,22 @@ class CustomTagMergeStrategy:
         self.sg = schedule_generator
 
     def generate(self, num_days: int = 1) -> List[ScheduleEntry]:
-        """Build a schedule combining custom tags, series tags, and random fill."""
+        """Build a schedule combining custom tags, series tags, multi-series tags, and random fill."""
         all_tags = self.sg.tag_manager.get_all_tags()
 
         custom_tags = [t for t in all_tags if t.tag_type == "custom" and not t.is_random_fill and not t.is_series]
         series_tags = [t for t in all_tags if t.is_series]
+        multi_series_tags = [t for t in all_tags if getattr(t, 'is_multi_series', False)]
         random_fill_tags = [t for t in all_tags if t.is_random_fill]
 
-        if not custom_tags and not series_tags and not random_fill_tags:
+        if not custom_tags and not series_tags and not multi_series_tags and not random_fill_tags:
             entries = self.sg.generate_random_fill(24 * 60 * num_days)
             return entries
 
         occupied = set()
         custom_entries = []
         series_entries = []
+        multi_series_entries = []
         fill_entries = []
 
         for day_offset in range(num_days):
@@ -221,6 +326,9 @@ class CustomTagMergeStrategy:
             for st in series_tags:
                 self.sg._process_series_tag(st, series_entries, occupied, day_offset, day_offset_minutes)
 
+            for mst in multi_series_tags:
+                self.sg._process_multi_series_tag(mst, multi_series_entries, occupied, day_offset, day_offset_minutes)
+
         rf_sorted = sorted(random_fill_tags, key=lambda t: qtime_to_minutes(t.start_time))
 
         if rf_sorted and any(getattr(rf, 'fill_24h', False) for rf in rf_sorted):
@@ -228,7 +336,7 @@ class CustomTagMergeStrategy:
                 day_offset_minutes = day_offset * 24 * 60
                 for rf in rf_sorted:
                     if getattr(rf, 'fill_24h', False):
-                        merged = [(e.start_minutes, e.end_minutes) for e in custom_entries + series_entries]
+                        merged = [(e.start_minutes, e.end_minutes) for e in custom_entries + series_entries + multi_series_entries]
                         self.sg._process_random_fill_tag(rf, fill_entries, merged, 0, day_offset_minutes)
         elif rf_sorted:
             rf_start = qtime_to_minutes(rf_sorted[0].start_time)
@@ -251,10 +359,10 @@ class CustomTagMergeStrategy:
                     for day_offset in range(1, num_days):
                         day_offset_minutes = day_offset * 24 * 60
                         for rf in rf_sorted[1:]:
-                            merged = [(e.start_minutes, e.end_minutes) for e in custom_entries + series_entries]
+                            merged = [(e.start_minutes, e.end_minutes) for e in custom_entries + series_entries + multi_series_entries]
                             self.sg._process_random_fill_tag(rf, fill_entries, merged, start_vid_idx, day_offset_minutes)
 
-        entries = custom_entries + series_entries + fill_entries
+        entries = custom_entries + series_entries + multi_series_entries + fill_entries
         entries.sort(key=lambda e: e.start_minutes)
         return entries
 
@@ -325,19 +433,20 @@ class FindReplaceApproximateStrategy:
 
         custom_tags = [t for t in all_tags if t.tag_type == "custom" and not t.is_random_fill and not t.is_series]
         series_tags = [t for t in all_tags if t.is_series]
+        multi_series_tags = [t for t in all_tags if getattr(t, 'is_multi_series', False)]
         random_fill_tags = [t for t in all_tags if t.is_random_fill]
 
         rf_24h_tags = [t for t in random_fill_tags if getattr(t, 'fill_24h', False)]
 
-        if rf_24h_tags and not custom_tags and not series_tags:
+        if rf_24h_tags and not custom_tags and not series_tags and not multi_series_tags:
             return self.sg.generate_random_fill(24 * 60 * num_days)
 
         has_24h_fill = bool(rf_24h_tags)
 
-        if not custom_tags and not series_tags and not random_fill_tags:
+        if not custom_tags and not series_tags and not multi_series_tags and not random_fill_tags:
             return []
 
-        return self.sg._apply_approximate_find_replace(num_days, custom_tags, series_tags, random_fill_tags, has_24h_fill)
+        return self.sg._apply_approximate_find_replace(num_days, custom_tags, series_tags, multi_series_tags, random_fill_tags, has_24h_fill)
 
 
 class LinearApproximateStrategy:
@@ -351,11 +460,12 @@ class LinearApproximateStrategy:
 
         custom_tags = [t for t in all_tags if t.tag_type == "custom" and not t.is_random_fill and not t.is_series]
         series_tags = [t for t in all_tags if t.is_series]
+        multi_series_tags = [t for t in all_tags if getattr(t, 'is_multi_series', False)]
         random_fill_tags = [t for t in all_tags if t.is_random_fill]
 
         rf_24h_tags = [t for t in random_fill_tags if getattr(t, 'fill_24h', False)]
 
-        if rf_24h_tags and not custom_tags and not series_tags:
+        if rf_24h_tags and not custom_tags and not series_tags and not multi_series_tags:
             return self.sg.generate_random_fill(24 * 60 * num_days)
 
         has_24h_fill = bool(rf_24h_tags)
@@ -363,12 +473,12 @@ class LinearApproximateStrategy:
         if has_24h_fill:
             base_entries = []
         else:
-            base_entries = self.sg.generate_random_fill(24 * 60) if (custom_tags or series_tags) else []
+            base_entries = self.sg.generate_random_fill(24 * 60) if (custom_tags or series_tags or multi_series_tags) else []
 
-        if not custom_tags and not series_tags and not random_fill_tags:
+        if not custom_tags and not series_tags and not multi_series_tags and not random_fill_tags:
             return base_entries
 
-        return self.sg._apply_approximate_linear(num_days, custom_tags, series_tags, random_fill_tags, has_24h_fill)
+        return self.sg._apply_approximate_linear(num_days, custom_tags, series_tags, multi_series_tags, random_fill_tags, has_24h_fill)
 
 
 class ScheduleGenerator:
@@ -380,7 +490,50 @@ class ScheduleGenerator:
         return ScheduleEntry(1, pos, pos + duration, video_name)
 
     def _place_tag_videos(self, ct, start: int, end: int, final: List[ScheduleEntry]) -> int:
-        """Place custom/series tag videos into final schedule. Returns new current_pos."""
+        """Place custom/series/multi-series tag videos into final schedule. Returns new current_pos."""
+        # Handle MultiSeriesTag
+        if getattr(ct, 'is_multi_series', False):
+            pos = start
+            for series_config in ct.series_list:
+                collection_videos = series_config.get('collection_videos', [])
+                start_season = series_config.get('start_season', 1)
+                start_episode = series_config.get('start_episode', 1)
+                play_mode = series_config.get('play_mode', 'sequence')
+                video_count = series_config.get('video_count', 1)
+                series_name = series_config.get('name', 'Series')
+                
+                if not collection_videos:
+                    if pos >= end:
+                        break
+                    final.append(self._create_video_entry(pos, 60, series_name, ct.name))
+                    pos += 60
+                    continue
+                
+                videos_to_use, _ = parse_videos_for_series(
+                    collection_videos,
+                    start_season,
+                    start_episode,
+                    play_mode,
+                    video_count
+                )
+                
+                for v in videos_to_use:
+                    if pos >= end:
+                        break
+                    video = v['video']
+                    video_name = get_video_display_name(video)
+                    duration = int(video.get('duration', 90)) // 60
+                    if duration < 1:
+                        duration = 1
+                    # Truncate if would exceed slot end
+                    if pos + duration > end:
+                        duration = end - pos
+                        if duration < 1:
+                            break
+                    final.append(self._create_video_entry(pos, duration, video_name, series_name))
+                    pos += duration
+            return pos
+        
         if ct.collection_videos:
             video_count = getattr(ct, 'video_count', 1)
             videos = ct.collection_videos.copy()
@@ -551,6 +704,22 @@ class ScheduleGenerator:
             for m in range(start_min, end_min):
                 occupied.add(m)
 
+    def _process_multi_series_tag(self, mst, entries: List[ScheduleEntry], occupied: set, day_offset: int = 0, start_offset: int = 0) -> int:
+        """Expand a MultiSeriesTag into individual episode entries, marking the whole block as occupied. Returns actual end position."""
+        start_min = qtime_to_minutes(mst.start_time) + start_offset
+        end_min = qtime_to_minutes(mst.end_time) + start_offset
+
+        if start_min >= end_min:
+            return start_min
+
+        # Mark full block as occupied
+        for m in range(start_min, end_min):
+            occupied.add(m)
+
+        # Place videos using shared truncation logic; returns actual end position
+        actual_end = self._place_tag_videos(mst, start_min, end_min, entries)
+        return actual_end
+
     def _process_random_fill_tag(self, rf: Tag, fill_entries: List[ScheduleEntry], merged_ranges: List[tuple] = None, start_vid_idx: int = 0, start_offset: int = 0, continuation_pos: int = None):
         rf_fill_24h = getattr(rf, 'fill_24h', False)
 
@@ -638,7 +807,7 @@ class ScheduleGenerator:
             return LinearApproximateStrategy(self).generate(num_days)
         return FindReplaceApproximateStrategy(self).generate(num_days)
 
-    def _apply_approximate_find_replace(self, num_days: int, custom_tags: list, series_tags: list, random_fill_tags: list, has_24h_fill: bool) -> List[ScheduleEntry]:
+    def _apply_approximate_find_replace(self, num_days: int, custom_tags: list, series_tags: list, multi_series_tags: list, random_fill_tags: list, has_24h_fill: bool) -> List[ScheduleEntry]:
         """Find-and-replace algorithm: Don't truncate random fill, move custom tags instead."""
         rf_sorted = sorted(random_fill_tags, key=lambda t: qtime_to_minutes(t.start_time))
         
@@ -656,7 +825,7 @@ class ScheduleGenerator:
         final = []
         APPROXIMATE_THRESHOLD = 60
         
-        all_custom_sorted = sorted(custom_tags + series_tags, key=lambda t: qtime_to_minutes(t.start_time))
+        all_custom_sorted = sorted(custom_tags + series_tags + multi_series_tags, key=lambda t: qtime_to_minutes(t.start_time))
         
         used_random = set()
         
@@ -681,6 +850,9 @@ class ScheduleGenerator:
             day_customs.sort(key=lambda x: x[3])
             
             current_pos = day_start
+            
+            # Track scheduled slots for full occupied ranges
+            scheduled_slots = []
             
             for ct, orig_start, orig_end, custom_start, custom_end in day_customs:
                 THRESHOLD_AFTER = 30   # max minutes past custom_start a random video can end
@@ -732,15 +904,18 @@ class ScheduleGenerator:
                             if best_rand in day_unused:
                                 day_unused.remove(best_rand)
 
-                        new_start = best_rand.end_minutes
-                        new_end = new_start + (orig_end - orig_start)
-
-                        current_pos = self._place_tag_videos(ct, new_start, new_end, final)
+                        slot_start = best_rand.end_minutes
+                        slot_end = slot_start + (orig_end - orig_start)
+                        
+                        # Reserve the full slot
+                        scheduled_slots.append((slot_start, slot_end))
+                        actual_end = self._place_tag_videos(ct, slot_start, slot_end, final)
+                        current_pos = actual_end
                         print(f"[APPROX day={day_offset+1}]   placed -> current_pos={current_pos//60%24:02d}:{current_pos%60:02d}")
 
                         # Append remaining portion of any random entry that overlapped the tag slot
                         for re in day_unused[:]:
-                            if re.start_minutes < new_end and re.end_minutes > new_start:
+                            if re.start_minutes < slot_end and re.end_minutes > slot_start:
                                 for idx, orig_re in enumerate(random_entries):
                                     if orig_re is re and idx not in used_random:
                                         used_random.add(idx)
@@ -753,52 +928,36 @@ class ScheduleGenerator:
                                         if re in day_unused:
                                             day_unused.remove(re)
                                         break
-                    else:
-                        print(f"[APPROX day={day_offset+1}]   no best_rand -> fallback {custom_start//60%24:02d}:{custom_start%60:02d}")
-                        # No valid anchor found, place at current_pos if past custom_start
-                        if custom_start < current_pos:
-                            custom_start = current_pos
-                            custom_end = custom_start + (orig_end - orig_start)
-                        current_pos = self._place_tag_videos(ct, custom_start, custom_end, final)
-                        for re in day_unused[:]:
-                            if re.start_minutes < custom_end and re.end_minutes > current_pos:
-                                for idx, orig_re in enumerate(random_entries):
-                                    if orig_re is re and idx not in used_random:
-                                        used_random.add(idx)
-                                        remaining_start = current_pos
-                                        remaining_end = re.end_minutes
-                                        print(f"[APPROX day={day_offset+1}]   remaining portion (fallback): {remaining_start//60%24:02d}:{remaining_start%60:02d}-{remaining_end//60%24:02d}:{remaining_end%60:02d}")
-                                        if remaining_end > remaining_start:
-                                            final.append(ScheduleEntry(1, remaining_start, remaining_end, re.video_name))
-                                            current_pos = remaining_end
-                                        if re in day_unused:
-                                            day_unused.remove(re)
-                                        break
                 else:
-                    # No anchor candidates — always snap to current_pos if it's before custom_start
-                    if current_pos >= day_start and current_pos < custom_start:
+                    print(f"[APPROX day={day_offset+1}]   no best_rand -> fallback {custom_start//60%24:02d}:{custom_start%60:02d}")
+                    # No valid anchor found, place at current_pos if past custom_start
+                    if custom_start < current_pos:
                         custom_start = current_pos
                         custom_end = custom_start + (orig_end - orig_start)
-                    elif current_pos > custom_start:
-                        custom_start = current_pos
-                        custom_end = custom_start + (orig_end - orig_start)
-                    print(f"[APPROX day={day_offset+1}]   no anchors -> placing at {custom_start//60%24:02d}:{custom_start%60:02d} (current_pos={current_pos//60%24:02d}:{current_pos%60:02d})")
-                    current_pos = self._place_tag_videos(ct, custom_start, custom_end, final)
+                    slot_start = custom_start
+                    slot_end = custom_end
+                    
+                    # Reserve the full slot
+                    scheduled_slots.append((slot_start, slot_end))
+                    actual_end = self._place_tag_videos(ct, slot_start, slot_end, final)
+                    current_pos = actual_end
+                    print(f"[APPROX day={day_offset+1}]   placed -> current_pos={current_pos//60%24:02d}:{current_pos%60:02d}")
+                    
                     for re in day_unused[:]:
-                        if re.start_minutes < custom_end and re.end_minutes > current_pos:
+                        if re.start_minutes < slot_end and re.end_minutes > current_pos:
                             for idx, orig_re in enumerate(random_entries):
                                 if orig_re is re and idx not in used_random:
                                     used_random.add(idx)
                                     remaining_start = current_pos
                                     remaining_end = re.end_minutes
-                                    print(f"[APPROX day={day_offset+1}]   remaining portion (no-anchor): {remaining_start//60%24:02d}:{remaining_start%60:02d}-{remaining_end//60%24:02d}:{remaining_end%60:02d}")
+                                    print(f"[APPROX day={day_offset+1}]   remaining portion (fallback): {remaining_start//60%24:02d}:{remaining_start%60:02d}-{remaining_end//60%24:02d}:{remaining_end%60:02d}")
                                     if remaining_end > remaining_start:
                                         final.append(ScheduleEntry(1, remaining_start, remaining_end, re.video_name))
                                         current_pos = remaining_end
                                     if re in day_unused:
                                         day_unused.remove(re)
                                     break
-                    print(f"[APPROX day={day_offset+1}]   placed -> current_pos={current_pos//60%24:02d}:{current_pos%60:02d}")
+            # Next custom tag iteration continues here
             
             # Add unused random entries from day_start to current_pos
             day_unused = [e for i, e in enumerate(random_entries) 
@@ -812,6 +971,7 @@ class ScheduleGenerator:
 
             # Build occupied ranges from already-placed entries this day
             occupied_ranges = [(e.start_minutes, e.end_minutes) for e in final if e.start_minutes >= day_start]
+            occupied_ranges.extend(scheduled_slots)
 
             for rand_e in day_unused:
                 if rand_e.start_minutes >= current_pos:
@@ -858,17 +1018,13 @@ class ScheduleGenerator:
         
         return final
 
-    def _apply_approximate_linear(self, num_days: int, custom_tags: list, series_tags: list, random_fill_tags: list, has_24h_fill: bool) -> List[ScheduleEntry]:
-        """Linear placement: Truncate random fill to make room for custom tags."""
-        all_tags = self.tag_manager.get_all_tags()
-        
-        custom_tags = [t for t in all_tags if t.tag_type == "custom" and not t.is_random_fill and not t.is_series]
-        series_tags = [t for t in all_tags if t.is_series]
-        random_fill_tags = [t for t in all_tags if t.is_random_fill]
+    def _apply_approximate_linear(self, num_days: int, custom_tags: list, series_tags: list, multi_series_tags: list, random_fill_tags: list, has_24h_fill: bool) -> List[ScheduleEntry]:
+        """Linear placement: Truncate random fill to make room for custom/multi-series tags."""
+        # Tags are provided by caller; no need to recompute.
         
         rf_24h_tags = [t for t in random_fill_tags if getattr(t, 'fill_24h', False)]
         
-        if rf_24h_tags and not custom_tags and not series_tags:
+        if rf_24h_tags and not custom_tags and not series_tags and not multi_series_tags:
             return self.generate_random_fill(24 * 60 * num_days)
         
         has_24h_fill = bool(rf_24h_tags)
@@ -876,9 +1032,9 @@ class ScheduleGenerator:
         if has_24h_fill:
             base_entries = []
         else:
-            base_entries = self.generate_random_fill(24 * 60) if (custom_tags or series_tags) else []
+            base_entries = self.generate_random_fill(24 * 60) if (custom_tags or series_tags or multi_series_tags) else []
 
-        if not custom_tags and not series_tags and not random_fill_tags:
+        if not custom_tags and not series_tags and not multi_series_tags and not random_fill_tags:
             return base_entries
 
         scheduled_ranges = []
@@ -887,6 +1043,8 @@ class ScheduleGenerator:
         
         for st in series_tags:
             scheduled_ranges.append((qtime_to_minutes(st.start_time), qtime_to_minutes(st.end_time)))
+        for mst in multi_series_tags:
+            scheduled_ranges.append((qtime_to_minutes(mst.start_time), qtime_to_minutes(mst.end_time)))
         
         for rf in random_fill_tags:
             rf_fill_24h = getattr(rf, 'fill_24h', False)
@@ -1052,7 +1210,28 @@ class ScheduleGenerator:
                 else:
                     final.append(ScheduleEntry(1, series_start, series_end, st.name))
                     actual_placed_ranges.append((series_start, series_end))
+                    actual_end = series_end
+                    current_pos = actual_end
+                    next_custom_pos = actual_end
+
+        # Multi-Series tags processing
+        for day_offset in range(num_days):
+            day_offset_minutes = day_offset * 24 * 60
+            for mst in multi_series_tags:
+                original_start = qtime_to_minutes(mst.start_time)
+                original_end = qtime_to_minutes(mst.end_time)
+                if original_start >= original_end:
+                    continue
+
+                mst_start = max(original_start, next_custom_pos) + day_offset_minutes
+                mst_end = mst_start + (original_end - original_start)
+
+                start_offset = mst_start - original_start
+                actual_end = self._process_multi_series_tag(mst, final, occupied, day_offset, start_offset)
                 current_pos = actual_end
+                next_custom_pos = actual_end
+                if has_24h_fill:
+                    actual_placed_ranges.append((mst_start, actual_end))
 
         rf_sorted = sorted(random_fill_tags, key=lambda t: qtime_to_minutes(t.start_time))
         

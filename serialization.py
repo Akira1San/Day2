@@ -1,3 +1,4 @@
+import json
 import configparser
 from typing import List, Any, Optional, Dict
 from pathlib import Path
@@ -8,7 +9,14 @@ from utils import load_collection_videos_only, load_blacklist_json
 def serialize_tag_to_string(tag) -> str:
     lines = ["[Tag]"]
     
-    if getattr(tag, 'is_series', False):
+    if getattr(tag, 'is_multi_series', False):
+        lines.append(f"type = multi_series")
+        lines.append(f"name = {tag.name}")
+        lines.append(f"start_time = {tag.start_time.toString('HH:mm')}")
+        lines.append(f"end_time = {tag.end_time.toString('HH:mm')}")
+        lines.append(f"series_list = {json.dumps(tag.series_list)}")
+    
+    elif getattr(tag, 'is_series', False):
         lines.append(f"type = series")
         lines.append(f"name = {tag.name}")
         lines.append(f"start_time = {tag.start_time.toString('HH:mm')}")
@@ -93,6 +101,20 @@ def deserialize_tag_from_string(data: str, tag_class, qtime_from_string):
                         is_series=True, start_season=start_season, start_episode=start_episode, 
                         play_mode=play_mode, collection_profile=collection_profile,
                         blacklist_profile=blacklist_profile)
+    
+    elif tag_type == 'multi_series':
+        series_list_str = tag_section.get('series_list', '[]')
+        try:
+            series_list = json.loads(series_list_str)
+        except:
+            series_list = []
+        from models import MultiSeriesTag
+        return MultiSeriesTag(
+            name=name,
+            start_time=qtime_from_string(start, 'HH:mm'),
+            end_time=qtime_from_string(end, 'HH:mm'),
+            series_list=series_list
+        )
     
     elif tag_type == 'random':
         blacklist_path = tag_section.get('blacklist_path', '')
