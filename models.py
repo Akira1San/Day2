@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 import random
+import logging
 from typing import List, Optional
 from PySide6.QtCore import QTime
 
 from utils import (
     qtime_to_minutes, get_video_display_name, parse_videos_for_series
 )
+
+logger = logging.getLogger(__name__)
 
 
 class Tag:
@@ -840,9 +843,9 @@ class ScheduleGenerator:
                         remaining_start = current_pos
                         remaining_end = re.end_minutes
                         if label:
-                            print(f"[APPROX day={day_offset+1}]   remaining portion ({label}): {remaining_start//60%24:02d}:{remaining_start%60:02d}-{remaining_end//60%24:02d}:{remaining_end%60:02d}")
+                            logger.debug(f"[APPROX day={day_offset+1}]   remaining portion ({label}): {remaining_start//60%24:02d}:{remaining_start%60:02d}-{remaining_end//60%24:02d}:{remaining_end%60:02d}")
                         else:
-                            print(f"[APPROX day={day_offset+1}]   remaining portion: {remaining_start//60%24:02d}:{remaining_start%60:02d}-{remaining_end//60%24:02d}:{remaining_end%60:02d} from re={re.start_minutes//60%24:02d}:{re.start_minutes%60:02d}-{re.end_minutes//60%24:02d}:{re.end_minutes%60:02d}")
+                            logger.debug(f"[APPROX day={day_offset+1}]   remaining portion: {remaining_start//60%24:02d}:{remaining_start%60:02d}-{remaining_end//60%24:02d}:{remaining_end%60:02d} from re={re.start_minutes//60%24:02d}:{re.start_minutes%60:02d}-{re.end_minutes//60%24:02d}:{re.end_minutes%60:02d}")
                         if remaining_end > remaining_start:
                             final.append(ScheduleEntry(1, remaining_start, remaining_end, re.video_name))
                             current_pos = remaining_end
@@ -911,7 +914,7 @@ class ScheduleGenerator:
                 best_before = max(before_candidates, key=lambda e: e.end_minutes) if before_candidates else None
                 anchor_candidates = ([best_before] if best_before else []) + close_after
 
-                print(f"[APPROX day={day_offset+1}] tag='{ct.name}' wanted={custom_start//60%24:02d}:{custom_start%60:02d} current_pos={current_pos//60%24:02d}:{current_pos%60:02d} day_unused={len(day_unused)} before={len(before_candidates)} close_after={len(close_after)} overlapping={len(overlapping)} best_before={'%02d:%02d'%(best_before.end_minutes//60%24,best_before.end_minutes%60) if best_before else 'none'}")
+                logger.debug(f"[APPROX day={day_offset+1}] tag='{ct.name}' wanted={custom_start//60%24:02d}:{custom_start%60:02d} current_pos={current_pos//60%24:02d}:{current_pos%60:02d} day_unused={len(day_unused)} before={len(before_candidates)} close_after={len(close_after)} overlapping={len(overlapping)} best_before={'%02d:%02d'%(best_before.end_minutes//60%24,best_before.end_minutes%60) if best_before else 'none'}")
 
                 if anchor_candidates:
                     best_rand = None
@@ -929,7 +932,7 @@ class ScheduleGenerator:
                                     break
 
                     if best_rand and best_idx >= 0:
-                        print(f"[APPROX day={day_offset+1}]   BEST end={best_rand.end_minutes//60%24:02d}:{best_rand.end_minutes%60:02d} gap={best_gap} -> tag at {best_rand.end_minutes//60%24:02d}:{best_rand.end_minutes%60:02d}")
+                        logger.debug(f"[APPROX day={day_offset+1}]   BEST end={best_rand.end_minutes//60%24:02d}:{best_rand.end_minutes%60:02d} gap={best_gap} -> tag at {best_rand.end_minutes//60%24:02d}:{best_rand.end_minutes%60:02d}")
                         # Add the random entry to final before placing custom tag
                         if current_pos <= best_rand.start_minutes:
                             final.append(best_rand)
@@ -955,7 +958,7 @@ class ScheduleGenerator:
                         scheduled_slots.append((slot_start, slot_end))
                         actual_end = self._place_tag_videos(ct, slot_start, slot_end, final)
                         current_pos = actual_end
-                        print(f"[APPROX day={day_offset+1}]   placed -> current_pos={current_pos//60%24:02d}:{current_pos%60:02d}")
+                        logger.debug(f"[APPROX day={day_offset+1}]   placed -> current_pos={current_pos//60%24:02d}:{current_pos%60:02d}")
 
                         # Consume overlapping random entry tails
                         current_pos = self._consume_overlapping_tail(
@@ -963,7 +966,7 @@ class ScheduleGenerator:
                             min_end_threshold=slot_start,
                         )
                 else:
-                    print(f"[APPROX day={day_offset+1}]   no best_rand -> fallback {custom_start//60%24:02d}:{custom_start%60:02d}")
+                    logger.debug(f"[APPROX day={day_offset+1}]   no best_rand -> fallback {custom_start//60%24:02d}:{custom_start%60:02d}")
                     # No valid anchor found, place at current_pos if past custom_start
                     if custom_start < current_pos:
                         custom_start = current_pos
@@ -975,7 +978,7 @@ class ScheduleGenerator:
                     scheduled_slots.append((slot_start, slot_end))
                     actual_end = self._place_tag_videos(ct, slot_start, slot_end, final)
                     current_pos = actual_end
-                    print(f"[APPROX day={day_offset+1}]   placed -> current_pos={current_pos//60%24:02d}:{current_pos%60:02d}")
+                    logger.debug(f"[APPROX day={day_offset+1}]   placed -> current_pos={current_pos//60%24:02d}:{current_pos%60:02d}")
 
                     # Consume overlapping random entry tails
                     current_pos = self._consume_overlapping_tail(
@@ -991,9 +994,9 @@ class ScheduleGenerator:
                               and e.start_minutes < day_end 
                               and e.end_minutes > day_start]
             day_unused.sort(key=lambda e: e.start_minutes)
-            print(f"[APPROX day={day_offset+1}] POST-TAGS current_pos={current_pos//60%24:02d}:{current_pos%60:02d} day_unused={len(day_unused)}")
+            logger.debug(f"[APPROX day={day_offset+1}] POST-TAGS current_pos={current_pos//60%24:02d}:{current_pos%60:02d} day_unused={len(day_unused)}")
             for e in day_unused:
-                print(f"[APPROX day={day_offset+1}]   unused: {e.start_minutes//60%24:02d}:{e.start_minutes%60:02d}-{e.end_minutes//60%24:02d}:{e.end_minutes%60:02d}")
+                logger.debug(f"[APPROX day={day_offset+1}]   unused: {e.start_minutes//60%24:02d}:{e.start_minutes%60:02d}-{e.end_minutes//60%24:02d}:{e.end_minutes%60:02d}")
 
             # Build occupied ranges from already-placed entries this day
             occupied_ranges = [(e.start_minutes, e.end_minutes) for e in final if e.start_minutes >= day_start]

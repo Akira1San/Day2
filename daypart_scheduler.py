@@ -1,8 +1,23 @@
 #!/usr/bin/env python3
 import sys
 import configparser
-from typing import List, Optional
+import logging
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
+
+# Configure root logger to write to a rotating file
+log_path = Path("daypart_scheduler.log")
+log_handler = RotatingFileHandler(log_path, maxBytes=5*1024*1024, backupCount=3, encoding='utf-8')
+log_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(name)s: %(message)s'))
+logging.getLogger().addHandler(log_handler)
+logging.getLogger().setLevel(logging.DEBUG)
+# Also echo DEBUG+ to stdout for live monitoring
+stdout_handler = logging.StreamHandler(sys.stdout)
+stdout_handler.setLevel(logging.DEBUG)
+stdout_handler.setFormatter(logging.Formatter('[%(levelname)s] %(name)s: %(message)s'))
+logging.getLogger().addHandler(stdout_handler)
+
+from typing import List, Optional
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QListWidget, QListWidgetItem, QPushButton, QDialog, QLineEdit,

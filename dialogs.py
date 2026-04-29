@@ -2,6 +2,7 @@
 import sys
 import json
 import configparser
+import logging
 from typing import List, Optional
 from pathlib import Path
 from PySide6.QtWidgets import (
@@ -19,6 +20,8 @@ from utils import (
     parse_videos_for_series
 )
 from models import Tag, MultiSeriesTag
+
+logger = logging.getLogger(__name__)
 
 
 class BaseTagDialog(QDialog):
@@ -554,7 +557,7 @@ class RandomFillDialog(BaseTagDialog):
                 self.collection_profile_combo.addItem(json_file.name)
 
         blck_path = Path(blacklist_path)
-        print(f"[DEBUG] load_available_profiles: blck_path={blck_path}, exists={blck_path.exists()}")
+        logger.debug(f"[DEBUG] load_available_profiles: blck_path={blck_path}, exists={blck_path.exists()}")
         blacklist_files = set()
         if blck_path.exists():
             for ini_file in blck_path.glob("*_blacklist.ini"):
@@ -569,7 +572,7 @@ class RandomFillDialog(BaseTagDialog):
         for ini_file in Path('.').glob("*blacklist*.ini"):
             blacklist_files.add(ini_file.name)
         
-        print(f"[DEBUG] blacklist_files: {sorted(blacklist_files)}")
+        logger.debug(f"[DEBUG] blacklist_files: {sorted(blacklist_files)}")
         for name in sorted(blacklist_files):
             self.blacklist_profile_combo.addItem(name)
 
@@ -577,7 +580,7 @@ class RandomFillDialog(BaseTagDialog):
         if index <= 0:
             return
         file_name = self.collection_profile_combo.currentText()
-        print(f"[DEBUG] collection_profile_selected: {file_name}")
+        logger.debug(f"[DEBUG] collection_profile_selected: {file_name}")
         collection_path, blacklist_path = get_config_paths()
         file_path = Path(collection_path) / file_name
         if file_path.exists():
@@ -587,12 +590,12 @@ class RandomFillDialog(BaseTagDialog):
         # Remove "collections_" prefix if present
         if collection_name.startswith("collections_"):
             collection_name = collection_name[len("collections_"):]
-        print(f"[DEBUG] looking for blacklist: {collection_name}")
+        logger.debug(f"[DEBUG] looking for blacklist: {collection_name}")
         for i in range(self.blacklist_profile_combo.count()):
             bl_name = self.blacklist_profile_combo.itemText(i)
-            print(f"[DEBUG] checking blacklist {i}: {bl_name}")
+            logger.debug(f"[DEBUG] checking blacklist {i}: {bl_name}")
             if collection_name in bl_name:
-                print(f"[DEBUG] found match at {i}")
+                logger.debug(f"[DEBUG] found match at {i}")
                 self.blacklist_profile_combo.setCurrentIndex(i)
                 bl_file = Path(blacklist_path) / bl_name
                 if bl_file.exists():
@@ -1072,7 +1075,7 @@ class SeriesDialog(BaseTagDialog):
                 self.collection_profile_combo.addItem(json_file.name)
 
         blck_path = Path(blacklist_path)
-        print(f"[DEBUG] load_available_profiles: blck_path={blck_path}, exists={blck_path.exists()}")
+        logger.debug(f"[DEBUG] load_available_profiles: blck_path={blck_path}, exists={blck_path.exists()}")
         blacklist_files = set()
         if blck_path.exists():
             for ini_file in blck_path.glob("*_blacklist.ini"):
@@ -1087,7 +1090,7 @@ class SeriesDialog(BaseTagDialog):
         for ini_file in Path('.').glob("*blacklist*.ini"):
             blacklist_files.add(ini_file.name)
         
-        print(f"[DEBUG] blacklist_files: {sorted(blacklist_files)}")
+        logger.debug(f"[DEBUG] blacklist_files: {sorted(blacklist_files)}")
         for name in sorted(blacklist_files):
             self.blacklist_profile_combo.addItem(name)
 
@@ -1095,7 +1098,7 @@ class SeriesDialog(BaseTagDialog):
         if index <= 0:
             return
         file_name = self.collection_profile_combo.currentText()
-        print(f"[DEBUG] collection_profile_selected: {file_name}")
+        logger.debug(f"[DEBUG] collection_profile_selected: {file_name}")
         collection_path, blacklist_path = get_config_paths()
         file_path = Path(collection_path) / file_name
         if file_path.exists():
@@ -1105,12 +1108,12 @@ class SeriesDialog(BaseTagDialog):
         # Remove "collections_" prefix if present
         if collection_name.startswith("collections_"):
             collection_name = collection_name[len("collections_"):]
-        print(f"[DEBUG] looking for blacklist: {collection_name}")
+        logger.debug(f"[DEBUG] looking for blacklist: {collection_name}")
         for i in range(self.blacklist_profile_combo.count()):
             bl_name = self.blacklist_profile_combo.itemText(i)
-            print(f"[DEBUG] checking blacklist {i}: {bl_name}")
+            logger.debug(f"[DEBUG] checking blacklist {i}: {bl_name}")
             if collection_name in bl_name:
-                print(f"[DEBUG] found match at {i}")
+                logger.debug(f"[DEBUG] found match at {i}")
                 self.blacklist_profile_combo.setCurrentIndex(i)
                 bl_file = Path(blacklist_path) / bl_name
                 if bl_file.exists():
