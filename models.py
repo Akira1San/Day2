@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 import random
+import itertools
 import logging
 from typing import List, Optional
 from PySide6.QtCore import QTime
@@ -484,6 +485,518 @@ class LinearApproximateStrategy:
         return self.sg._apply_approximate_linear(num_days, custom_tags, series_tags, multi_series_tags, random_fill_tags, has_24h_fill)
 
 
+class EarlyFillApproximateStrategy:
+    """Strategy for early-fill approximate scheduling: places tags as early as possible."""
+
+    def __init__(self, schedule_generator: 'ScheduleGenerator'):
+        self.sg = schedule_generator
+
+    def generate(self, num_days: int = 1) -> List[ScheduleEntry]:
+        all_tags = self.sg.tag_manager.get_all_tags()
+        custom_tags = [t for t in all_tags if t.tag_type == "custom" and not t.is_random_fill and not t.is_series]
+        series_tags = [t for t in all_tags if t.is_series]
+        multi_series_tags = [t for t in all_tags if getattr(t, 'is_multi_series', False)]
+        random_fill_tags = [t for t in all_tags if t.is_random_fill]
+
+        rf_24h_tags = [t for t in random_fill_tags if getattr(t, 'fill_24h', False)]
+        if rf_24h_tags and not custom_tags and not series_tags and not multi_series_tags:
+            return self.sg.generate_random_fill(24 * 60 * num_days)
+
+        if not custom_tags and not series_tags and not multi_series_tags and not random_fill_tags:
+            return []
+
+        rf_sorted = sorted(random_fill_tags, key=lambda t: qtime_to_minutes(t.start_time))
+        if not rf_sorted:
+            return LinearApproximateStrategy(self.sg).generate(num_days)
+
+        rf = rf_sorted[0]
+        rf_videos = rf.collection_videos.copy() if rf.collection_videos else []
+        if rf_videos:
+            random.shuffle(rf_videos)
+        total_minutes = num_days * 24 * 60
+        random_entries = self.sg._build_random_entries(rf_videos, 0, total_minutes, rf.name)
+
+        used_random = set()
+        final = []
+
+        for day_offset in range(num_days):
+            day_start = day_offset * 1440
+            day_end = day_start + 1440
+
+            day_unused = [e for i, e in enumerate(random_entries)
+                          if i not in used_random and e.start_minutes < day_end and e.end_minutes > day_start]
+            day_unused.sort(key=lambda e: e.start_minutes)
+
+            day_tags = []
+            for tag_list in (custom_tags, series_tags, multi_series_tags):
+                for t in tag_list:
+                    orig_start = qtime_to_minutes(t.start_time)
+                    orig_end = qtime_to_minutes(t.end_time)
+                    abs_start = orig_start + day_start
+                    abs_end = orig_end + day_start
+                    duration = orig_end - orig_start
+                    if duration <= 0:
+                        continue
+                    day_tags.append((t, abs_start, abs_end, duration))
+
+            day_tags.sort(key=lambda x: x[1])
+
+            current_pos = day_start
+            scheduled_slots = []
+
+            for tag, abs_start, abs_end, duration in day_tags:
+                slot_start = max(abs_start, current_pos)
+                slot_end = slot_start + duration
+                if slot_start >= day_end:
+                    continue
+                if slot_end > day_end:
+                    slot_end = day_end
+                scheduled_slots.append((slot_start, slot_end))
+                actual_end = self.sg._place_tag_videos(tag, slot_start, slot_end, final)
+                current_pos = actual_end
+                current_pos = self.sg._consume_overlapping_tail(
+                    slot_start, slot_end, current_pos, day_unused, random_entries, used_random, final, day_offset,
+                    min_end_threshold=current_pos
+                )
+
+            current_pos = self.sg._approximate_finalize_day(
+                random_entries, used_random, final, day_offset, day_start, scheduled_slots, current_pos
+            )
+
+        final.sort(key=lambda e: e.start_minutes)
+        return final
+
+
+class LateFillApproximateStrategy:
+    """Strategy for late-fill approximate scheduling: places tags as late as possible."""
+
+    def __init__(self, schedule_generator: 'ScheduleGenerator'):
+        self.sg = schedule_generator
+
+    def generate(self, num_days: int = 1) -> List[ScheduleEntry]:
+        all_tags = self.sg.tag_manager.get_all_tags()
+        custom_tags = [t for t in all_tags if t.tag_type == "custom" and not t.is_random_fill and not t.is_series]
+        series_tags = [t for t in all_tags if t.is_series]
+        multi_series_tags = [t for t in all_tags if getattr(t, 'is_multi_series', False)]
+        random_fill_tags = [t for t in all_tags if t.is_random_fill]
+
+        rf_24h_tags = [t for t in random_fill_tags if getattr(t, 'fill_24h', False)]
+        if rf_24h_tags and not custom_tags and not series_tags and not multi_series_tags:
+            return self.sg.generate_random_fill(24 * 60 * num_days)
+
+        if not custom_tags and not series_tags and not multi_series_tags and not random_fill_tags:
+            return []
+
+        rf_sorted = sorted(random_fill_tags, key=lambda t: qtime_to_minutes(t.start_time))
+        if not rf_sorted:
+            return LinearApproximateStrategy(self.sg).generate(num_days)
+
+        rf = rf_sorted[0]
+        rf_videos = rf.collection_videos.copy() if rf.collection_videos else []
+        if rf_videos:
+            random.shuffle(rf_videos)
+        total_minutes = num_days * 24 * 60
+        random_entries = self.sg._build_random_entries(rf_videos, 0, total_minutes, rf.name)
+
+        used_random = set()
+        final = []
+
+        for day_offset in range(num_days):
+            day_start = day_offset * 1440
+            day_end = day_start + 1440
+
+            day_unused = [e for i, e in enumerate(random_entries)
+                          if i not in used_random and e.start_minutes < day_end and e.end_minutes > day_start]
+            day_unused.sort(key=lambda e: e.start_minutes)
+
+            day_tags = []
+            for tag_list in (custom_tags, series_tags, multi_series_tags):
+                for t in tag_list:
+                    orig_start = qtime_to_minutes(t.start_time)
+                    orig_end = qtime_to_minutes(t.end_time)
+                    abs_start = orig_start + day_start
+                    abs_end = orig_end + day_start
+                    duration = orig_end - orig_start
+                    if duration <= 0:
+                        continue
+                    day_tags.append((t, abs_start, abs_end, duration))
+
+            # Compute slots by reverse order on end times
+            day_tags_by_end = sorted(day_tags, key=lambda x: x[2], reverse=True)
+            temp_slots = []
+            latest_free = day_end
+            for tag, abs_start, abs_end, duration in day_tags_by_end:
+                slot_end = min(abs_end, latest_free)
+                slot_start = slot_end - duration
+                if slot_start < day_start:
+                    if latest_free <= day_start:
+                        continue
+                    slot_start = day_start
+                    slot_end = latest_free
+                temp_slots.append((tag, slot_start, slot_end))
+                latest_free = slot_start
+
+            scheduled_slots_info = sorted(temp_slots, key=lambda x: x[1])
+            current_pos = day_start
+            scheduled_slots = []
+            for tag, slot_start, slot_end in scheduled_slots_info:
+                if slot_start >= day_end:
+                    continue
+                scheduled_slots.append((slot_start, slot_end))
+                actual_end = self.sg._place_tag_videos(tag, slot_start, slot_end, final)
+                current_pos = actual_end
+                current_pos = self.sg._consume_overlapping_tail(
+                    slot_start, slot_end, current_pos, day_unused, random_entries, used_random, final, day_offset,
+                    min_end_threshold=current_pos
+                )
+
+            current_pos = self.sg._approximate_finalize_day(
+                random_entries, used_random, final, day_offset, day_start, scheduled_slots, current_pos
+            )
+
+        final.sort(key=lambda e: e.start_minutes)
+        return final
+
+
+class PriorityApproximateStrategy:
+    """Strategy for priority-based approximate scheduling: higher priority tags placed first."""
+
+    def __init__(self, schedule_generator: 'ScheduleGenerator'):
+        self.sg = schedule_generator
+
+    def generate(self, num_days: int = 1) -> List[ScheduleEntry]:
+        all_tags = self.sg.tag_manager.get_all_tags()
+        custom_tags = [t for t in all_tags if t.tag_type == "custom" and not t.is_random_fill and not t.is_series]
+        series_tags = [t for t in all_tags if t.is_series]
+        multi_series_tags = [t for t in all_tags if getattr(t, 'is_multi_series', False)]
+        random_fill_tags = [t for t in all_tags if t.is_random_fill]
+
+        rf_24h_tags = [t for t in random_fill_tags if getattr(t, 'fill_24h', False)]
+        if rf_24h_tags and not custom_tags and not series_tags and not multi_series_tags:
+            return self.sg.generate_random_fill(24 * 60 * num_days)
+
+        if not custom_tags and not series_tags and not multi_series_tags and not random_fill_tags:
+            return []
+
+        rf_sorted = sorted(random_fill_tags, key=lambda t: qtime_to_minutes(t.start_time))
+        if not rf_sorted:
+            return LinearApproximateStrategy(self.sg).generate(num_days)
+
+        rf = rf_sorted[0]
+        rf_videos = rf.collection_videos.copy() if rf.collection_videos else []
+        if rf_videos:
+            random.shuffle(rf_videos)
+        total_minutes = num_days * 24 * 60
+        random_entries = self.sg._build_random_entries(rf_videos, 0, total_minutes, rf.name)
+
+        used_random = set()
+        final = []
+
+        for day_offset in range(num_days):
+            day_start = day_offset * 1440
+            day_end = day_start + 1440
+
+            day_unused = [e for i, e in enumerate(random_entries)
+                          if i not in used_random and e.start_minutes < day_end and e.end_minutes > day_start]
+            day_unused.sort(key=lambda e: e.start_minutes)
+
+            day_tags = []
+            for tag_list in (custom_tags, series_tags, multi_series_tags):
+                for t in tag_list:
+                    orig_start = qtime_to_minutes(t.start_time)
+                    orig_end = qtime_to_minutes(t.end_time)
+                    abs_start = orig_start + day_start
+                    abs_end = orig_end + day_start
+                    duration = orig_end - orig_start
+                    if duration <= 0:
+                        continue
+                    day_tags.append((t, abs_start, abs_end, duration))
+
+            # Sort by priority descending, then by absolute start
+            day_tags.sort(key=lambda x: (-getattr(x[0], 'priority', 0), x[1]))
+
+            current_pos = day_start
+            scheduled_slots = []
+
+            for tag, abs_start, abs_end, duration in day_tags:
+                THRESHOLD_AFTER = 30
+                before_candidates = [e for e in day_unused if e.end_minutes <= abs_start and e.end_minutes >= current_pos]
+                close_after = [e for e in day_unused if e.start_minutes >= abs_start and e.end_minutes < abs_start + THRESHOLD_AFTER]
+
+                best_before = max(before_candidates, key=lambda e: e.end_minutes) if before_candidates else None
+                anchor_candidates = ([best_before] if best_before else []) + close_after
+
+                if anchor_candidates:
+                    best_gap = float('inf')
+                    best_rand = None
+                    best_idx = -1
+                    for rand_e in anchor_candidates:
+                        gap = abs(rand_e.end_minutes - abs_start)
+                        if gap < best_gap:
+                            best_gap = gap
+                            best_rand = rand_e
+                            for idx, re in enumerate(random_entries):
+                                if re is rand_e and idx not in used_random:
+                                    best_idx = idx
+                                    break
+                    if best_rand and best_idx >= 0:
+                        logger.debug(f"[APPROX day={day_offset+1}]   BEST end={best_rand.end_minutes//60%24:02d}:{best_rand.end_minutes%60:02d} gap={best_gap} -> tag at {best_rand.end_minutes//60%24:02d}:{best_rand.end_minutes%60:02d}")
+                        if current_pos <= best_rand.start_minutes:
+                            final.append(best_rand)
+                            used_random.add(best_idx)
+                            if best_rand in day_unused:
+                                day_unused.remove(best_rand)
+                            current_pos = best_rand.end_minutes
+                        elif current_pos < best_rand.end_minutes:
+                            final.append(ScheduleEntry(1, current_pos, best_rand.end_minutes, best_rand.video_name))
+                            used_random.add(best_idx)
+                            if best_rand in day_unused:
+                                day_unused.remove(best_rand)
+                            current_pos = best_rand.end_minutes
+                        else:
+                            used_random.add(best_idx)
+                            if best_rand in day_unused:
+                                day_unused.remove(best_rand)
+
+                        slot_start = best_rand.end_minutes
+                        slot_end = slot_start + duration
+                        scheduled_slots.append((slot_start, slot_end))
+                        actual_end = self.sg._place_tag_videos(tag, slot_start, slot_end, final)
+                        current_pos = actual_end
+                        current_pos = self.sg._consume_overlapping_tail(
+                            slot_start, slot_end, current_pos, day_unused, random_entries, used_random, final, day_offset,
+                            min_end_threshold=slot_start
+                        )
+                        continue
+
+                # Fallback placement
+                if abs_start < current_pos:
+                    abs_start = current_pos
+                    abs_end = abs_start + duration
+                slot_start = abs_start
+                slot_end = abs_start + duration
+                scheduled_slots.append((slot_start, slot_end))
+                actual_end = self.sg._place_tag_videos(tag, slot_start, slot_end, final)
+                current_pos = actual_end
+                current_pos = self.sg._consume_overlapping_tail(
+                    slot_start, slot_end, current_pos, day_unused, random_entries, used_random, final, day_offset,
+                    min_end_threshold=current_pos,
+                    label="fallback",
+                )
+
+            current_pos = self.sg._approximate_finalize_day(
+                random_entries, used_random, final, day_offset, day_start, scheduled_slots, current_pos
+            )
+
+        final.sort(key=lambda e: e.start_minutes)
+        return final
+
+
+class BestFitApproximateStrategy:
+    """Strategy for best-fit approximate scheduling: uses same behavior as find-replace."""
+
+    def __init__(self, schedule_generator: 'ScheduleGenerator'):
+        self.sg = schedule_generator
+
+    def generate(self, num_days: int = 1) -> List[ScheduleEntry]:
+        return FindReplaceApproximateStrategy(self.sg).generate(num_days)
+
+
+class RoundRobinApproximateStrategy:
+    """Strategy for round-robin approximate scheduling: interleaves tags and random fill exactly at preferred times."""
+
+    def __init__(self, schedule_generator: 'ScheduleGenerator'):
+        self.sg = schedule_generator
+
+    def generate(self, num_days: int = 1) -> List[ScheduleEntry]:
+        return CustomTagMergeStrategy(self.sg).generate(num_days)
+
+
+class LinearSpanningApproximateStrategy:
+    """Strategy for linear approximate scheduling with day-spanning enabled."""
+
+    def __init__(self, schedule_generator: 'ScheduleGenerator'):
+        self.sg = schedule_generator
+
+    def generate(self, num_days: int = 1) -> List[ScheduleEntry]:
+        all_tags = self.sg.tag_manager.get_all_tags()
+        custom_tags = [t for t in all_tags if t.tag_type == "custom" and not t.is_random_fill and not t.is_series]
+        series_tags = [t for t in all_tags if t.is_series]
+        multi_series_tags = [t for t in all_tags if getattr(t, 'is_multi_series', False)]
+        random_fill_tags = [t for t in all_tags if t.is_random_fill]
+
+        rf_24h_tags = [t for t in random_fill_tags if getattr(t, 'fill_24h', False)]
+        if rf_24h_tags and not custom_tags and not series_tags and not multi_series_tags:
+            return self.sg.generate_random_fill(24 * 60 * num_days)
+
+        if not custom_tags and not series_tags and not multi_series_tags and not random_fill_tags:
+            return []
+
+        rf_sorted = sorted(random_fill_tags, key=lambda t: qtime_to_minutes(t.start_time))
+        if not rf_sorted:
+            return LinearApproximateStrategy(self.sg).generate(num_days)
+
+        rf = rf_sorted[0]
+        rf_videos = rf.collection_videos.copy() if rf.collection_videos else []
+        if rf_videos:
+            random.shuffle(rf_videos)
+        total_minutes = num_days * 24 * 60
+        random_entries = self.sg._build_random_entries(rf_videos, 0, total_minutes, rf.name)
+
+        used_random = set()
+        final = []
+
+        # Build all tag instances across days with group ordering: custom -> series -> multi
+        custom_inst = []
+        series_inst = []
+        multi_inst = []
+        for day_offset in range(num_days):
+            day_start = day_offset * 1440
+            for t in custom_tags:
+                os = qtime_to_minutes(t.start_time)
+                oe = qtime_to_minutes(t.end_time)
+                custom_inst.append((t, os + day_start, oe + day_start, oe - os))
+            for t in series_tags:
+                os = qtime_to_minutes(t.start_time)
+                oe = qtime_to_minutes(t.end_time)
+                series_inst.append((t, os + day_start, oe + day_start, oe - os))
+            for t in multi_series_tags:
+                os = qtime_to_minutes(t.start_time)
+                oe = qtime_to_minutes(t.end_time)
+                multi_inst.append((t, os + day_start, oe + day_start, oe - os))
+
+        custom_inst.sort(key=lambda x: x[1])
+        series_inst.sort(key=lambda x: x[1])
+        multi_inst.sort(key=lambda x: x[1])
+        all_instances = custom_inst + series_inst + multi_inst
+
+        current_pos = 0
+        scheduled_slots = []
+
+        for tag, abs_start, abs_end, duration in all_instances:
+            slot_start = max(abs_start, current_pos)
+            slot_end = slot_start + duration
+            scheduled_slots.append((slot_start, slot_end))
+            actual_end = self.sg._place_tag_videos(tag, slot_start, slot_end, final)
+            current_pos = actual_end
+            day_offset_tail = abs_start // 1440
+            day_unused = [e for i, e in enumerate(random_entries) if i not in used_random]
+            current_pos = self.sg._consume_overlapping_tail(
+                slot_start, slot_end, current_pos, day_unused, random_entries, used_random, final, day_offset_tail,
+                min_end_threshold=current_pos,
+                label="spanning"
+            )
+
+        for day_offset in range(num_days):
+            day_start = day_offset * 1440
+            current_pos = self.sg._approximate_finalize_day(
+                random_entries, used_random, final, day_offset, day_start, scheduled_slots, current_pos
+            )
+
+        final.sort(key=lambda e: e.start_minutes)
+        return final
+
+
+class ExhaustiveApproximateStrategy:
+    """Strategy that exhaustively searches all tag orderings for small instances to minimize displacement."""
+
+    def __init__(self, schedule_generator: 'ScheduleGenerator'):
+        self.sg = schedule_generator
+
+    def generate(self, num_days: int = 1) -> List[ScheduleEntry]:
+        all_tags = self.sg.tag_manager.get_all_tags()
+        custom_tags = [t for t in all_tags if t.tag_type == "custom" and not t.is_random_fill and not t.is_series]
+        series_tags = [t for t in all_tags if t.is_series]
+        multi_series_tags = [t for t in all_tags if getattr(t, 'is_multi_series', False)]
+        random_fill_tags = [t for t in all_tags if t.is_random_fill]
+
+        if not custom_tags and not series_tags and not multi_series_tags:
+            if random_fill_tags:
+                return self.sg.generate_random_fill(24 * 60 * num_days)
+            return []
+
+        max_tags = 4
+        total_instances = (len(custom_tags) + len(series_tags) + len(multi_series_tags)) * num_days
+        if total_instances > max_tags or num_days > 2:
+            return LinearApproximateStrategy(self.sg).generate(num_days)
+
+        instances = []
+        for day_offset in range(num_days):
+            day_start = day_offset * 1440
+            for t in custom_tags:
+                os = qtime_to_minutes(t.start_time)
+                oe = qtime_to_minutes(t.end_time)
+                instances.append((t, os + day_start, oe + day_start, oe - os))
+            for t in series_tags:
+                os = qtime_to_minutes(t.start_time)
+                oe = qtime_to_minutes(t.end_time)
+                instances.append((t, os + day_start, oe + day_start, oe - os))
+            for t in multi_series_tags:
+                os = qtime_to_minutes(t.start_time)
+                oe = qtime_to_minutes(t.end_time)
+                instances.append((t, os + day_start, oe + day_start, oe - os))
+
+        best_order = None
+        best_disp = None
+        total_minutes_abs = num_days * 24 * 60
+        for perm in itertools.permutations(instances):
+            current_pos = 0
+            total_disp = 0
+            valid = True
+            for tag, abs_start, abs_end, duration in perm:
+                slot_start = max(abs_start, current_pos)
+                slot_end = slot_start + duration
+                if slot_end > total_minutes_abs:
+                    valid = False
+                    break
+                total_disp += slot_start - abs_start
+                current_pos = slot_end
+            if valid:
+                if best_disp is None or total_disp < best_disp:
+                    best_disp = total_disp
+                    best_order = perm
+
+        if best_order is None:
+            return LinearApproximateStrategy(self.sg).generate(num_days)
+
+        rf_sorted = sorted(random_fill_tags, key=lambda t: qtime_to_minutes(t.start_time))
+        if not rf_sorted:
+            return LinearApproximateStrategy(self.sg).generate(num_days)
+        rf = rf_sorted[0]
+        rf_videos = rf.collection_videos.copy() if rf.collection_videos else []
+        if rf_videos:
+            random.shuffle(rf_videos)
+        total_minutes = num_days * 24 * 60
+        random_entries = self.sg._build_random_entries(rf_videos, 0, total_minutes, rf.name)
+
+        used_random = set()
+        final = []
+        scheduled_slots = []
+        current_pos = 0
+
+        for tag, abs_start, abs_end, duration in best_order:
+            slot_start = max(abs_start, current_pos)
+            slot_end = slot_start + duration
+            scheduled_slots.append((slot_start, slot_end))
+            actual_end = self.sg._place_tag_videos(tag, slot_start, slot_end, final)
+            current_pos = actual_end
+            day_offset_tail = abs_start // 1440
+            day_unused = [e for i, e in enumerate(random_entries) if i not in used_random]
+            current_pos = self.sg._consume_overlapping_tail(
+                slot_start, slot_end, current_pos, day_unused, random_entries, used_random, final, day_offset_tail,
+                min_end_threshold=current_pos
+            )
+
+        for day_offset in range(num_days):
+            day_start = day_offset * 1440
+            current_pos = self.sg._approximate_finalize_day(
+                random_entries, used_random, final, day_offset, day_start, scheduled_slots, current_pos
+            )
+
+        final.sort(key=lambda e: e.start_minutes)
+        return final
+
+
 class ScheduleGenerator:
     def __init__(self, tag_manager: TagManager):
         self.tag_manager = tag_manager
@@ -808,7 +1321,24 @@ class ScheduleGenerator:
         """Dispatch to the appropriate approximate scheduling strategy."""
         if mode == "linear":
             return LinearApproximateStrategy(self).generate(num_days)
-        return FindReplaceApproximateStrategy(self).generate(num_days)
+        elif mode == "find_replace":
+            return FindReplaceApproximateStrategy(self).generate(num_days)
+        elif mode == "early_fill":
+            return EarlyFillApproximateStrategy(self).generate(num_days)
+        elif mode == "late_fill":
+            return LateFillApproximateStrategy(self).generate(num_days)
+        elif mode == "priority":
+            return PriorityApproximateStrategy(self).generate(num_days)
+        elif mode == "best_fit":
+            return BestFitApproximateStrategy(self).generate(num_days)
+        elif mode == "round_robin":
+            return RoundRobinApproximateStrategy(self).generate(num_days)
+        elif mode == "linear_spanning":
+            return LinearSpanningApproximateStrategy(self).generate(num_days)
+        elif mode == "exhaustive":
+            return ExhaustiveApproximateStrategy(self).generate(num_days)
+        else:
+            raise ValueError(f"Unknown approximate mode: {mode}")
 
     def _consume_overlapping_tail(
         self,
@@ -852,6 +1382,62 @@ class ScheduleGenerator:
                         if re in day_unused:
                             day_unused.remove(re)
                         break
+        return current_pos
+
+    def _approximate_finalize_day(self, random_entries, used_random, final, day_offset, day_start, scheduled_slots, current_pos):
+        day_end = day_start + 1440
+        # Recompute day_unused: random entries not yet used that intersect the day
+        day_unused = [e for i, e in enumerate(random_entries)
+                      if i not in used_random
+                      and e.start_minutes < day_end
+                      and e.end_minutes > day_start]
+        day_unused.sort(key=lambda e: e.start_minutes)
+        logger.debug(f"[APPROX day={day_offset+1}] POST-TAGS current_pos={current_pos//60%24:02d}:{current_pos%60:02d} day_unused={len(day_unused)}")
+        # Build occupied ranges from placed entries and scheduled slots
+        occupied_ranges = [(e.start_minutes, e.end_minutes) for e in final if e.start_minutes < day_end and e.end_minutes > day_start]
+        # Only include scheduled slots that intersect this day
+        for slot_start, slot_end in scheduled_slots:
+            if slot_start < day_end and slot_end > day_start:
+                occupied_ranges.append((slot_start, slot_end))
+
+        for rand_e in day_unused:
+            if rand_e.start_minutes >= current_pos:
+                continue
+            # Skip if overlaps any occupied range (tag slots or already placed entries)
+            if any(rand_e.start_minutes < occ_end and rand_e.end_minutes > occ_start for occ_start, occ_end in occupied_ranges):
+                continue
+            if rand_e.end_minutes <= current_pos:
+                final.append(rand_e)
+                occupied_ranges.append((rand_e.start_minutes, rand_e.end_minutes))
+                for idx, re in enumerate(random_entries):
+                    if re is rand_e and idx not in used_random:
+                        used_random.add(idx)
+                        break
+                current_pos = rand_e.end_minutes
+            elif rand_e.start_minutes < current_pos < rand_e.end_minutes:
+                dur = rand_e.end_minutes - current_pos
+                if dur > 0:
+                    final.append(ScheduleEntry(1, current_pos, rand_e.end_minutes, rand_e.video_name))
+                    for idx, re in enumerate(random_entries):
+                        if re is rand_e and idx not in used_random:
+                            used_random.add(idx)
+                            break
+                    current_pos = rand_e.end_minutes
+
+        # Add remaining unused random entries starting from current_pos
+        day_unused2 = [e for i, e in enumerate(random_entries)
+                       if i not in used_random
+                       and e.start_minutes < day_end
+                       and e.end_minutes > day_start]
+        day_unused2.sort(key=lambda e: e.start_minutes)
+        for rand_e in day_unused2:
+            if rand_e.start_minutes >= current_pos:
+                final.append(rand_e)
+                for idx, re in enumerate(random_entries):
+                    if re is rand_e and idx not in used_random:
+                        used_random.add(idx)
+                        break
+                current_pos = rand_e.end_minutes
         return current_pos
 
     def _apply_approximate_find_replace(self, num_days: int, custom_tags: list, series_tags: list, multi_series_tags: list, random_fill_tags: list, has_24h_fill: bool) -> List[ScheduleEntry]:

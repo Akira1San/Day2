@@ -185,7 +185,7 @@ class MainWindow(QMainWindow):
         bottom_btn_layout.addStretch()
 
         self.approx_mode_combo = QComboBox()
-        self.approx_mode_combo.addItems(["Linear", "Find-Replace"])
+        self.approx_mode_combo.addItems(["Linear", "Find-Replace", "Early Fill", "Late Fill", "Priority", "Best Fit", "Round Robin", "Linear Spanning", "Exhaustive"])
         self.approx_mode_combo.setToolTip("Approximate algorithm mode")
         self.approx_mode_combo.setFixedWidth(120)
         bottom_btn_layout.addWidget(self.approx_mode_combo)
@@ -595,7 +595,7 @@ class MainWindow(QMainWindow):
     def run_approximate(self):
         self.approximate_enabled = not self.approximate_enabled
         self.tag_manager.clear_cache()
-        mode = self.approx_mode_combo.currentText().lower().replace("-", "_")
+        mode = self.approx_mode_combo.currentText().lower().replace("-", "_").replace(" ", "_")
         if self.approximate_enabled:
             self.schedule_entries = self.schedule_generator.apply_approximate(mode=mode)
             self.preview_title.setText(f"24-Hour Schedule Preview [APPROXIMATE {mode.upper()}]")
