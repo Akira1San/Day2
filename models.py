@@ -807,6 +807,50 @@ class ScheduleGenerator:
             return LinearApproximateStrategy(self).generate(num_days)
         return FindReplaceApproximateStrategy(self).generate(num_days)
 
+    def _consume_overlapping_tail(
+        self,
+        slot_start: int,
+        slot_end: int,
+        current_pos: int,
+        day_unused: list,
+        random_entries: list,
+        used_random: set,
+        final: list,
+        day_offset: int,
+        min_end_threshold: int,
+        label: str = "",
+    ) -> int:
+        """Consume the portion of a random entry that overlaps the tag slot.
+
+        Finds any random entry in day_unused that intersects [slot_start, slot_end)
+        and has end_minutes > min_end_threshold, marks it as used, removes it from
+        day_unused, and appends its remaining tail (from current_pos to entry end)
+        to final. Returns updated current_pos.
+
+        Args:
+            min_end_threshold: entries must have re.end_minutes > this to be processed.
+                For anchored placement, use slot_start; for fallback, use current_pos.
+            label: optional suffix for debug print (e.g., "fallback").
+        """
+        for re in day_unused[:]:
+            if re.start_minutes < slot_end and re.end_minutes > min_end_threshold:
+                for idx, orig_re in enumerate(random_entries):
+                    if orig_re is re and idx not in used_random:
+                        used_random.add(idx)
+                        remaining_start = current_pos
+                        remaining_end = re.end_minutes
+                        if label:
+                            print(f"[APPROX day={day_offset+1}]   remaining portion ({label}): {remaining_start//60%24:02d}:{remaining_start%60:02d}-{remaining_end//60%24:02d}:{remaining_end%60:02d}")
+                        else:
+                            print(f"[APPROX day={day_offset+1}]   remaining portion: {remaining_start//60%24:02d}:{remaining_start%60:02d}-{remaining_end//60%24:02d}:{remaining_end%60:02d} from re={re.start_minutes//60%24:02d}:{re.start_minutes%60:02d}-{re.end_minutes//60%24:02d}:{re.end_minutes%60:02d}")
+                        if remaining_end > remaining_start:
+                            final.append(ScheduleEntry(1, remaining_start, remaining_end, re.video_name))
+                            current_pos = remaining_end
+                        if re in day_unused:
+                            day_unused.remove(re)
+                        break
+        return current_pos
+
     def _apply_approximate_find_replace(self, num_days: int, custom_tags: list, series_tags: list, multi_series_tags: list, random_fill_tags: list, has_24h_fill: bool) -> List[ScheduleEntry]:
         """Find-and-replace algorithm: Don't truncate random fill, move custom tags instead."""
         rf_sorted = sorted(random_fill_tags, key=lambda t: qtime_to_minutes(t.start_time))
@@ -913,21 +957,11 @@ class ScheduleGenerator:
                         current_pos = actual_end
                         print(f"[APPROX day={day_offset+1}]   placed -> current_pos={current_pos//60%24:02d}:{current_pos%60:02d}")
 
-                        # Append remaining portion of any random entry that overlapped the tag slot
-                        for re in day_unused[:]:
-                            if re.start_minutes < slot_end and re.end_minutes > slot_start:
-                                for idx, orig_re in enumerate(random_entries):
-                                    if orig_re is re and idx not in used_random:
-                                        used_random.add(idx)
-                                        remaining_start = current_pos
-                                        remaining_end = re.end_minutes
-                                        print(f"[APPROX day={day_offset+1}]   remaining portion: {remaining_start//60%24:02d}:{remaining_start%60:02d}-{remaining_end//60%24:02d}:{remaining_end%60:02d} from re={re.start_minutes//60%24:02d}:{re.start_minutes%60:02d}-{re.end_minutes//60%24:02d}:{re.end_minutes%60:02d}")
-                                        if remaining_end > remaining_start:
-                                            final.append(ScheduleEntry(1, remaining_start, remaining_end, re.video_name))
-                                            current_pos = remaining_end
-                                        if re in day_unused:
-                                            day_unused.remove(re)
-                                        break
+                        # Consume overlapping random entry tails
+                        current_pos = self._consume_overlapping_tail(
+                            slot_start, slot_end, current_pos, day_unused, random_entries, used_random, final, day_offset,
+                            min_end_threshold=slot_start,
+                        )
                 else:
                     print(f"[APPROX day={day_offset+1}]   no best_rand -> fallback {custom_start//60%24:02d}:{custom_start%60:02d}")
                     # No valid anchor found, place at current_pos if past custom_start
@@ -942,21 +976,13 @@ class ScheduleGenerator:
                     actual_end = self._place_tag_videos(ct, slot_start, slot_end, final)
                     current_pos = actual_end
                     print(f"[APPROX day={day_offset+1}]   placed -> current_pos={current_pos//60%24:02d}:{current_pos%60:02d}")
-                    
-                    for re in day_unused[:]:
-                        if re.start_minutes < slot_end and re.end_minutes > current_pos:
-                            for idx, orig_re in enumerate(random_entries):
-                                if orig_re is re and idx not in used_random:
-                                    used_random.add(idx)
-                                    remaining_start = current_pos
-                                    remaining_end = re.end_minutes
-                                    print(f"[APPROX day={day_offset+1}]   remaining portion (fallback): {remaining_start//60%24:02d}:{remaining_start%60:02d}-{remaining_end//60%24:02d}:{remaining_end%60:02d}")
-                                    if remaining_end > remaining_start:
-                                        final.append(ScheduleEntry(1, remaining_start, remaining_end, re.video_name))
-                                        current_pos = remaining_end
-                                    if re in day_unused:
-                                        day_unused.remove(re)
-                                    break
+
+                    # Consume overlapping random entry tails
+                    current_pos = self._consume_overlapping_tail(
+                        slot_start, slot_end, current_pos, day_unused, random_entries, used_random, final, day_offset,
+                        min_end_threshold=current_pos,
+                        label="fallback",
+                    )
             # Next custom tag iteration continues here
             
             # Add unused random entries from day_start to current_pos
