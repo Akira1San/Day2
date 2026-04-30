@@ -402,8 +402,8 @@ class ScheduleGenerator:
                 for idx, orig_re in enumerate(random_entries):
                     if orig_re is re and idx not in used_random:
                         used_random.add(idx)
-                        # Determine the tail start after the tag's full slot
-                        tail_start = max(slot_end, current_pos)
+                        # Determine the tail start immediately after the tag's actual end
+                        tail_start = current_pos
                         tail_end = re.end_minutes
                         if tail_end > tail_start:
                             # If scheduled_slots provided, ensure tail does not overlap any other scheduled slot
@@ -525,12 +525,7 @@ class ScheduleGenerator:
 
             current_pos = day_start
 
-            # Track scheduled slots for full occupied ranges
             scheduled_slots = []
-
-            # Reserve original tag times to prevent random fill from occupying them
-            for ct, orig_start, orig_end, custom_start, custom_end in day_customs:
-                scheduled_slots.append((orig_start + day_start, orig_end + day_start))
 
             for ct, orig_start, orig_end, custom_start, custom_end in day_customs:
                 THRESHOLD_AFTER = 30   # max minutes past custom_start a random video can end
@@ -585,10 +580,9 @@ class ScheduleGenerator:
                         slot_start = best_rand.end_minutes
                         slot_end = slot_start + (orig_end - orig_start)
 
-                        # Reserve the full slot
-                        scheduled_slots.append((slot_start, slot_end))
                         actual_end = self._place_tag_videos(ct, slot_start, slot_end, final)
                         current_pos = actual_end
+                        scheduled_slots.append((slot_start, actual_end))
                         logger.debug(f"[APPROX day={day_offset+1}]   placed -> current_pos={current_pos//60%24:02d}:{current_pos%60:02d}")
 
                         # Consume overlapping random entry tails
@@ -606,10 +600,9 @@ class ScheduleGenerator:
                     slot_start = custom_start
                     slot_end = custom_end
 
-                    # Reserve the full slot
-                    scheduled_slots.append((slot_start, slot_end))
                     actual_end = self._place_tag_videos(ct, slot_start, slot_end, final)
                     current_pos = actual_end
+                    scheduled_slots.append((slot_start, actual_end))
                     logger.debug(f"[APPROX day={day_offset+1}]   placed -> current_pos={current_pos//60%24:02d}:{current_pos%60:02d}")
 
                     # Consume overlapping random entry tails

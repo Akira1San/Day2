@@ -269,10 +269,6 @@ class EarlyFillApproximateStrategy:
             current_pos = day_start
             scheduled_slots = []
 
-            # Reserve original tag times to prevent random fill during their scheduled slots
-            for _, abs_start, abs_end, _ in day_tags:
-                scheduled_slots.append((abs_start, abs_end))
-
             for tag, abs_start, abs_end, duration in day_tags:
                 slot_start = max(abs_start, current_pos)
                 slot_end = slot_start + duration
@@ -280,9 +276,9 @@ class EarlyFillApproximateStrategy:
                     continue
                 if slot_end > day_end:
                     slot_end = day_end
-                scheduled_slots.append((slot_start, slot_end))
                 actual_end = self.sg._place_tag_videos(tag, slot_start, slot_end, final)
                 current_pos = actual_end
+                scheduled_slots.append((slot_start, actual_end))
                 current_pos = self.sg._consume_overlapping_tail(
                     slot_start, slot_end, current_pos, day_unused, random_entries, used_random, final, day_offset,
                     min_end_threshold=current_pos,
@@ -369,15 +365,13 @@ class LateFillApproximateStrategy:
             scheduled_slots_info = sorted(temp_slots, key=lambda x: x[1])
             current_pos = day_start
             scheduled_slots = []
-            # Reserve original tag times
-            for _, abs_start, abs_end, _ in day_tags:
-                scheduled_slots.append((abs_start, abs_end))
+
             for tag, slot_start, slot_end in scheduled_slots_info:
                 if slot_start >= day_end:
                     continue
-                scheduled_slots.append((slot_start, slot_end))
                 actual_end = self.sg._place_tag_videos(tag, slot_start, slot_end, final)
                 current_pos = actual_end
+                scheduled_slots.append((slot_start, actual_end))
                 current_pos = self.sg._consume_overlapping_tail(
                     slot_start, slot_end, current_pos, day_unused, random_entries, used_random, final, day_offset,
                     min_end_threshold=current_pos,
@@ -451,9 +445,7 @@ class PriorityApproximateStrategy:
 
             current_pos = day_start
             scheduled_slots = []
-            # Reserve original tag times
-            for _, abs_start, abs_end, _ in day_tags:
-                scheduled_slots.append((abs_start, abs_end))
+
 
             for tag, abs_start, abs_end, duration in day_tags:
                 THRESHOLD_AFTER = 30
@@ -497,9 +489,9 @@ class PriorityApproximateStrategy:
 
                         slot_start = best_rand.end_minutes
                         slot_end = slot_start + duration
-                        scheduled_slots.append((slot_start, slot_end))
-                        actual_end = self.sg._place_tag_videos(tag, slot_start, slot_end, final)
-                        current_pos = actual_end
+                actual_end = self.sg._place_tag_videos(tag, slot_start, slot_end, final)
+                current_pos = actual_end
+                scheduled_slots.append((slot_start, actual_end))
                 current_pos = self.sg._consume_overlapping_tail(
                     slot_start, slot_end, current_pos, day_unused, random_entries, used_random, final, day_offset,
                     min_end_threshold=current_pos,
@@ -513,9 +505,9 @@ class PriorityApproximateStrategy:
                     abs_end = abs_start + duration
                 slot_start = abs_start
                 slot_end = abs_start + duration
-                scheduled_slots.append((slot_start, slot_end))
                 actual_end = self.sg._place_tag_videos(tag, slot_start, slot_end, final)
                 current_pos = actual_end
+                scheduled_slots.append((slot_start, actual_end))
                 current_pos = self.sg._consume_overlapping_tail(
                     slot_start, slot_end, current_pos, day_unused, random_entries, used_random, final, day_offset,
                     min_end_threshold=current_pos,
@@ -611,16 +603,14 @@ class LinearSpanningApproximateStrategy:
 
         current_pos = 0
         scheduled_slots = []
-        # Reserve original tag times
-        for _, abs_start, abs_end, _ in all_instances:
-            scheduled_slots.append((abs_start, abs_end))
+
 
         for tag, abs_start, abs_end, duration in all_instances:
             slot_start = max(abs_start, current_pos)
             slot_end = slot_start + duration
-            scheduled_slots.append((slot_start, slot_end))
             actual_end = self.sg._place_tag_videos(tag, slot_start, slot_end, final)
             current_pos = actual_end
+            scheduled_slots.append((slot_start, actual_end))
             day_offset_tail = abs_start // 1440
             day_unused = [e for i, e in enumerate(random_entries) if i not in used_random]
             current_pos = self.sg._consume_overlapping_tail(
@@ -715,17 +705,15 @@ class ExhaustiveApproximateStrategy:
         used_random = set()
         final = []
         scheduled_slots = []
-        # Reserve original tag times from all instances
-        for _, abs_start, abs_end, _ in instances:
-            scheduled_slots.append((abs_start, abs_end))
+
         current_pos = 0
 
         for tag, abs_start, abs_end, duration in best_order:
             slot_start = max(abs_start, current_pos)
             slot_end = slot_start + duration
-            scheduled_slots.append((slot_start, slot_end))
             actual_end = self.sg._place_tag_videos(tag, slot_start, slot_end, final)
             current_pos = actual_end
+            scheduled_slots.append((slot_start, actual_end))
             day_offset_tail = abs_start // 1440
             day_unused = [e for i, e in enumerate(random_entries) if i not in used_random]
             current_pos = self.sg._consume_overlapping_tail(
