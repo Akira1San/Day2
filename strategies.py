@@ -281,7 +281,7 @@ class EarlyFillApproximateStrategy:
                 scheduled_slots.append((slot_start, actual_end))
                 current_pos = self.sg._consume_overlapping_tail(
                     slot_start, slot_end, current_pos, day_unused, random_entries, used_random, final, day_offset,
-                    min_end_threshold=current_pos,
+                    min_end_threshold=slot_start,
                     scheduled_slots=scheduled_slots,
                 )
 
@@ -374,7 +374,7 @@ class LateFillApproximateStrategy:
                 scheduled_slots.append((slot_start, actual_end))
                 current_pos = self.sg._consume_overlapping_tail(
                     slot_start, slot_end, current_pos, day_unused, random_entries, used_random, final, day_offset,
-                    min_end_threshold=current_pos,
+                    min_end_threshold=slot_start,
                     scheduled_slots=scheduled_slots,
                 )
 
@@ -494,7 +494,7 @@ class PriorityApproximateStrategy:
                 scheduled_slots.append((slot_start, actual_end))
                 current_pos = self.sg._consume_overlapping_tail(
                     slot_start, slot_end, current_pos, day_unused, random_entries, used_random, final, day_offset,
-                    min_end_threshold=current_pos,
+                    min_end_threshold=slot_start,
                     scheduled_slots=scheduled_slots,
                 )
                 continue
@@ -510,7 +510,7 @@ class PriorityApproximateStrategy:
                 scheduled_slots.append((slot_start, actual_end))
                 current_pos = self.sg._consume_overlapping_tail(
                     slot_start, slot_end, current_pos, day_unused, random_entries, used_random, final, day_offset,
-                    min_end_threshold=current_pos,
+                    min_end_threshold=slot_start,
                     scheduled_slots=scheduled_slots,
                     label="fallback",
                 )
@@ -615,7 +615,7 @@ class LinearSpanningApproximateStrategy:
             day_unused = [e for i, e in enumerate(random_entries) if i not in used_random]
             current_pos = self.sg._consume_overlapping_tail(
                 slot_start, slot_end, current_pos, day_unused, random_entries, used_random, final, day_offset_tail,
-                min_end_threshold=current_pos,
+                min_end_threshold=slot_start,
                 scheduled_slots=scheduled_slots,
                 label="spanning"
             )
@@ -718,7 +718,7 @@ class ExhaustiveApproximateStrategy:
             day_unused = [e for i, e in enumerate(random_entries) if i not in used_random]
             current_pos = self.sg._consume_overlapping_tail(
                 slot_start, slot_end, current_pos, day_unused, random_entries, used_random, final, day_offset,
-                min_end_threshold=current_pos,
+                min_end_threshold=slot_start,
                 scheduled_slots=scheduled_slots,
             )
 

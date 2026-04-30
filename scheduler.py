@@ -402,21 +402,25 @@ class ScheduleGenerator:
                 for idx, orig_re in enumerate(random_entries):
                     if orig_re is re and idx not in used_random:
                         used_random.add(idx)
-                        # Determine the tail start immediately after the tag's actual end
+                        # Place head portion (before tag slot) if available and non-overlapping
+                        if re.start_minutes < slot_start:
+                            head_start = re.start_minutes
+                            head_end = slot_start
+                            if head_end > head_start:
+                                if scheduled_slots and any(head_start < s_end and head_end > s_start for s_start, s_end in scheduled_slots):
+                                    logger.debug(f"[APPROX day={day_offset+1}]   HEAD SKIPPED due to overlap: {head_start//60%24:02d}:{head_start%60:02d}-{head_end//60%24:02d}:{head_end%60:02d}")
+                                else:
+                                    final.append(ScheduleEntry(1, head_start, head_end, re.video_name))
+                        # Determine tail start after the tag's content ends
                         tail_start = current_pos
                         tail_end = re.end_minutes
                         if tail_end > tail_start:
-                            # If scheduled_slots provided, ensure tail does not overlap any other scheduled slot
                             if scheduled_slots and any(tail_start < s_end and tail_end > s_start for s_start, s_end in scheduled_slots):
-                                logger.debug(f"[APPROX day={day_offset+1}]   TAIL SKIPPED due to overlap with another scheduled slot: {tail_start//60%24:02d}:{tail_start%60:02d}-{tail_end//60%24:02d}:{tail_end%60%60:02d}")
+                                logger.debug(f"[APPROX day={day_offset+1}]   TAIL SKIPPED due to overlap: {tail_start//60%24:02d}:{tail_start%60:02d}-{tail_end//60%24:02d}:{tail_end%60:02d}")
                             else:
-                                if label:
-                                    logger.debug(f"[APPROX day={day_offset+1}]   remaining portion ({label}): {tail_start//60%24:02d}:{tail_start%60:02d}-{tail_end//60%24:02d}:{tail_end%60%60:02d}")
-                                else:
-                                    logger.debug(f"[APPROX day={day_offset+1}]   remaining portion: {tail_start//60%24:02d}:{tail_start%60:02d}-{tail_end//60%24:02d}:{tail_end%60%60:02d} from re={re.start_minutes//60%24:02d}:{re.start_minutes%60:02d}-{re.end_minutes//60%24:02d}:{re.end_minutes%60:02d}")
                                 final.append(ScheduleEntry(1, tail_start, tail_end, re.video_name))
                                 current_pos = tail_end
-                        # No else for no tail; just consume entry
+                        # Remove entry from day_unused
                         if re in day_unused:
                             day_unused.remove(re)
                         break
@@ -608,7 +612,7 @@ class ScheduleGenerator:
                     # Consume overlapping random entry tails
                     current_pos = self._consume_overlapping_tail(
                         slot_start, slot_end, current_pos, day_unused, random_entries, used_random, final, day_offset,
-                        min_end_threshold=current_pos,
+                        min_end_threshold=slot_start,
                         scheduled_slots=scheduled_slots,
                         label="fallback",
                     )
