@@ -387,34 +387,36 @@ class ScheduleGenerator:
         final: list,
         day_offset: int,
         min_end_threshold: int,
+        scheduled_slots: list = None,
         label: str = "",
     ) -> int:
         """Consume the portion of a random entry that overlaps the tag slot.
 
         Finds any random entry in day_unused that intersects [slot_start, slot_end)
         and has end_minutes > min_end_threshold, marks it as used, removes it from
-        day_unused, and appends its remaining tail (from current_pos to entry end)
-        to final. Returns updated current_pos.
-
-        Args:
-            min_end_threshold: entries must have re.end_minutes > this to be processed.
-                For anchored placement, use slot_start; for fallback, use current_pos.
-            label: optional suffix for debug print (e.g., "fallback").
+        day_unused, and appends its remaining tail (from after the slot_end to entry end)
+        to final, provided it doesn't overlap other scheduled slots. Returns updated current_pos.
         """
         for re in day_unused[:]:
             if re.start_minutes < slot_end and re.end_minutes > min_end_threshold:
                 for idx, orig_re in enumerate(random_entries):
                     if orig_re is re and idx not in used_random:
                         used_random.add(idx)
-                        remaining_start = current_pos
-                        remaining_end = re.end_minutes
-                        if label:
-                            logger.debug(f"[APPROX day={day_offset+1}]   remaining portion ({label}): {remaining_start//60%24:02d}:{remaining_start%60:02d}-{remaining_end//60%24:02d}:{remaining_end%60%60:02d}")
-                        else:
-                            logger.debug(f"[APPROX day={day_offset+1}]   remaining portion: {remaining_start//60%24:02d}:{remaining_start%60:02d}-{remaining_end//60%24:02d}:{remaining_end%60%60:02d} from re={re.start_minutes//60%24:02d}:{re.start_minutes%60:02d}-{re.end_minutes//60%24:02d}:{re.end_minutes%60:02d}")
-                        if remaining_end > remaining_start:
-                            final.append(ScheduleEntry(1, remaining_start, remaining_end, re.video_name))
-                            current_pos = remaining_end
+                        # Determine the tail start after the tag's full slot
+                        tail_start = max(slot_end, current_pos)
+                        tail_end = re.end_minutes
+                        if tail_end > tail_start:
+                            # If scheduled_slots provided, ensure tail does not overlap any other scheduled slot
+                            if scheduled_slots and any(tail_start < s_end and tail_end > s_start for s_start, s_end in scheduled_slots):
+                                logger.debug(f"[APPROX day={day_offset+1}]   TAIL SKIPPED due to overlap with another scheduled slot: {tail_start//60%24:02d}:{tail_start%60:02d}-{tail_end//60%24:02d}:{tail_end%60%60:02d}")
+                            else:
+                                if label:
+                                    logger.debug(f"[APPROX day={day_offset+1}]   remaining portion ({label}): {tail_start//60%24:02d}:{tail_start%60:02d}-{tail_end//60%24:02d}:{tail_end%60%60:02d}")
+                                else:
+                                    logger.debug(f"[APPROX day={day_offset+1}]   remaining portion: {tail_start//60%24:02d}:{tail_start%60:02d}-{tail_end//60%24:02d}:{tail_end%60%60:02d} from re={re.start_minutes//60%24:02d}:{re.start_minutes%60:02d}-{re.end_minutes//60%24:02d}:{re.end_minutes%60:02d}")
+                                final.append(ScheduleEntry(1, tail_start, tail_end, re.video_name))
+                                current_pos = tail_end
+                        # No else for no tail; just consume entry
                         if re in day_unused:
                             day_unused.remove(re)
                         break
@@ -468,12 +470,15 @@ class ScheduleGenerator:
         day_unused2.sort(key=lambda e: e.start_minutes)
         for rand_e in day_unused2:
             if rand_e.start_minutes >= current_pos:
-                final.append(rand_e)
-                for idx, re in enumerate(random_entries):
-                    if re is rand_e and idx not in used_random:
-                        used_random.add(idx)
-                        break
-                current_pos = rand_e.end_minutes
+                # Skip if this entry would overlap any scheduled tag slot
+                if not any(rand_e.start_minutes < slot_end and rand_e.end_minutes > slot_start
+                           for slot_start, slot_end in scheduled_slots):
+                    final.append(rand_e)
+                    for idx, re in enumerate(random_entries):
+                        if re is rand_e and idx not in used_random:
+                            used_random.add(idx)
+                            break
+                    current_pos = rand_e.end_minutes
         return current_pos
 
     def _apply_approximate_find_replace(self, num_days: int, custom_tags: list, series_tags: list, multi_series_tags: list, random_fill_tags: list, has_24h_fill: bool) -> List[ScheduleEntry]:
@@ -522,6 +527,10 @@ class ScheduleGenerator:
 
             # Track scheduled slots for full occupied ranges
             scheduled_slots = []
+
+            # Reserve original tag times to prevent random fill from occupying them
+            for ct, orig_start, orig_end, custom_start, custom_end in day_customs:
+                scheduled_slots.append((orig_start + day_start, orig_end + day_start))
 
             for ct, orig_start, orig_end, custom_start, custom_end in day_customs:
                 THRESHOLD_AFTER = 30   # max minutes past custom_start a random video can end
@@ -586,6 +595,7 @@ class ScheduleGenerator:
                         current_pos = self._consume_overlapping_tail(
                             slot_start, slot_end, current_pos, day_unused, random_entries, used_random, final, day_offset,
                             min_end_threshold=slot_start,
+                            scheduled_slots=scheduled_slots,
                         )
                 else:
                     logger.debug(f"[APPROX day={day_offset+1}]   no best_rand -> fallback {custom_start//60%24:02d}:{custom_start%60:02d}")
@@ -606,6 +616,7 @@ class ScheduleGenerator:
                     current_pos = self._consume_overlapping_tail(
                         slot_start, slot_end, current_pos, day_unused, random_entries, used_random, final, day_offset,
                         min_end_threshold=current_pos,
+                        scheduled_slots=scheduled_slots,
                         label="fallback",
                     )
             # Next custom tag iteration continues here
@@ -623,13 +634,21 @@ class ScheduleGenerator:
             # Build occupied ranges from already-placed entries this day
             occupied_ranges = [(e.start_minutes, e.end_minutes) for e in final if e.start_minutes >= day_start]
             occupied_ranges.extend(scheduled_slots)
+            # DEBUG: Log occupied ranges summary
+            logger.debug(f"[APPROX day={day_offset+1}] OCCUPIED RANGES count={len(occupied_ranges)}")
+            for i, (os, oe) in enumerate(occupied_ranges):
+                logger.debug(f"[APPROX day={day_offset+1}]   occ[{i}]: {os//60%24:02d}:{os%60:02d} - {oe//60%24:02d}:{oe%60:02d}")
 
             for rand_e in day_unused:
                 if rand_e.start_minutes >= current_pos:
                     continue
                 # Skip if this entry overlaps any already-placed entry
-                if any(rand_e.start_minutes < occ_end and rand_e.end_minutes > occ_start
-                       for occ_start, occ_end in occupied_ranges):
+                overlaps = any(rand_e.start_minutes < occ_end and rand_e.end_minutes > occ_start
+                               for occ_start, occ_end in occupied_ranges)
+                if not overlaps:  # DEBUG: print when NOT overlapping
+                    logger.debug(f"[APPROX day={day_offset+1}]   APPROVING {rand_e.start_minutes//60%24:02d}:{rand_e.end_minutes%60:02d} -> no overlap, current_pos={current_pos//60%24:02d}:{current_pos%60:02d}")
+                if overlaps:
+                    logger.debug(f"[APPROX day={day_offset+1}]   SKIPPING {rand_e.start_minutes//60%24:02d}:{rand_e.end_minutes%60:02d} due to overlap, current_pos={current_pos//60%24:02d}:{current_pos%60:02d}")
                     continue
                 if rand_e.end_minutes <= current_pos:
                     final.append(rand_e)
@@ -658,12 +677,15 @@ class ScheduleGenerator:
 
             for rand_e in day_unused2:
                 if rand_e.start_minutes >= current_pos:
-                    final.append(rand_e)
-                    for idx, re in enumerate(random_entries):
-                        if re is rand_e and idx not in used_random:
-                            used_random.add(idx)
-                            break
-                    current_pos = rand_e.end_minutes
+                    # Check if this entry would overlap any scheduled tag slot
+                    if not any(rand_e.start_minutes < slot_end and rand_e.end_minutes > slot_start
+                               for slot_start, slot_end in scheduled_slots):
+                        final.append(rand_e)
+                        for idx, re in enumerate(random_entries):
+                            if re is rand_e and idx not in used_random:
+                                used_random.add(idx)
+                                break
+                        current_pos = rand_e.end_minutes
 
         final.sort(key=lambda e: e.start_minutes)
 
@@ -760,7 +782,7 @@ class ScheduleGenerator:
                         current_pos = actual_end
                         next_custom_pos = actual_end
                         if has_24h_fill:
-                            actual_placed_ranges.append((custom_start, actual_end))
+                            actual_placed_ranges.append((custom_start, custom_end))
                     else:
                         if custom_start < current_pos:
                             custom_start = current_pos
@@ -804,7 +826,7 @@ class ScheduleGenerator:
                             actual_end = pos + duration
                             pos += duration
                             vid_idx += 1
-                        actual_placed_ranges.append((custom_start, actual_end))
+                            actual_placed_ranges.append((custom_start, custom_end))
                     else:
                         final.append(ScheduleEntry(1, custom_start, custom_end, ct.name))
                         actual_placed_ranges.append((custom_start, custom_end))
@@ -857,7 +879,7 @@ class ScheduleGenerator:
                     current_pos = actual_end
                     next_custom_pos = actual_end
                     if has_24h_fill:
-                        actual_placed_ranges.append((series_start, actual_end))
+                        actual_placed_ranges.append((series_start, series_end))
                 else:
                     final.append(ScheduleEntry(1, series_start, series_end, st.name))
                     actual_placed_ranges.append((series_start, series_end))
@@ -882,7 +904,7 @@ class ScheduleGenerator:
                 current_pos = actual_end
                 next_custom_pos = actual_end
                 if has_24h_fill:
-                    actual_placed_ranges.append((mst_start, actual_end))
+                    actual_placed_ranges.append((mst_start, mst_end))
 
         rf_sorted = sorted(random_fill_tags, key=lambda t: qtime_to_minutes(t.start_time))
 
@@ -900,7 +922,7 @@ class ScheduleGenerator:
             for day_offset in range(num_days):
                 day_offset_minutes = day_offset * 24 * 60
                 for rf in rf_sorted:
-                    ranges_to_use = actual_placed_ranges if actual_placed_ranges else merged_ranges
+                    ranges_to_use = merged_ranges
                     self._process_random_fill_tag(rf, final, ranges_to_use, 0, day_offset_minutes)
 
         if len(final) == 0 and not has_24h_fill:
