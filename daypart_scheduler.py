@@ -262,8 +262,9 @@ class MainWindow(QMainWindow):
     def refresh_preview(self):
         self.preview_list.clear()
         if self.approximate_enabled:
-            entries = self.schedule_generator.apply_approximate()
-            self.preview_title.setText("24-Hour Schedule Preview [APPROXIMATE ON]")
+            mode = self.approx_mode_combo.currentText().lower().replace("-", "_").replace(" ", "_")
+            entries = self.schedule_generator.apply_approximate(mode=mode)
+            self.preview_title.setText(f"24-Hour Schedule Preview [APPROXIMATE {mode.upper()}]")
             self.approx_btn.setText("APPROXIMATE ON")
             self.approx_btn.setStyleSheet("background-color: #22c55e; color: white; font-weight: bold; padding: 10px 20px; border-radius: 6px;")
             self.statusBar().showMessage("Approximate: ON")
