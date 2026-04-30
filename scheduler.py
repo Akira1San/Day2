@@ -355,6 +355,7 @@ class ScheduleGenerator:
 
     def apply_approximate(self, num_days: int = 1, mode: str = "find_replace") -> List[ScheduleEntry]:
         """Dispatch to the appropriate approximate scheduling strategy."""
+        logger.info(f"[APPROX] Using mode: {mode}")
         if mode == "linear":
             return LinearApproximateStrategy(self).generate(num_days)
         elif mode == "find_replace":
@@ -711,9 +712,9 @@ class ScheduleGenerator:
         for ct in custom_tags:
             scheduled_ranges.append((qtime_to_minutes(ct.start_time), qtime_to_minutes(ct.end_time)))
 
-        for st in series_tags:
+        for st in series_sorted:
             scheduled_ranges.append((qtime_to_minutes(st.start_time), qtime_to_minutes(st.end_time)))
-        for mst in multi_series_tags:
+        for mst in multi_sorted:
             scheduled_ranges.append((qtime_to_minutes(mst.start_time), qtime_to_minutes(mst.end_time)))
 
         for rf in random_fill_tags:
@@ -743,6 +744,8 @@ class ScheduleGenerator:
         actual_placed_ranges = []
 
         custom_sorted = sorted(custom_tags, key=lambda t: qtime_to_minutes(t.start_time))
+        series_sorted = sorted(series_tags, key=lambda t: qtime_to_minutes(t.start_time))
+        multi_sorted = sorted(multi_series_tags, key=lambda t: qtime_to_minutes(t.start_time))
 
         if not has_24h_fill:
             for day_offset in range(num_days):
@@ -831,7 +834,7 @@ class ScheduleGenerator:
         # Series tags processing (outside if/else to handle both cases)
         for day_offset in range(num_days):
             day_offset_minutes = day_offset * 24 * 60
-            for st in series_tags:
+            for st in series_sorted:
                 original_start = qtime_to_minutes(st.start_time)
                 original_end = qtime_to_minutes(st.end_time)
                 if original_start >= original_end:
@@ -887,7 +890,7 @@ class ScheduleGenerator:
         # Multi-Series tags processing
         for day_offset in range(num_days):
             day_offset_minutes = day_offset * 24 * 60
-            for mst in multi_series_tags:
+            for mst in multi_sorted:
                 original_start = qtime_to_minutes(mst.start_time)
                 original_end = qtime_to_minutes(mst.end_time)
                 if original_start >= original_end:
