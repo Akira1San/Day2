@@ -578,7 +578,10 @@ class MainWindow(QMainWindow):
             day_name = days[current_date.weekday()]
             key = f"{date_str}_{day_name.lower()}"
 
-            entries = self.schedule_entries if self.schedule_entries else (self.schedule_generator.apply_custom_tags() if not self.approximate_enabled else self.schedule_generator.apply_approximate())
+            entries = self.schedule_entries if self.schedule_entries else (
+                self.schedule_generator.apply_custom_tags(num_days=num_days) if not self.approximate_enabled
+                else self.schedule_generator.apply_approximate(num_days=num_days)
+            )
 
             day_start = day_offset * 24 * 60
             day_end = day_start + 24 * 60
