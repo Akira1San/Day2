@@ -551,8 +551,8 @@ class MainWindow(QMainWindow):
                 if not video_info['file'] and ' - ' in video_name:
                     parts = video_name.split(' - ')
                     video_info['file'] = f"/home/akira/Videos/Akiratv/{parts[-1].strip()}"
-                    video_info['channel'] = parts[0].strip()
-                    video_info['collection_id'] = parts[0].strip()
+                    video_info['channel'] = profile_name
+                    video_info['collection_id'] = profile_name
 
                 schedule_entries.append(video_info)
             return schedule_entries
