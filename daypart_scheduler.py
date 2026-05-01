@@ -541,7 +541,7 @@ class MainWindow(QMainWindow):
                             vid_name = get_video_display_name(vid)
                             if vid_name in video_name or video_name in vid_name:
                                 video_info['file'] = vid.get('path', '')
-                                video_info['channel'] = channel
+                                video_info['channel'] = profile_name
                                 video_info['collection_id'] = coll_id
                                 matched = True
                                 break
