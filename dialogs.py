@@ -349,7 +349,7 @@ class RandomFillDialog(BaseTagDialog):
             if blacklist_profile:
                 index = self.blacklist_profile_combo.findText(blacklist_profile)
                 if index >= 0:
-                    self.blacklist_profile_selected(index)
+                    self.blacklist_profile_combo.setCurrentIndex(index)
             # Ensure added_videos are filtered according to current blacklist
             self.added_videos = filter_videos_by_blacklist(self.added_videos, self.blacklist)
             self.refresh_added_list()
