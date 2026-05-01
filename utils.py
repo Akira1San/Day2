@@ -199,3 +199,16 @@ def get_schedule_profiles(config_file: str = "config.ini") -> List[str]:
 def filter_videos_by_blacklist(videos: List[Dict[str, Any]], blacklist: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     blacklist_paths = {b.get('path', '') for b in blacklist}
     return [v for v in videos if v.get('path', '') not in blacklist_paths]
+
+
+def get_randomfill_config(config_file: str = "config.ini") -> bool:
+    """Read auto_add setting from [RandomFill] section. Default False."""
+    try:
+        config = configparser.ConfigParser()
+        config.read(config_file)
+        if 'RandomFill' in config:
+            val = config['RandomFill'].get('auto_add', 'false').lower()
+            return val in ('true', '1', 'yes', 'on')
+    except Exception:
+        pass
+    return False

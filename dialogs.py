@@ -17,7 +17,7 @@ from utils import (
     load_collection_json, load_blacklist_json,
     qtime_to_minutes, get_video_display_name, format_duration,
     get_config_paths, filter_videos_by_blacklist, get_schedule_profiles,
-    parse_videos_for_series
+    parse_videos_for_series, get_randomfill_config
 )
 from models import Tag, MultiSeriesTag
 
@@ -334,18 +334,25 @@ class RandomFillDialog(BaseTagDialog):
             
             if tag.collection_videos and tag.collection_path:
                 self.load_collection(tag.collection_path, load_blacklist=False)
+                # Restore previously added videos after loading collection
+                self.added_videos = tag.collection_videos.copy()
+                self.refresh_added_list()
             
             collection_profile = getattr(tag, 'collection_profile', '')
             if collection_profile:
+                self.collection_profile_combo.blockSignals(True)
                 index = self.collection_profile_combo.findText(collection_profile)
                 if index >= 0:
                     self.collection_profile_combo.setCurrentIndex(index)
+                self.collection_profile_combo.blockSignals(False)
             
             blacklist_profile = getattr(tag, 'blacklist_profile', '')
             if blacklist_profile:
+                self.blacklist_profile_combo.blockSignals(True)
                 index = self.blacklist_profile_combo.findText(blacklist_profile)
                 if index >= 0:
                     self.blacklist_profile_combo.setCurrentIndex(index)
+                self.blacklist_profile_combo.blockSignals(False)
 
     def setup_ui(self):
         main_layout = QHBoxLayout(self)
@@ -668,6 +675,14 @@ class RandomFillDialog(BaseTagDialog):
         self.refresh_added_list()
         self.refresh_blacklist_list()
 
+        # Auto-add non-blacklisted videos if feature is enabled (only for fresh loads)
+        if load_blacklist and get_randomfill_config():
+            for video in self.collection_videos:
+                path = video.get('path', '')
+                if not any(b.get('path') == path for b in self.blacklist) and video not in self.added_videos:
+                    self.added_videos.append(video)
+            self.refresh_added_list()
+
     def on_video_selected(self, item):
         row = self.videos_list.row(item)
         if 0 <= row < len(self.collection_videos):
@@ -869,6 +884,10 @@ class ConfigDialog(QDialog):
         self.schedule_profiles_edit.setPlaceholderText("akiratv, superman, horror")
         layout.addWidget(self.schedule_profiles_edit)
 
+        self.auto_add_check = QCheckBox("Auto-add videos for Random Fill")
+        self.auto_add_check.setToolTip("When enabled, all non-blacklisted videos are automatically added to the 'Added Videos' list when a collection is loaded in Random Fill dialog")
+        layout.addWidget(self.auto_add_check)
+
         btn_layout = QHBoxLayout()
         save_btn = QPushButton("Save")
         save_btn.clicked.connect(self.save_config)
@@ -897,6 +916,9 @@ class ConfigDialog(QDialog):
                 self.blacklist_path_edit.setText(config['Paths'].get('blacklist_path', ''))
             if 'ScheduleProfiles' in config:
                 self.schedule_profiles_edit.setText(config['ScheduleProfiles'].get('profiles', ''))
+            if 'RandomFill' in config:
+                auto_add = config['RandomFill'].get('auto_add', 'false').lower()
+                self.auto_add_check.setChecked(auto_add in ('true', '1', 'yes', 'on'))
 
     def save_config(self):
         config = configparser.ConfigParser()
@@ -909,6 +931,9 @@ class ConfigDialog(QDialog):
             config['ScheduleProfiles'] = {
                 'profiles': profiles
             }
+        config['RandomFill'] = {
+            'auto_add': 'true' if self.auto_add_check.isChecked() else 'false'
+        }
         with open(self.config_path, 'w') as f:
             config.write(f)
         self.accept()
