@@ -276,7 +276,7 @@ class EarlyFillApproximateStrategy:
                     continue
                 if slot_end > day_end:
                     slot_end = day_end
-                actual_end = self.sg._place_tag_videos(tag, slot_start, slot_end, final)
+                actual_end = self.sg._place_tag_videos(tag, slot_start, slot_end, final, day_offset)
                 current_pos = actual_end
                 scheduled_slots.append((slot_start, actual_end))
                 current_pos = self.sg._consume_overlapping_tail(
@@ -369,7 +369,7 @@ class LateFillApproximateStrategy:
             for tag, slot_start, slot_end in scheduled_slots_info:
                 if slot_start >= day_end:
                     continue
-                actual_end = self.sg._place_tag_videos(tag, slot_start, slot_end, final)
+                actual_end = self.sg._place_tag_videos(tag, slot_start, slot_end, final, day_offset)
                 current_pos = actual_end
                 scheduled_slots.append((slot_start, actual_end))
                 current_pos = self.sg._consume_overlapping_tail(
@@ -489,7 +489,7 @@ class PriorityApproximateStrategy:
 
                         slot_start = best_rand.end_minutes
                         slot_end = slot_start + duration
-                actual_end = self.sg._place_tag_videos(tag, slot_start, slot_end, final)
+                actual_end = self.sg._place_tag_videos(tag, slot_start, slot_end, final, day_offset)
                 current_pos = actual_end
                 scheduled_slots.append((slot_start, actual_end))
                 current_pos = self.sg._consume_overlapping_tail(
@@ -505,7 +505,7 @@ class PriorityApproximateStrategy:
                     abs_end = abs_start + duration
                 slot_start = abs_start
                 slot_end = abs_start + duration
-                actual_end = self.sg._place_tag_videos(tag, slot_start, slot_end, final)
+                actual_end = self.sg._place_tag_videos(tag, slot_start, slot_end, final, day_offset)
                 current_pos = actual_end
                 scheduled_slots.append((slot_start, actual_end))
                 current_pos = self.sg._consume_overlapping_tail(
@@ -608,7 +608,8 @@ class LinearSpanningApproximateStrategy:
         for tag, abs_start, abs_end, duration in all_instances:
             slot_start = max(abs_start, current_pos)
             slot_end = slot_start + duration
-            actual_end = self.sg._place_tag_videos(tag, slot_start, slot_end, final)
+            day_offset = abs_start // 1440
+            actual_end = self.sg._place_tag_videos(tag, slot_start, slot_end, final, day_offset)
             current_pos = actual_end
             scheduled_slots.append((slot_start, actual_end))
             day_offset_tail = abs_start // 1440
@@ -711,7 +712,8 @@ class ExhaustiveApproximateStrategy:
         for tag, abs_start, abs_end, duration in best_order:
             slot_start = max(abs_start, current_pos)
             slot_end = slot_start + duration
-            actual_end = self.sg._place_tag_videos(tag, slot_start, slot_end, final)
+            day_offset = abs_start // 1440
+            actual_end = self.sg._place_tag_videos(tag, slot_start, slot_end, final, day_offset)
             current_pos = actual_end
             scheduled_slots.append((slot_start, actual_end))
             day_offset_tail = abs_start // 1440

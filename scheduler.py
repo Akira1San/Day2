@@ -41,7 +41,7 @@ class ScheduleGenerator:
         video_name = f"{tag_name} - {name}" if tag_name else name
         return ScheduleEntry(1, pos, pos + duration, video_name)
 
-    def _place_tag_videos(self, ct, start: int, end: int, final: List[ScheduleEntry]) -> int:
+    def _place_tag_videos(self, ct, start: int, end: int, final: List[ScheduleEntry], day_offset: int = 0) -> int:
         """Place custom/series/multi-series tag videos into final schedule. Returns new current_pos."""
         # Handle MultiSeriesTag
         if getattr(ct, 'is_multi_series', False):
@@ -60,6 +60,14 @@ class ScheduleGenerator:
                     final.append(self._create_video_entry(pos, 60, series_name, ct.name))
                     pos += 60
                     continue
+
+                # Increment start_episode by day_offset * video_count for day progression, with wrap-around
+                raw_episode = start_episode + (day_offset * video_count)
+                total_episodes = len(collection_videos)
+                if total_episodes > 0:
+                    start_episode = ((raw_episode - 1) % total_episodes) + 1
+                else:
+                    start_episode = raw_episode
 
                 videos_to_use, _ = parse_videos_for_series(
                     collection_videos,
@@ -89,11 +97,32 @@ class ScheduleGenerator:
         if ct.collection_videos:
             video_count = getattr(ct, 'video_count', 1)
             videos = ct.collection_videos.copy()
-            random.shuffle(videos)
+
+            # Series tag (single-series) with sequence mode: compute incrementing start_episode
+            if getattr(ct, 'is_series', False):
+                base_start_episode = getattr(ct, 'start_episode', 1)
+                raw_episode = base_start_episode + (day_offset * video_count)
+                total_episodes = len(videos)
+                if total_episodes > 0:
+                    start_episode = ((raw_episode - 1) % total_episodes) + 1
+                else:
+                    start_episode = raw_episode
+                videos_to_use, _ = parse_videos_for_series(
+                    videos,
+                    getattr(ct, 'start_season', 1),
+                    start_episode,
+                    getattr(ct, 'play_mode', 'sequence'),
+                    video_count
+                )
+                ordered_videos = [v['video'] for v in videos_to_use]
+            else:
+                random.shuffle(videos)
+                ordered_videos = videos
+
             pos = start
             vid_idx = 0
-            while pos < end and vid_idx < video_count and vid_idx < len(videos):
-                video = videos[vid_idx % len(videos)]
+            while pos < end and vid_idx < video_count and vid_idx < len(ordered_videos):
+                video = ordered_videos[vid_idx]
                 video_name = get_video_display_name(video)
                 duration = int(video.get('duration', 90)) // 60
                 if duration < 1:
@@ -585,7 +614,7 @@ class ScheduleGenerator:
                         slot_start = best_rand.end_minutes
                         slot_end = slot_start + (orig_end - orig_start)
 
-                        actual_end = self._place_tag_videos(ct, slot_start, slot_end, final)
+                        actual_end = self._place_tag_videos(ct, slot_start, slot_end, final, day_offset)
                         current_pos = actual_end
                         scheduled_slots.append((slot_start, actual_end))
                         logger.debug(f"[APPROX day={day_offset+1}]   placed -> current_pos={current_pos//60%24:02d}:{current_pos%60:02d}")
@@ -605,7 +634,7 @@ class ScheduleGenerator:
                     slot_start = custom_start
                     slot_end = custom_end
 
-                    actual_end = self._place_tag_videos(ct, slot_start, slot_end, final)
+                    actual_end = self._place_tag_videos(ct, slot_start, slot_end, final, day_offset)
                     current_pos = actual_end
                     scheduled_slots.append((slot_start, actual_end))
                     logger.debug(f"[APPROX day={day_offset+1}]   placed -> current_pos={current_pos//60%24:02d}:{current_pos%60:02d}")
@@ -708,10 +737,19 @@ class ScheduleGenerator:
         if not custom_tags and not series_tags and not multi_series_tags and not random_fill_tags:
             return base_entries
 
-        scheduled_ranges = []
-        for ct in custom_tags:
-            scheduled_ranges.append((qtime_to_minutes(ct.start_time), qtime_to_minutes(ct.end_time)))
+        # Sort tags by start time for chronological processing
+        custom_sorted = sorted(custom_tags, key=lambda t: qtime_to_minutes(t.start_time))
+        series_sorted = sorted(series_tags, key=lambda t: qtime_to_minutes(t.start_time))
+        multi_sorted = sorted(multi_series_tags, key=lambda t: qtime_to_minutes(t.start_time))
 
+        # Sort tags by start time for chronological processing
+        custom_sorted = sorted(custom_tags, key=lambda t: qtime_to_minutes(t.start_time))
+        series_sorted = sorted(series_tags, key=lambda t: qtime_to_minutes(t.start_time))
+        multi_sorted = sorted(multi_series_tags, key=lambda t: qtime_to_minutes(t.start_time))
+
+        scheduled_ranges = []
+        for ct in custom_sorted:
+            scheduled_ranges.append((qtime_to_minutes(ct.start_time), qtime_to_minutes(ct.end_time)))
         for st in series_sorted:
             scheduled_ranges.append((qtime_to_minutes(st.start_time), qtime_to_minutes(st.end_time)))
         for mst in multi_sorted:
