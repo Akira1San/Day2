@@ -332,12 +332,11 @@ class RandomFillDialog(BaseTagDialog):
             fill_24h = getattr(tag, 'fill_24h', False)
             self.fill_24h_check.setChecked(fill_24h)
             
-            if tag.collection_videos and tag.collection_path:
+            if tag.collection_path:
                 self.load_collection(tag.collection_path, load_blacklist=False)
-                # Restore previously added videos after loading collection
+                # Restore previously added videos (may include blacklisted entries; will be filtered later)
                 self.added_videos = tag.collection_videos.copy()
-                self.refresh_added_list()
-            
+
             collection_profile = getattr(tag, 'collection_profile', '')
             if collection_profile:
                 self.collection_profile_combo.blockSignals(True)
@@ -345,14 +344,15 @@ class RandomFillDialog(BaseTagDialog):
                 if index >= 0:
                     self.collection_profile_combo.setCurrentIndex(index)
                 self.collection_profile_combo.blockSignals(False)
-            
+
             blacklist_profile = getattr(tag, 'blacklist_profile', '')
             if blacklist_profile:
-                self.blacklist_profile_combo.blockSignals(True)
                 index = self.blacklist_profile_combo.findText(blacklist_profile)
                 if index >= 0:
-                    self.blacklist_profile_combo.setCurrentIndex(index)
-                self.blacklist_profile_combo.blockSignals(False)
+                    self.blacklist_profile_selected(index)
+            # Ensure added_videos are filtered according to current blacklist
+            self.added_videos = filter_videos_by_blacklist(self.added_videos, self.blacklist)
+            self.refresh_added_list()
 
     def setup_ui(self):
         main_layout = QHBoxLayout(self)
@@ -565,23 +565,35 @@ class RandomFillDialog(BaseTagDialog):
 
         blck_path = Path(blacklist_path)
         logger.debug(f"[DEBUG] load_available_profiles: blck_path={blck_path}, exists={blck_path.exists()}")
-        blacklist_files = set()
+        blacklist_files = {}
         if blck_path.exists():
             for ini_file in blck_path.glob("*_blacklist.ini"):
-                blacklist_files.add(ini_file.name)
+                name = ini_file.name
+                if name not in blacklist_files:
+                    blacklist_files[name] = str(ini_file.resolve())
             for ini_file in blck_path.glob("*blacklist*.ini"):
-                blacklist_files.add(ini_file.name)
+                name = ini_file.name
+                if name not in blacklist_files:
+                    blacklist_files[name] = str(ini_file.resolve())
             for ini_file in blck_path.glob("**/*_blacklist.ini"):
-                blacklist_files.add(ini_file.name)
+                name = ini_file.name
+                if name not in blacklist_files:
+                    blacklist_files[name] = str(ini_file.resolve())
             for ini_file in blck_path.glob("**/*blacklist*.ini"):
-                blacklist_files.add(ini_file.name)
-        
+                name = ini_file.name
+                if name not in blacklist_files:
+                    blacklist_files[name] = str(ini_file.resolve())
+
         for ini_file in Path('.').glob("*blacklist*.ini"):
-            blacklist_files.add(ini_file.name)
-        
+            name = ini_file.name
+            if name not in blacklist_files:
+                blacklist_files[name] = str(ini_file.resolve())
+
         logger.debug(f"[DEBUG] blacklist_files: {sorted(blacklist_files)}")
         for name in sorted(blacklist_files):
+            index = self.blacklist_profile_combo.count()
             self.blacklist_profile_combo.addItem(name)
+            self.blacklist_profile_combo.setItemData(index, blacklist_files[name])
 
     def collection_profile_selected(self, index):
         if index <= 0:
@@ -604,15 +616,25 @@ class RandomFillDialog(BaseTagDialog):
             if collection_name in bl_name:
                 logger.debug(f"[DEBUG] found match at {i}")
                 self.blacklist_profile_combo.setCurrentIndex(i)
-                bl_file = Path(blacklist_path) / bl_name
-                if bl_file.exists():
-                    self.load_blacklist_file(str(bl_file))
+                # Use stored full path from item data; fallback to constructing from config path
+                bl_path = self.blacklist_profile_combo.itemData(i)
+                if bl_path and Path(bl_path).exists():
+                    self.load_blacklist_file(bl_path)
+                else:
+                    bl_file = Path(blacklist_path) / bl_name
+                    if bl_file.exists():
+                        self.load_blacklist_file(str(bl_file))
                 break
 
     def blacklist_profile_selected(self, index):
         if index <= 0:
             return
         file_name = self.blacklist_profile_combo.currentText()
+        # Use stored full path from item data; fallback to constructing from config path
+        bl_path = self.blacklist_profile_combo.itemData(index)
+        if bl_path and Path(bl_path).exists():
+            self.load_blacklist_file(bl_path)
+            return
         _, blacklist_path = get_config_paths()
         file_path = Path(blacklist_path) / file_name
         if file_path.exists():
