@@ -14,7 +14,12 @@ def serialize_tag_to_string(tag) -> str:
         lines.append(f"name = {tag.name}")
         lines.append(f"start_time = {tag.start_time.toString('HH:mm')}")
         lines.append(f"end_time = {tag.end_time.toString('HH:mm')}")
-        lines.append(f"series_list = {json.dumps(tag.series_list)}")
+        # Remove collection_videos to avoid bloating the ini file; keep only paths and metadata
+        clean_series_list = [
+            {k: v for k, v in s.items() if k != 'collection_videos'}
+            for s in tag.series_list
+        ]
+        lines.append(f"series_list = {json.dumps(clean_series_list)}")
     
     elif getattr(tag, 'is_series', False):
         lines.append(f"type = series")
@@ -108,6 +113,16 @@ def deserialize_tag_from_string(data: str, tag_class, qtime_from_string):
             series_list = json.loads(series_list_str)
         except:
             series_list = []
+        # Populate collection_videos from collection_path for each series (if available)
+        for series in series_list:
+            coll_path = series.get('collection_path', '')
+            if coll_path:
+                try:
+                    series['collection_videos'] = load_collection_videos_only(coll_path)
+                except Exception:
+                    series['collection_videos'] = []
+            else:
+                series['collection_videos'] = []
         from models import MultiSeriesTag
         return MultiSeriesTag(
             name=name,
