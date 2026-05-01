@@ -562,6 +562,7 @@ class MainWindow(QMainWindow):
 
         start_date = date.today()
 
+        # Determine number of days and key
         if self.weekly_radio.isChecked():
             num_days = 7
             save_key = "weekly"
@@ -572,20 +573,22 @@ class MainWindow(QMainWindow):
             num_days = 1
             save_key = "calendar"
 
+        # Always regenerate full schedule for save to include all days (bypass preview cache)
+        if not self.approximate_enabled:
+            all_entries = self.schedule_generator.apply_custom_tags(use_cache=False, num_days=num_days)
+        else:
+            mode = self.approx_mode_combo.currentText().lower().replace("-", "_").replace(" ", "_")
+            all_entries = self.schedule_generator.apply_approximate(num_days=num_days, mode=mode)
+
         for day_offset in range(num_days):
             current_date = start_date + timedelta(days=day_offset)
             date_str = current_date.strftime("%Y-%m-%d")
             day_name = days[current_date.weekday()]
             key = f"{date_str}_{day_name.lower()}"
 
-            entries = self.schedule_entries if self.schedule_entries else (
-                self.schedule_generator.apply_custom_tags(num_days=num_days) if not self.approximate_enabled
-                else self.schedule_generator.apply_approximate(num_days=num_days)
-            )
-
             day_start = day_offset * 24 * 60
             day_end = day_start + 24 * 60
-            schedule_entries = get_schedule_entries_for_day(entries, day_start, day_end)
+            schedule_entries = get_schedule_entries_for_day(all_entries, day_start, day_end)
 
             schedule_data[save_key][key] = {
                 "date": date_str,
