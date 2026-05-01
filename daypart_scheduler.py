@@ -518,9 +518,12 @@ class MainWindow(QMainWindow):
             "calendar": {}
         }
 
-        def get_schedule_entries_for_day(entries):
+        def get_schedule_entries_for_day(entries, day_start_minutes: int, day_end_minutes: int):
             schedule_entries = []
             for entry in entries:
+                # Only include entries that start within this day's window
+                if entry.start_minutes < day_start_minutes or entry.start_minutes >= day_end_minutes:
+                    continue
                 start_h = (entry.start_minutes // 60) % 24
                 start_m = entry.start_minutes % 60
                 time_str = f"{start_h:02d}:{start_m:02d}:00"
@@ -577,7 +580,9 @@ class MainWindow(QMainWindow):
 
             entries = self.schedule_entries if self.schedule_entries else (self.schedule_generator.apply_custom_tags() if not self.approximate_enabled else self.schedule_generator.apply_approximate())
 
-            schedule_entries = get_schedule_entries_for_day(entries)
+            day_start = day_offset * 24 * 60
+            day_end = day_start + 24 * 60
+            schedule_entries = get_schedule_entries_for_day(entries, day_start, day_end)
 
             schedule_data[save_key][key] = {
                 "date": date_str,
