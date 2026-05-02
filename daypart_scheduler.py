@@ -538,14 +538,13 @@ class MainWindow(QMainWindow):
                     if collection_path and tag.collection_videos:
                         coll_info = get_collection_info(collection_path)
                         channel = coll_info.get('channel', '')
-                        coll_id = coll_info.get('id', '')
 
                         for vid in tag.collection_videos:
                             vid_name = get_video_display_name(vid)
                             if vid_name in video_name or video_name in vid_name:
                                 video_info['file'] = vid.get('path', '')
                                 video_info['channel'] = profile_name
-                                video_info['collection_id'] = coll_id
+                                video_info['collection_id'] = vid.get('collection_id', '')
                                 matched = True
                                 break
                         if matched:

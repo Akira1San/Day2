@@ -9,23 +9,26 @@ from PySide6.QtCore import QTime
 def load_collection_json(file_path: str) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     collection_videos = []
     collection_info = {}
-    
+
     if not file_path or not Path(file_path).exists():
         return collection_videos, collection_info
-    
+
     try:
         with open(file_path, 'r') as f:
             data = json.load(f)
-        
+
         collections = data.get('collections', [])
         if collections:
             collection_info = collections[0]
             for coll in collections:
+                coll_id = coll.get('id', '')
                 for video in coll.get('videos', []):
-                    collection_videos.append(video)
+                    video_copy = video.copy()
+                    video_copy['collection_id'] = coll_id
+                    collection_videos.append(video_copy)
     except Exception:
         pass
-    
+
     return collection_videos, collection_info
 
 
@@ -41,41 +44,15 @@ def load_collection_videos_only(file_path: str) -> List[Dict[str, Any]]:
         if not collections:
             return []
 
-        first_videos = collections[0].get('videos', [])
+        videos = []
+        for coll in collections:
+            coll_id = coll.get('id', '')
+            for video in coll.get('videos', []):
+                video_copy = video.copy()
+                video_copy['collection_id'] = coll_id
+                videos.append(video_copy)
 
-        if len(first_videos) > 1:
-            return first_videos
-
-        if len(collections) > 1:
-            videos = []
-            for c in collections:
-                videos.extend(c.get('videos', []))
-            return videos
-
-        return first_videos
-    except Exception as e:
-        return []
-
-    try:
-        with open(file_path, 'r') as f:
-            data = json.load(f)
-
-        collections = data.get('collections', [])
-        if not collections:
-            return []
-
-        first_videos = collections[0].get('videos', [])
-
-        if len(first_videos) > 1:
-            return first_videos
-
-        if len(collections) > 1:
-            videos = []
-            for c in collections:
-                videos.extend(c.get('videos', []))
-            return videos
-
-        return first_videos
+        return videos
     except Exception:
         return []
 
