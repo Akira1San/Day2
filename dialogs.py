@@ -1176,6 +1176,15 @@ class SeriesDialog(BaseTagDialog):
         if file_path.exists():
             self.load_blacklist_file(str(file_path))
 
+    def load_blacklist_file(self, file_path: str = ""):
+        if not file_path:
+            file_path, _ = QFileDialog.getOpenFileName(
+                self, "Select Blacklist File", "", "INI Files (*.ini);;JSON Files (*.json);;All Files (*)"
+            )
+        if not file_path:
+            return
+        self.blacklist = load_blacklist_json(file_path)
+
     def auto_calc_end_time(self):
         if not self.collection_videos:
             return
@@ -1223,6 +1232,7 @@ class SeriesDialog(BaseTagDialog):
             start_season=self.start_season_spin.value(),
             start_episode=self.start_episode_spin.value(),
             play_mode=self.play_mode_combo.currentText(),
+            blacklist=self.blacklist.copy(),
             collection_profile=collection_profile,
             blacklist_profile=blacklist_profile
         )
@@ -1329,8 +1339,10 @@ class MultiSeriesDialog(BaseTagDialog):
         self.setWindowTitle("Edit Multi-Series Tag" if tag else "Add Multi-Series Tag")
         self.setModal(True)
         self.series_configs = []
+        self.blacklist_path = ""
         if tag:
             self.series_configs = tag.series_list.copy() if hasattr(tag, 'series_list') else []
+            self.blacklist = tag.blacklist.copy() if hasattr(tag, 'blacklist') else []
         self.setup_ui()
         if tag:
             self.name_input.setText(tag.name)
@@ -1471,5 +1483,6 @@ class MultiSeriesDialog(BaseTagDialog):
             name=name,
             series_list=self.series_configs.copy(),
             start_time=self.start_time_edit.time(),
-            end_time=self.end_time_edit.time()
+            end_time=self.end_time_edit.time(),
+            blacklist=self.blacklist.copy()
         )

@@ -3,7 +3,7 @@ import configparser
 from typing import List, Any, Optional, Dict
 from pathlib import Path
 
-from utils import load_collection_videos_only, load_blacklist_json
+from utils import load_collection_videos_only, load_blacklist_json, get_config_paths
 
 
 def serialize_tag_to_string(tag) -> str:
@@ -20,6 +20,8 @@ def serialize_tag_to_string(tag) -> str:
             for s in tag.series_list
         ]
         lines.append(f"series_list = {json.dumps(clean_series_list)}")
+        lines.append(f"blacklist_profile = {getattr(tag, 'blacklist_profile', '')}")
+        lines.append(f"blacklist = {json.dumps(getattr(tag, 'blacklist', []))}")
     
     elif getattr(tag, 'is_series', False):
         lines.append(f"type = series")
@@ -101,11 +103,19 @@ def deserialize_tag_from_string(data: str, tag_class, qtime_from_string):
         collection_profile = tag_section.get('collection_profile', '')
         blacklist_profile = tag_section.get('blacklist_profile', '')
         
+        # Load blacklist based on blacklist_profile
+        blacklist = []
+        if blacklist_profile:
+            _, blacklist_path_dir = get_config_paths()
+            blacklist_file = Path(blacklist_path_dir) / blacklist_profile
+            if blacklist_file.exists():
+                blacklist = load_blacklist_json(str(blacklist_file))
+        
         return tag_class('custom', name, qtime_from_string(start, 'HH:mm'), qtime_from_string(end, 'HH:mm'), 
                         collection_videos, collection_path, video_count=video_count, 
                         is_series=True, start_season=start_season, start_episode=start_episode, 
                         play_mode=play_mode, collection_profile=collection_profile,
-                        blacklist_profile=blacklist_profile)
+                        blacklist_profile=blacklist_profile, blacklist=blacklist)
     
     elif tag_type == 'multi_series':
         series_list_str = tag_section.get('series_list', '[]')
@@ -123,12 +133,22 @@ def deserialize_tag_from_string(data: str, tag_class, qtime_from_string):
                     series['collection_videos'] = []
             else:
                 series['collection_videos'] = []
+        
+        blacklist_profile = tag_section.get('blacklist_profile', '')
+        blacklist_str = tag_section.get('blacklist', '[]')
+        try:
+            blacklist = json.loads(blacklist_str)
+        except:
+            blacklist = []
+        
         from models import MultiSeriesTag
         return MultiSeriesTag(
             name=name,
             start_time=qtime_from_string(start, 'HH:mm'),
             end_time=qtime_from_string(end, 'HH:mm'),
-            series_list=series_list
+            series_list=series_list,
+            blacklist=blacklist,
+            blacklist_profile=blacklist_profile
         )
     
     elif tag_type == 'random':
@@ -152,9 +172,18 @@ def deserialize_tag_from_string(data: str, tag_class, qtime_from_string):
         collection_profile = tag_section.get('collection_profile', '')
         blacklist_profile = tag_section.get('blacklist_profile', '')
         
+        # Load blacklist based on blacklist_profile
+        blacklist = []
+        if blacklist_profile:
+            _, blacklist_path_dir = get_config_paths()
+            blacklist_file = Path(blacklist_path_dir) / blacklist_profile
+            if blacklist_file.exists():
+                blacklist = load_blacklist_json(str(blacklist_file))
+        
         return tag_class('custom', name, qtime_from_string(start, 'HH:mm'), qtime_from_string(end, 'HH:mm'),
                         collection_videos, collection_path, is_random_videos, video_count,
-                        collection_profile=collection_profile, blacklist_profile=blacklist_profile)
+                        collection_profile=collection_profile, blacklist_profile=blacklist_profile,
+                        blacklist=blacklist)
 
 
 def deserialize_tag_legacy(data: str, tag_class, qtime_from_string):

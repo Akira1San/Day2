@@ -13,6 +13,7 @@ from PySide6.QtCore import QTime
 from utils import (
     get_video_display_name,
     parse_videos_for_series,
+    filter_videos_by_blacklist,
 )
 
 logger = logging.getLogger(__name__)
@@ -54,6 +55,10 @@ class Tag:
         self.fill_24h = fill_24h
         self.collection_profile = collection_profile
         self.blacklist_profile = blacklist_profile
+        
+        # Apply blacklist filtering if both collection_videos and blacklist are present
+        if self.collection_videos and self.blacklist:
+            self.collection_videos = filter_videos_by_blacklist(self.collection_videos, self.blacklist)
 
     def to_display_string(self) -> str:
         if self.tag_type == "random" or self.is_random_fill:
@@ -89,12 +94,16 @@ class MultiSeriesTag(Tag):
     def __init__(self, name: str = "Multi-Series",
                  series_list: List[dict] = None,
                  start_time: Optional[QTime] = None,
-                 end_time: Optional[QTime] = None):
+                 end_time: Optional[QTime] = None,
+                 blacklist: List[dict] = None,
+                 blacklist_profile: str = ""):
         super().__init__(
             tag_type="multi_series",
             name=name,
             start_time=start_time or QTime(0, 0),
-            end_time=end_time or QTime(0, 0)
+            end_time=end_time or QTime(0, 0),
+            blacklist=blacklist or [],
+            blacklist_profile=blacklist_profile
         )
         self.series_list = series_list or []
         self.is_multi_series = True
@@ -269,7 +278,6 @@ class TagManager:
             t.name = name
             t.start_time = start_time
             t.end_time = end_time
-            t.collection_videos = collection_videos or []
             t.collection_path = collection_path
             t.video_count = video_count
             t.is_series = is_series
@@ -283,6 +291,10 @@ class TagManager:
             t.collection_profile = collection_profile
             t.blacklist_profile = blacklist_profile
             t.randomize_videos = randomize_videos
+            # Apply blacklist filtering to collection_videos
+            t.collection_videos = collection_videos or []
+            if t.collection_videos and t.blacklist:
+                t.collection_videos = filter_videos_by_blacklist(t.collection_videos, t.blacklist)
             return True
         return False
 
