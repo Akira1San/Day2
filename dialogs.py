@@ -63,7 +63,6 @@ class TagDialog(BaseTagDialog):
         self.setModal(True)
         self.setup_ui()
         self.load_available_collection_profiles()
-        self.load_channels()
         if tag:
             self.name_input.setText(tag.name)
             self.start_time_edit.setTime(tag.start_time)
@@ -138,15 +137,6 @@ class TagDialog(BaseTagDialog):
         
         profile_layout.addStretch()
         layout.addLayout(profile_layout)
-
-        channel_layout = QHBoxLayout()
-        channel_layout.addWidget(QLabel("Channel:"))
-        self.channel_combo = QComboBox()
-        self.channel_combo.setEditable(True)
-        self.load_channels()
-        channel_layout.addWidget(self.channel_combo)
-        channel_layout.addStretch()
-        layout.addLayout(channel_layout)
 
         layout.addWidget(QLabel("Videos in Collection:"))
         self.videos_list = QListWidget()
@@ -255,19 +245,6 @@ class TagDialog(BaseTagDialog):
 
     def load_blacklist_file(self, file_path: str):
         self.blacklist = load_blacklist_json(file_path)
-
-    def load_channels(self):
-        profiles = get_schedule_profiles()
-        self.channel_combo.clear()
-        self.channel_combo.addItem("")
-        for profile in profiles:
-            self.channel_combo.addItem(profile)
-        if hasattr(self, 'tag') and self.tag and hasattr(self.tag, 'channel') and self.tag.channel:
-            index = self.channel_combo.findText(self.tag.channel)
-            if index >= 0:
-                self.channel_combo.setCurrentIndex(index)
-            else:
-                self.channel_combo.setCurrentText(self.tag.channel)
 
     def get_tag(self) -> Tag:
         collection_profile = self.collection_profile_combo.currentText()
