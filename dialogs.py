@@ -61,49 +61,39 @@ class TagDialog(BaseTagDialog):
         super().__init__(parent, tag)
         self.setWindowTitle("Edit Tag" if tag else "Add Custom Tag")
         self.setModal(True)
+        self.added_videos = []
+        self.blacklist_path = ""
+        self.blacklist_profile = ""
         self.setup_ui()
         self.load_available_collection_profiles()
         if tag:
             self.name_input.setText(tag.name)
             self.start_time_edit.setTime(tag.start_time)
             self.end_time_edit.setTime(tag.end_time)
-            if tag.collection_videos:
-                self.collection_videos = tag.collection_videos.copy()
-                for video in self.collection_videos:
-                    path = video.get('path', '')
-                    duration = video.get('duration', 0)
-                    display_name = get_video_display_name(video)
-                    self.videos_list.addItem(f"{display_name} ({format_duration(duration)})")
+            self.blacklist = tag.blacklist.copy() if hasattr(tag, 'blacklist') and tag.blacklist else []
             if hasattr(tag, 'randomize_videos') and tag.randomize_videos:
                 self.randomize_videos_check.setChecked(True)
             if hasattr(tag, 'video_count'):
                 self.video_count_spin.setValue(tag.video_count)
             if hasattr(tag, 'collection_path') and tag.collection_path:
-                self.collection_path.setText(tag.collection_path)
-                if tag.collection_videos:
-                    self.videos_list.clear()
-                    self.collection_videos = tag.collection_videos.copy()
-                    for video in self.collection_videos:
-                        path = video.get('path', '')
-                        duration = video.get('duration', 0)
-                        display_name = get_video_display_name(video)
-                        self.videos_list.addItem(f"{display_name} ({format_duration(duration)})")
-            if hasattr(tag, 'collection_profile') and tag.collection_profile:
-                index = self.collection_profile_combo.findText(tag.collection_profile)
+                self.load_collection(tag.collection_path, load_blacklist=True)
+                self.added_videos = tag.collection_videos.copy()
+            collection_profile = getattr(tag, 'collection_profile', '')
+            if collection_profile:
+                index = self.collection_profile_combo.findText(collection_profile)
                 if index >= 0:
                     self.collection_profile_combo.setCurrentIndex(index)
-                else:
-                    self.collection_profile_combo.setCurrentIndex(0)
             else:
                 self.collection_profile_combo.setCurrentIndex(0)
-            if hasattr(tag, 'blacklist_profile') and tag.blacklist_profile:
-                index = self.blacklist_profile_combo.findText(tag.blacklist_profile)
+            blacklist_profile = getattr(tag, 'blacklist_profile', '')
+            if blacklist_profile:
+                index = self.blacklist_profile_combo.findText(blacklist_profile)
                 if index >= 0:
                     self.blacklist_profile_combo.setCurrentIndex(index)
-                else:
-                    self.blacklist_profile_combo.setCurrentIndex(0)
             else:
                 self.blacklist_profile_combo.setCurrentIndex(0)
+            self.added_videos = filter_videos_by_blacklist(self.added_videos, self.blacklist)
+            self.refresh_added_list()
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
@@ -111,6 +101,20 @@ class TagDialog(BaseTagDialog):
         layout.addWidget(QLabel("Name:"))
         self.name_input = QLineEdit()
         layout.addWidget(self.name_input)
+
+        profile_layout = QHBoxLayout()
+        profile_layout.addWidget(QLabel("Collection Profile:"))
+        self.collection_profile_combo = QComboBox()
+        self.collection_profile_combo.currentIndexChanged.connect(self.profile_selected)
+        profile_layout.addWidget(self.collection_profile_combo)
+
+        profile_layout.addWidget(QLabel("Blacklist Profile:"))
+        self.blacklist_profile_combo = QComboBox()
+        self.blacklist_profile_combo.currentIndexChanged.connect(self.blacklist_profile_selected)
+        profile_layout.addWidget(self.blacklist_profile_combo)
+
+        profile_layout.addStretch()
+        layout.addLayout(profile_layout)
 
         collection_layout = QHBoxLayout()
         collection_layout.addWidget(QLabel("Collection:"))
@@ -122,26 +126,34 @@ class TagDialog(BaseTagDialog):
         browse_btn = QPushButton("Browse")
         browse_btn.clicked.connect(self.browse_collection)
         collection_layout.addWidget(browse_btn)
+
+        collection_layout.addStretch()
         layout.addLayout(collection_layout)
 
-        profile_layout = QHBoxLayout()
-        profile_layout.addWidget(QLabel("Collection Profile:"))
-        self.collection_profile_combo = QComboBox()
-        self.collection_profile_combo.currentIndexChanged.connect(self.profile_selected)
-        profile_layout.addWidget(self.collection_profile_combo)
-        
-        profile_layout.addWidget(QLabel("Blacklist Profile:"))
-        self.blacklist_profile_combo = QComboBox()
-        self.blacklist_profile_combo.currentIndexChanged.connect(self.blacklist_profile_selected)
-        profile_layout.addWidget(self.blacklist_profile_combo)
-        
-        profile_layout.addStretch()
-        layout.addLayout(profile_layout)
+        lists_container = QWidget()
+        lists_inner = QHBoxLayout(lists_container)
 
-        layout.addWidget(QLabel("Videos in Collection:"))
-        self.videos_list = QListWidget()
-        self.videos_list.setMinimumHeight(150)
-        layout.addWidget(self.videos_list)
+        collection_widget = self._create_video_list_section("Videos in Collection", True)
+        self.videos_list = collection_widget.videos_list
+        self.videos_count_label = collection_widget.count_label
+
+        added_widget = self._create_video_list_section("Added Videos", False)
+        self.added_list = added_widget.videos_list
+        self.added_count_label = added_widget.count_label
+
+        blacklist_widget = self._create_blacklist_section()
+        self.blacklist_list = blacklist_widget.blacklist_list
+        self.blacklist_count_label = blacklist_widget.count_label
+
+        lists_inner.addWidget(collection_widget.widget)
+        lists_inner.addWidget(added_widget.widget)
+        lists_inner.addWidget(blacklist_widget.widget)
+
+        layout.addWidget(lists_container)
+
+        self.video_info = QLabel("Select a video to see details")
+        self.video_info.setWordWrap(True)
+        layout.addWidget(self.video_info)
 
         randomize_layout = QHBoxLayout()
         self.randomize_videos_check = QCheckBox("Randomize Videos")
@@ -174,6 +186,166 @@ class TagDialog(BaseTagDialog):
         btn_layout.addWidget(cancel_btn)
         layout.addLayout(btn_layout)
 
+    def _create_video_list_section(self, title: str, with_buttons: bool):
+        widget = QWidget()
+        vbox = QVBoxLayout(widget)
+        vbox.addWidget(QLabel(title))
+
+        count_label = QLabel("Count: 0")
+        vbox.addWidget(count_label)
+
+        videos_list = QListWidget()
+        videos_list.setMinimumHeight(200)
+        if with_buttons:
+            videos_list.setSelectionMode(QListWidget.MultiSelection)
+            videos_list.itemClicked.connect(self.on_video_selected)
+        vbox.addWidget(videos_list)
+
+        btn_layout = QHBoxLayout()
+        if with_buttons:
+            select_all_btn = QPushButton("Select All")
+            select_all_btn.clicked.connect(self.select_all_videos)
+            btn_layout.addWidget(select_all_btn)
+
+            clear_sel_btn = QPushButton("Clear")
+            clear_sel_btn.clicked.connect(self.clear_selection)
+            btn_layout.addWidget(clear_sel_btn)
+
+            add_btn = QPushButton("Add >>")
+            add_btn.clicked.connect(self.add_selected_videos)
+            btn_layout.addWidget(add_btn)
+        else:
+            remove_btn = QPushButton("<< Remove")
+            remove_btn.clicked.connect(self.remove_selected_added)
+            btn_layout.addWidget(remove_btn)
+
+            remove_all_btn = QPushButton("Remove All")
+            remove_all_btn.clicked.connect(self.remove_all_added)
+            btn_layout.addWidget(remove_all_btn)
+
+            blacklist_btn = QPushButton("Add to Blacklist >>")
+            blacklist_btn.clicked.connect(self.add_to_blacklist)
+            btn_layout.addWidget(blacklist_btn)
+
+        vbox.addLayout(btn_layout)
+
+        section = type('VideoSection', (), {
+            'widget': widget, 'videos_list': videos_list, 'count_label': count_label
+        })()
+        return section
+
+    def _create_blacklist_section(self):
+        widget = QWidget()
+        vbox = QVBoxLayout(widget)
+        vbox.addWidget(QLabel("Blacklist"))
+
+        count_label = QLabel("Count: 0")
+        vbox.addWidget(count_label)
+
+        blacklist_list = QListWidget()
+        blacklist_list.setMinimumHeight(200)
+        vbox.addWidget(blacklist_list)
+
+        btn_layout = QHBoxLayout()
+        remove_blacklist_btn = QPushButton("<< Remove")
+        remove_blacklist_btn.clicked.connect(self.remove_from_blacklist)
+        btn_layout.addWidget(remove_blacklist_btn)
+
+        load_blacklist_btn = QPushButton("Load")
+        load_blacklist_btn.clicked.connect(self.load_blacklist_file)
+        btn_layout.addWidget(load_blacklist_btn)
+
+        save_blacklist_btn = QPushButton("Save")
+        save_blacklist_btn.clicked.connect(self.save_blacklist_file)
+        btn_layout.addWidget(save_blacklist_btn)
+
+        vbox.addLayout(btn_layout)
+
+        section = type('BlacklistSection', (), {
+            'widget': widget, 'blacklist_list': blacklist_list, 'count_label': count_label
+        })()
+        return section
+
+    def on_video_selected(self, item):
+        row = self.videos_list.row(item)
+        if 0 <= row < len(self.collection_videos):
+            video = self.collection_videos[row]
+            info = f"Name: {video.get('name', '-')}\nPath: {video.get('path', '-')}\nDuration: {int(video.get('duration', 0))}s"
+            self.video_info.setText(info)
+
+    def select_all_videos(self):
+        self.videos_list.selectAll()
+
+    def clear_selection(self):
+        self.videos_list.clearSelection()
+
+    def add_selected_videos(self):
+        for item in self.videos_list.selectedItems():
+            row = self.videos_list.row(item)
+            if 0 <= row < len(self.collection_videos):
+                video = self.collection_videos[row]
+            else:
+                text = item.text()
+                video_name = text.split(' (')[0]
+                video = {'name': video_name}
+
+            if video not in self.added_videos:
+                is_blacklisted = any(b.get('path') == video.get('path') for b in self.blacklist)
+                if not is_blacklisted:
+                    self.added_videos.append(video.copy())
+        self.refresh_added_list()
+
+    def remove_selected_added(self):
+        for item in self.added_list.selectedItems():
+            video_name = item.text().split(' (')[0]
+            self.added_videos = [v for v in self.added_videos if v.get('name', '') != video_name]
+        self.refresh_added_list()
+
+    def remove_all_added(self):
+        self.added_videos = []
+        self.refresh_added_list()
+
+    def add_to_blacklist(self):
+        for item in self.added_list.selectedItems():
+            video_name = item.text().split(' (')[0]
+            for v in self.collection_videos:
+                if v.get('name', '') == video_name or v.get('path', '').split('/')[-1] == video_name:
+                    if v not in self.blacklist:
+                        self.blacklist.append(v.copy())
+                    break
+        self.added_videos = filter_videos_by_blacklist(self.added_videos, self.blacklist)
+        self.refresh_added_list()
+        self.refresh_blacklist_list()
+
+    def remove_from_blacklist(self):
+        for item in self.blacklist_list.selectedItems():
+            row = self.blacklist_list.row(item)
+            if 0 <= row < len(self.blacklist):
+                self.blacklist.pop(row)
+        self.added_videos = filter_videos_by_blacklist(self.added_videos, self.blacklist)
+        self.refresh_added_list()
+        self.refresh_blacklist_list()
+
+    def refresh_added_list(self):
+        sorted_added = sorted(self.added_videos, key=lambda v: v.get('path', '').split('/')[-1])
+        self.added_list.clear()
+        for video in sorted_added:
+            self.added_list.addItem(f"{get_video_display_name(video)} ({format_duration(video.get('duration', 0))})")
+        self.update_counts()
+
+    def refresh_blacklist_list(self):
+        self.blacklist_list.clear()
+        sorted_blacklist = sorted(self.blacklist, key=lambda v: v.get('path', '').split('/')[-1])
+        for video in sorted_blacklist:
+            self.blacklist_list.addItem(get_video_display_name(video))
+        self.update_counts()
+
+    def update_counts(self):
+        self.videos_count_label.setText(f"Count: {len(self.collection_videos)}")
+        self.added_count_label.setText(f"Count: {len(self.added_videos)}")
+        self.blacklist_count_label.setText(f"Count: {len(self.blacklist)}")
+
+
     def browse_collection(self):
         file_path, _ = QFileDialog.getOpenFileName(
             self, "Select Collection File", "",
@@ -182,19 +354,49 @@ class TagDialog(BaseTagDialog):
         if file_path:
             self.load_collection(file_path)
 
-    def load_collection(self, file_path: str):
+    def load_collection(self, file_path: str, load_blacklist: bool = True):
+        collection_videos, collection_info = load_collection_json(file_path)
         self.collection_path.setText(file_path)
         self.videos_list.clear()
-        self.collection_videos.clear()
+        self.collection_videos = []
+        self.added_videos = []
 
-        collection_videos, _ = load_collection_json(file_path)
-        self.collection_videos = collection_videos
+        if load_blacklist:
+            self.blacklist = []
+
+        collection_dir = Path(file_path).parent
+        collection_stem = Path(file_path).stem
+
+        blacklist_data = []
+        if load_blacklist:
+            blacklist_patterns = [f"{collection_stem}_blacklist.*", f"{collection_stem.replace('collections_', '')}_blacklist.*"]
+            for search_dir in [collection_dir, Path.cwd()]:
+                for pattern in blacklist_patterns:
+                    for bl_file in search_dir.glob(pattern):
+                        blacklist_data = load_blacklist_json(str(bl_file))
+                        break
+                    if blacklist_data:
+                        break
+                if blacklist_data:
+                    break
+            self.blacklist = blacklist_data
 
         for video in collection_videos:
             path = video.get('path', '')
             duration = video.get('duration', 0)
-            display_name = get_video_display_name(video)
-            self.videos_list.addItem(f"{display_name} ({format_duration(duration)})")
+            video_data = {'path': path, 'duration': duration, 'name': get_video_display_name(video)}
+            self.collection_videos.append(video_data)
+            self.videos_list.addItem(f"{video_data['name']} ({format_duration(duration)})")
+
+        self.refresh_blacklist_list()
+
+        if load_blacklist and get_randomfill_config():
+            for video in self.collection_videos:
+                path = video.get('path', '')
+                if not any(b.get('path') == path for b in self.blacklist):
+                    self.added_videos.append(video.copy())
+
+        self.refresh_added_list()
 
     def load_available_collection_profiles(self):
         collection_path, blacklist_path = get_config_paths()
@@ -208,43 +410,125 @@ class TagDialog(BaseTagDialog):
                 self.collection_profile_combo.addItem(json_file.name)
 
         blck_path = Path(blacklist_path)
-        blacklist_files = set()
+        logger.debug(f"[DEBUG] load_available_profiles: blck_path={blck_path}, exists={blck_path.exists()}")
+        blacklist_files = {}
         if blck_path.exists():
             for ini_file in blck_path.glob("*_blacklist.ini"):
-                blacklist_files.add(ini_file.name)
+                name = ini_file.name
+                if name not in blacklist_files:
+                    blacklist_files[name] = str(ini_file.resolve())
             for ini_file in blck_path.glob("*blacklist*.ini"):
-                blacklist_files.add(ini_file.name)
+                name = ini_file.name
+                if name not in blacklist_files:
+                    blacklist_files[name] = str(ini_file.resolve())
             for ini_file in blck_path.glob("**/*_blacklist.ini"):
-                blacklist_files.add(ini_file.name)
+                name = ini_file.name
+                if name not in blacklist_files:
+                    blacklist_files[name] = str(ini_file.resolve())
             for ini_file in blck_path.glob("**/*blacklist*.ini"):
-                blacklist_files.add(ini_file.name)
-        
+                name = ini_file.name
+                if name not in blacklist_files:
+                    blacklist_files[name] = str(ini_file.resolve())
+
         for ini_file in Path('.').glob("*blacklist*.ini"):
-            blacklist_files.add(ini_file.name)
-        
+            name = ini_file.name
+            if name not in blacklist_files:
+                blacklist_files[name] = str(ini_file.resolve())
+
+        logger.debug(f"[DEBUG] blacklist_files: {sorted(blacklist_files)}")
         for name in sorted(blacklist_files):
+            index = self.blacklist_profile_combo.count()
             self.blacklist_profile_combo.addItem(name)
+            self.blacklist_profile_combo.setItemData(index, blacklist_files[name])
 
     def profile_selected(self, index):
         if index <= 0:
             return
         file_name = self.collection_profile_combo.currentText()
-        collection_path, _ = get_config_paths()
+        logger.debug(f"[DEBUG] collection_profile_selected: {file_name}")
+        collection_path, blacklist_path = get_config_paths()
         file_path = Path(collection_path) / file_name
         if file_path.exists():
             self.load_collection(str(file_path))
+
+        collection_name = Path(file_name).stem
+        if collection_name.startswith("collections_"):
+            collection_name = collection_name[len("collections_"):]
+        logger.debug(f"[DEBUG] looking for blacklist: {collection_name}")
+        for i in range(self.blacklist_profile_combo.count()):
+            bl_name = self.blacklist_profile_combo.itemText(i)
+            logger.debug(f"[DEBUG] checking blacklist {i}: {bl_name}")
+            if collection_name in bl_name:
+                logger.debug(f"[DEBUG] found match at {i}")
+                self.blacklist_profile_combo.setCurrentIndex(i)
+                bl_path = self.blacklist_profile_combo.itemData(i)
+                if bl_path and Path(bl_path).exists():
+                    self.load_blacklist_file(bl_path)
+                else:
+                    bl_file = Path(blacklist_path) / bl_name
+                    if bl_file.exists():
+                        self.load_blacklist_file(str(bl_file))
+                break
 
     def blacklist_profile_selected(self, index):
         if index <= 0:
             return
         file_name = self.blacklist_profile_combo.currentText()
+        bl_path = self.blacklist_profile_combo.itemData(index)
+        if bl_path and Path(bl_path).exists():
+            self.load_blacklist_file(bl_path)
+            return
         _, blacklist_path = get_config_paths()
         file_path = Path(blacklist_path) / file_name
         if file_path.exists():
             self.load_blacklist_file(str(file_path))
 
-    def load_blacklist_file(self, file_path: str):
-        self.blacklist = load_blacklist_json(file_path)
+    def load_blacklist_file(self, file_path: str = ""):
+        if not file_path:
+            file_path, _ = QFileDialog.getOpenFileName(
+                self, "Select Blacklist File", "", "INI Files (*.ini);;JSON Files (*.json);;All Files (*)"
+            )
+        if not file_path:
+            return
+        blacklist_data = load_blacklist_json(file_path)
+        self.blacklist = blacklist_data
+        self.blacklist_path = file_path
+        self.added_videos = filter_videos_by_blacklist(self.added_videos, self.blacklist)
+        self.refresh_blacklist_list()
+        self.refresh_added_list()
+
+    def save_blacklist_file(self):
+        if not self.collection_path.text():
+            return
+        blacklist_path = self.collection_path.text().replace('.json', '_blacklist.json')
+        blacklist_data = {'blacklist': self.blacklist}
+        try:
+            with open(blacklist_path, 'w') as f:
+                json.dump(blacklist_data, f, indent=2)
+            QMessageBox.information(self, "Saved", f"Blacklist saved to {blacklist_path}")
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Failed to save blacklist: {e}")
+
+    def auto_calc_end_time(self):
+        if not self.added_videos:
+            QMessageBox.warning(self, "No Videos", "Please add at least one video to the Added Videos list.")
+            return
+
+        if not self.randomize_videos_check.isChecked():
+            selected = self.added_list.currentRow()
+            if selected < 0:
+                QMessageBox.warning(self, "No Selection", "Please select a video from the Added list.")
+                return
+            duration = self.added_videos[selected].get('duration', 0)
+        else:
+            count = self.video_count_spin.value()
+            total_duration = sum(self.added_videos[i].get('duration', 0) for i in range(min(count, len(self.added_videos))))
+            duration = total_duration
+
+        start_time = self.start_time_edit.time()
+        start_mins = qtime_to_minutes(start_time)
+        end_mins = (start_mins + int(duration // 60)) % (24 * 60)
+        self.end_time_edit.setTime(QTime(end_mins // 60, end_mins % 60))
 
     def get_tag(self) -> Tag:
         collection_profile = self.collection_profile_combo.currentText()
@@ -258,7 +542,7 @@ class TagDialog(BaseTagDialog):
             name=self.name_input.text() or "Custom Video",
             start_time=self.start_time_edit.time(),
             end_time=self.end_time_edit.time(),
-            collection_videos=self.collection_videos.copy(),
+            collection_videos=self.added_videos.copy(),
             collection_path=self.collection_path.text(),
             randomize_videos=self.randomize_videos_check.isChecked(),
             video_count=self.video_count_spin.value(),
@@ -266,29 +550,6 @@ class TagDialog(BaseTagDialog):
             collection_profile=collection_profile,
             blacklist_profile=blacklist_profile
         )
-
-    def auto_calc_end_time(self):
-        if not self.collection_videos:
-            QMessageBox.warning(self, "No Videos", "Please load a collection first.")
-            return
-
-        if not self.randomize_videos_check.isChecked():
-            selected = self.videos_list.currentRow()
-            if selected < 0:
-                QMessageBox.warning(self, "No Selection", "Please select a video from the list.")
-                return
-            duration = self.collection_videos[selected].get('duration', 0)
-        else:
-            count = self.video_count_spin.value()
-            total_duration = sum(self.collection_videos[i].get('duration', 0) for i in range(min(count, len(self.collection_videos))))
-            duration = total_duration
-
-        start_time = self.start_time_edit.time()
-        start_mins = qtime_to_minutes(start_time)
-        end_mins = (start_mins + int(duration // 60)) % (24 * 60)
-        self.end_time_edit.setTime(QTime(end_mins // 60, end_mins % 60))
-
-
 class RandomFillDialog(BaseTagDialog):
     def __init__(self, parent=None, tag: Optional[Tag] = None):
         super().__init__(parent, tag)
