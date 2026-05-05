@@ -14,6 +14,7 @@ from utils import (
     get_video_display_name,
     parse_videos_for_series,
     filter_videos_by_blacklist,
+    parse_series_episode,
 )
 
 logger = logging.getLogger(__name__)
@@ -59,6 +60,41 @@ class Tag:
         # Apply blacklist filtering if both collection_videos and blacklist are present
         if self.collection_videos and self.blacklist:
             self.collection_videos = filter_videos_by_blacklist(self.collection_videos, self.blacklist)
+
+        # Precompute season grouping for series tags with season metadata
+        if self.is_series and self.collection_videos:
+            self._season_groups = {}          # season -> list[video] sorted by episode
+            self._sorted_seasons = []         # ascending list of seasons
+            self._season_episode_counts = {}  # season -> count
+            self._has_season_tags = False
+            self._derived_series_name = None
+
+            # Build groups by extracting season from video metadata
+            for vid in self.collection_videos:
+                season = vid.get('_meta_season')
+                if season is None:
+                    continue
+                self._has_season_tags = True
+                self._season_groups.setdefault(season, []).append(vid)
+
+            if self._has_season_tags:
+                # Sort videos within each season by episode (parse from path)
+                for s, vlist in self._season_groups.items():
+                    for v in vlist:
+                        _, ep = parse_series_episode(v.get('path', ''))
+                        v['_parsed_episode'] = ep
+                    vlist.sort(key=lambda v: v['_parsed_episode'])
+                    self._season_episode_counts[s] = len(vlist)
+
+                self._sorted_seasons = sorted(self._season_groups.keys())
+
+                # Derive series name if meta_series consistent across all videos
+                series_names = {vid.get('_meta_series') for vid in self.collection_videos if vid.get('_meta_series')}
+                if len(series_names) == 1:
+                    self._derived_series_name = next(iter(series_names))
+
+                # Store flat ordered list (season order, then episode order)
+                self._flat_ordered = [v for s in self._sorted_seasons for v in self._season_groups[s]]
 
     def to_display_string(self) -> str:
         if self.tag_type == "random" or self.is_random_fill:
@@ -108,6 +144,43 @@ class MultiSeriesTag(Tag):
         self.series_list = series_list or []
         self.is_multi_series = True
 
+        # Precompute season grouping for each series config that has collection_videos
+        for config in self.series_list:
+            coll_vids = config.get('collection_videos', [])
+            if not coll_vids:
+                config['_has_season_tags'] = False
+                continue
+
+            season_groups = {}
+            has_season_tags = False
+
+            for vid in coll_vids:
+                season = vid.get('_meta_season')
+                if season is None:
+                    continue
+                has_season_tags = True
+                season_groups.setdefault(season, []).append(vid)
+
+            if has_season_tags:
+                # Sort videos within each season by parsed episode
+                for s, vlist in season_groups.items():
+                    for v in vlist:
+                        _, ep = parse_series_episode(v.get('path', ''))
+                        v['_parsed_episode'] = ep
+                    vlist.sort(key=lambda v: v['_parsed_episode'])
+
+                sorted_seasons = sorted(season_groups.keys())
+                season_episode_counts = {s: len(season_groups[s]) for s in sorted_seasons}
+                flat_ordered = [v for s in sorted_seasons for v in season_groups[s]]
+
+                config['_season_groups'] = season_groups
+                config['_sorted_seasons'] = sorted_seasons
+                config['_season_episode_counts'] = season_episode_counts
+                config['_has_season_tags'] = True
+                config['_flat_ordered'] = flat_ordered
+            else:
+                config['_has_season_tags'] = False
+
     def to_display_string(self) -> str:
         base = f"[M] {self.name}"
         if self.series_list:
@@ -137,13 +210,34 @@ class MultiSeriesTag(Tag):
                 pos += 60
                 continue
 
-            videos_to_use, _ = parse_videos_for_series(
-                collection_videos,
-                start_season,
-                start_episode,
-                play_mode,
-                video_count
-            )
+            # Determine videos to use, with season_sequence support
+            if play_mode == 'season_sequence' and series_config.get('_has_season_tags', False):
+                flat = series_config.get('_flat_ordered', [])
+                # Compute start offset based on start_season/start_episode
+                start_idx = 0
+                found = False
+                for i, v in enumerate(flat):
+                    s = v.get('_meta_season')
+                    e = v.get('_parsed_episode')
+                    if s is None:
+                        continue
+                    if s > start_season or (s == start_season and e >= start_episode):
+                        start_idx = i
+                        found = True
+                        break
+                if not found:
+                    videos_to_use = []
+                else:
+                    selected = flat[start_idx : start_idx + video_count]
+                    videos_to_use = [{'video': v, 'season': v.get('_meta_season'), 'episode': v.get('_parsed_episode')} for v in selected]
+            else:
+                videos_to_use, _ = parse_videos_for_series(
+                    collection_videos,
+                    start_season,
+                    start_episode,
+                    play_mode,
+                    video_count
+                )
 
             for v in videos_to_use:
                 video = v['video']
@@ -174,13 +268,32 @@ class MultiSeriesTag(Tag):
                 total += 60
                 continue
 
-            videos_to_use, _ = parse_videos_for_series(
-                collection_videos,
-                start_season,
-                start_episode,
-                play_mode,
-                video_count
-            )
+            if play_mode == 'season_sequence' and series_config.get('_has_season_tags', False):
+                flat = series_config.get('_flat_ordered', [])
+                start_idx = 0
+                found = False
+                for i, v in enumerate(flat):
+                    s = v.get('_meta_season')
+                    e = v.get('_parsed_episode')
+                    if s is None:
+                        continue
+                    if s > start_season or (s == start_season and e >= start_episode):
+                        start_idx = i
+                        found = True
+                        break
+                if not found:
+                    videos_to_use = []
+                else:
+                    selected = flat[start_idx : start_idx + video_count]
+                    videos_to_use = [{'video': v, 'season': v.get('_meta_season'), 'episode': v.get('_parsed_episode')} for v in selected]
+            else:
+                videos_to_use, _ = parse_videos_for_series(
+                    collection_videos,
+                    start_season,
+                    start_episode,
+                    play_mode,
+                    video_count
+                )
 
             for v in videos_to_use:
                 video = v['video']

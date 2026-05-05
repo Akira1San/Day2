@@ -1,0 +1,144 @@
+{
+  "collections": [
+    {
+      "id": "the_cosmic_galaxy_redemption",
+      "name": "The Cosmic Galaxy Redemption",
+      "cover": "user/covers/the_cosmic_galaxy_redemption.jpg",
+      "description": "",
+      "genre": [
+        "Adventure",
+        "Comedy",
+        "Thriller"
+      ],
+      "year": 2018,
+      "videos": [
+        {
+          "path": "/home/akira/Videos/Akiratv/The Cosmic Galaxy Redemption.mp4",
+          "duration": 10266.02
+        }
+      ]
+    },
+    {
+      "id": "the_shadow_legacy",
+      "name": "The Shadow Legacy",
+      "cover": "user/covers/the_shadow_legacy.jpg",
+      "description": "",
+      "genre": [
+        "Comedy",
+        "Fantasy",
+        "Horror"
+      ],
+      "year": 1990,
+      "videos": [
+        {
+          "path": "/home/akira/Videos/Akiratv/The Shadow Legacy.mp4",
+          "duration": 7828.85
+        }
+      ]
+    },
+    {
+      "id": "the_rising_paradox_part_ii",
+      "name": "The Rising Paradox Part II",
+      "cover": "user/covers/the_rising_paradox_part_ii.jpg",
+      "description": "",
+      "genre": [
+        "Action",
+        "Drama",
+        "Horror"
+      ],
+      "year": 1990,
+      "videos": [
+        {
+          "path": "/home/akira/Videos/Akiratv/The Rising Paradox Part II.mp4",
+          "duration": 6228.73
+        }
+      ]
+    },
+    {
+      "id": "the_sacred_justice",
+      "name": "The Sacred Justice",
+      "cover": "user/covers/the_sacred_justice.jpg",
+      "description": "",
+      "genre": [
+        "Animation",
+        "Crime"
+      ],
+      "year": 1983,
+      "videos": [
+        {
+          "path": "/home/akira/Videos/Akiratv/The Sacred Justice.mp4",
+          "duration": 10380.74
+        }
+      ]
+    },
+    {
+      "id": "the_dark_legacy",
+      "name": "The Dark Legacy",
+      "cover": "user/covers/the_dark_legacy.jpg",
+      "description": "",
+      "genre": [
+        "Action",
+        "Animation",
+        "Horror"
+      ],
+      "year": 1980,
+      "videos": [
+        {
+          "path": "/home/akira/Videos/Akiratv/The Dark Legacy.mp4",
+          "duration": 7943.46
+        }
+      ]
+    },
+    {
+      "id": "the_eternal_requiem_redemption",
+      "name": "The Eternal Requiem Redemption",
+      "cover": "user/covers/the_eternal_requiem_redemption.jpg",
+      "description": "",
+      "genre": [
+        "Animation",
+        "Mystery",
+        "Romance"
+      ],
+      "year": 2000,
+      "videos": [
+        {
+          "path": "/home/akira/Videos/Akiratv/The Eternal Requiem Redemption.mp4",
+          "duration": 8930.3
+        }
+      ]
+    },
+    {
+      "id": "the_cosmic_horizon_the_final_chapter",
+      "name": "The Cosmic Horizon The Final Chapter",
+      "cover": "user/covers/the_cosmic_horizon_the_final_chapter.jpg",
+      "description": "",
+      "genre": [
+        "Action",
+        "Romance"
+      ],
+      "year": 2008,
+      "videos": [
+        {
+          "path": "/home/akira/Videos/Akiratv/The Cosmic Horizon The Final Chapter.mp4",
+          "duration": 8854.95
+        }
+      ]
+    },
+    {
+      "id": "the_cosmic_alliance_redemption",
+      "name": "The Cosmic Alliance Redemption",
+      "cover": "user/covers/the_cosmic_alliance_redemption.jpg",
+      "description": "",
+      "genre": [
+        "Romance"
+      ],
+      "year": 2003,
+      "videos": [
+        {
+          "path": "/home/akira/Videos/Akiratv/The Cosmic Alliance Redemption.mp4",
+          "duration": 9838.56
+        }
+      ]
+    }
+  ]
+}

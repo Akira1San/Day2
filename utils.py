@@ -22,14 +22,33 @@ def load_collection_json(file_path: str) -> Tuple[List[Dict[str, Any]], Dict[str
             collection_info = collections[0]
             for coll in collections:
                 coll_id = coll.get('id', '')
+                coll_tags = coll.get('tags', [])
+                series_name = _extract_tag_value(coll_tags, 'Series:')
+                season_str = _extract_tag_value(coll_tags, 'Season:')
+                season = None
+                if season_str and season_str.isdigit():
+                    season = int(season_str)
                 for video in coll.get('videos', []):
                     video_copy = video.copy()
                     video_copy['collection_id'] = coll_id
+                    video_copy['_meta_series'] = series_name
+                    video_copy['_meta_season'] = season
                     collection_videos.append(video_copy)
     except Exception:
         pass
 
     return collection_videos, collection_info
+
+
+def _extract_tag_value(tags: List[str], prefix: str) -> Optional[str]:
+    """Extract first tag value with given prefix like 'Series:' or 'Season:'."""
+    if not tags:
+        return None
+    for tag in tags:
+        if tag.startswith(prefix):
+            value = tag[len(prefix):].strip()
+            return value if value else None
+    return None
 
 
 def load_collection_videos_only(file_path: str) -> List[Dict[str, Any]]:
@@ -47,9 +66,18 @@ def load_collection_videos_only(file_path: str) -> List[Dict[str, Any]]:
         videos = []
         for coll in collections:
             coll_id = coll.get('id', '')
+            coll_tags = coll.get('tags', [])
+            series_name = _extract_tag_value(coll_tags, 'Series:')
+            season_str = _extract_tag_value(coll_tags, 'Season:')
+            season = None
+            if season_str and season_str.isdigit():
+                season = int(season_str)
+
             for video in coll.get('videos', []):
                 video_copy = video.copy()
                 video_copy['collection_id'] = coll_id
+                video_copy['_meta_series'] = series_name
+                video_copy['_meta_season'] = season
                 videos.append(video_copy)
 
         return videos

@@ -1,0 +1,410 @@
+{
+  "collections": [
+    {
+      "id": "the_crystal_storm_resurgence",
+      "name": "The Crystal Storm Resurgence",
+      "cover": "user/covers/the_crystal_storm_resurgence.jpg",
+      "description": "",
+      "genre": [
+        "Adventure",
+        "Animation",
+        "Comedy"
+      ],
+      "year": 1990,
+      "videos": [
+        {
+          "path": "/home/akira/Videos/Akiratv/The Crystal Storm Resurgence.mp4",
+          "duration": 5461.75
+        }
+      ]
+    },
+    {
+      "id": "the_crystal_storm",
+      "name": "The Crystal Storm",
+      "cover": "user/covers/the_crystal_storm.jpg",
+      "description": "",
+      "genre": [
+        "Adventure",
+        "Animation",
+        "Comedy"
+      ],
+      "year": 1987,
+      "videos": [
+        {
+          "path": "/home/akira/Videos/Akiratv/The Crystal Storm.mp4",
+          "duration": 7472.89
+        }
+      ]
+    },
+    {
+      "id": "the_crystal_infinity_part_iii",
+      "name": "The Crystal Infinity Part III",
+      "cover": "user/covers/the_crystal_infinity_part_iii.jpg",
+      "description": "",
+      "genre": [
+        "Fantasy",
+        "Mystery",
+        "Thriller"
+      ],
+      "year": 1983,
+      "videos": [
+        {
+          "path": "/home/akira/Videos/Akiratv/The Crystal Infinity Part III.mp4",
+          "duration": 8753.31
+        }
+      ]
+    },
+    {
+      "id": "the_cosmic_reckoning_redemption",
+      "name": "The Cosmic Reckoning Redemption",
+      "cover": "user/covers/the_cosmic_reckoning_redemption.jpg",
+      "description": "",
+      "genre": [
+        "Comedy",
+        "Drama",
+        "Mystery"
+      ],
+      "year": 2015,
+      "videos": [
+        {
+          "path": "/home/akira/Videos/Akiratv/The Cosmic Reckoning Redemption.mp4",
+          "duration": 9264.4
+        }
+      ]
+    },
+    {
+      "id": "the_burning_protocol",
+      "name": "The Burning Protocol",
+      "cover": "user/covers/the_burning_protocol.jpg",
+      "description": "",
+      "genre": [
+        "Horror"
+      ],
+      "year": 1996,
+      "videos": [
+        {
+          "path": "/home/akira/Videos/Akiratv/The Burning Protocol.mp4",
+          "duration": 6326.42
+        }
+      ]
+    },
+    {
+      "id": "the_iron_justice",
+      "name": "The Iron Justice",
+      "cover": "user/covers/the_iron_justice.jpg",
+      "description": "",
+      "genre": [
+        "Mystery"
+      ],
+      "year": 1986,
+      "videos": [
+        {
+          "path": "/home/akira/Videos/Akiratv/The Iron Justice.mp4",
+          "duration": 6036.66
+        }
+      ]
+    },
+    {
+      "id": "the_hidden_infinity_reload",
+      "name": "The Hidden Infinity Reload",
+      "cover": "user/covers/the_hidden_infinity_reload.jpg",
+      "description": "",
+      "genre": [
+        "Action",
+        "Adventure",
+        "Animation"
+      ],
+      "year": 2023,
+      "videos": [
+        {
+          "path": "/home/akira/Videos/Akiratv/The Hidden Infinity Reload.mp4",
+          "duration": 5495.64
+        }
+      ]
+    },
+    {
+      "id": "the_electric_uprising_the_final_chapter",
+      "name": "The Electric Uprising The Final Chapter",
+      "cover": "user/covers/the_electric_uprising_the_final_chapter.jpg",
+      "description": "",
+      "genre": [
+        "Adventure"
+      ],
+      "year": 2017,
+      "videos": [
+        {
+          "path": "/home/akira/Videos/Akiratv/The Electric Uprising The Final Chapter.mp4",
+          "duration": 8158.33
+        }
+      ]
+    },
+    {
+      "id": "the_shadow_paradox_redemption",
+      "name": "The Shadow Paradox Redemption",
+      "cover": "user/covers/the_shadow_paradox_redemption.jpg",
+      "description": "",
+      "genre": [
+        "Horror"
+      ],
+      "year": 1983,
+      "videos": [
+        {
+          "path": "/home/akira/Videos/Akiratv/The Shadow Paradox Redemption.mp4",
+          "duration": 9218.26
+        }
+      ]
+    },
+    {
+      "id": "the_golden_invasion_the_beginning",
+      "name": "The Golden Invasion The Beginning",
+      "cover": "user/covers/the_golden_invasion_the_beginning.jpg",
+      "description": "",
+      "genre": [
+        "Comedy"
+      ],
+      "year": 1980,
+      "videos": [
+        {
+          "path": "/home/akira/Videos/Akiratv/The Golden Invasion The Beginning.mp4",
+          "duration": 9241.8
+        }
+      ]
+    },
+    {
+      "id": "the_crimson_conspiracy_part_iii",
+      "name": "The Crimson Conspiracy Part III",
+      "cover": "user/covers/the_crimson_conspiracy_part_iii.jpg",
+      "description": "",
+      "genre": [
+        "Horror"
+      ],
+      "year": 1992,
+      "videos": [
+        {
+          "path": "/home/akira/Videos/Akiratv/The Crimson Conspiracy Part III.mp4",
+          "duration": 9708.37
+        }
+      ]
+    },
+    {
+      "id": "the_hidden_empire_the_beginning",
+      "name": "The Hidden Empire The Beginning",
+      "cover": "user/covers/the_hidden_empire_the_beginning.jpg",
+      "description": "",
+      "genre": [
+        "Crime",
+        "Horror"
+      ],
+      "year": 2013,
+      "videos": [
+        {
+          "path": "/home/akira/Videos/Akiratv/The Hidden Empire The Beginning.mp4",
+          "duration": 6328.55
+        }
+      ]
+    },
+    {
+      "id": "the_sacred_justice",
+      "name": "The Sacred Justice",
+      "cover": "user/covers/the_sacred_justice.jpg",
+      "description": "",
+      "genre": [
+        "Action",
+        "Adventure"
+      ],
+      "year": 2023,
+      "videos": [
+        {
+          "path": "/home/akira/Videos/Akiratv/The Sacred Justice.mp4",
+          "duration": 10005.55
+        }
+      ]
+    },
+    {
+      "id": "the_hidden_empire",
+      "name": "The Hidden Empire",
+      "cover": "user/covers/the_hidden_empire.jpg",
+      "description": "",
+      "genre": [
+        "Animation",
+        "Crime",
+        "Drama"
+      ],
+      "year": 2014,
+      "videos": [
+        {
+          "path": "/home/akira/Videos/Akiratv/The Hidden Empire.mp4",
+          "duration": 6965.55
+        }
+      ]
+    },
+    {
+      "id": "the_fallen_kingdom_the_beginning",
+      "name": "The Fallen Kingdom The Beginning",
+      "cover": "user/covers/the_fallen_kingdom_the_beginning.jpg",
+      "description": "",
+      "genre": [
+        "Fantasy"
+      ],
+      "year": 2008,
+      "videos": [
+        {
+          "path": "/home/akira/Videos/Akiratv/The Fallen Kingdom The Beginning.mp4",
+          "duration": 8823.13
+        }
+      ]
+    },
+    {
+      "id": "the_cosmic_destiny_part_iii",
+      "name": "The Cosmic Destiny Part III",
+      "cover": "user/covers/the_cosmic_destiny_part_iii.jpg",
+      "description": "",
+      "genre": [
+        "Comedy"
+      ],
+      "year": 2007,
+      "videos": [
+        {
+          "path": "/home/akira/Videos/Akiratv/The Cosmic Destiny Part III.mp4",
+          "duration": 6665.45
+        }
+      ]
+    },
+    {
+      "id": "the_iron_vanguard_resurgence",
+      "name": "The Iron Vanguard Resurgence",
+      "cover": "user/covers/the_iron_vanguard_resurgence.jpg",
+      "description": "",
+      "genre": [
+        "Animation",
+        "Thriller"
+      ],
+      "year": 2024,
+      "videos": [
+        {
+          "path": "/home/akira/Videos/Akiratv/The Iron Vanguard Resurgence.mp4",
+          "duration": 9472.77
+        }
+      ]
+    },
+    {
+      "id": "the_frozen_frontier_part_ii",
+      "name": "The Frozen Frontier Part II",
+      "cover": "user/covers/the_frozen_frontier_part_ii.jpg",
+      "description": "",
+      "genre": [
+        "Adventure",
+        "Mystery"
+      ],
+      "year": 2003,
+      "videos": [
+        {
+          "path": "/home/akira/Videos/Akiratv/The Frozen Frontier Part II.mp4",
+          "duration": 8990.88
+        }
+      ]
+    },
+    {
+      "id": "the_silent_justice_resurgence",
+      "name": "The Silent Justice Resurgence",
+      "cover": "user/covers/the_silent_justice_resurgence.jpg",
+      "description": "",
+      "genre": [
+        "Adventure"
+      ],
+      "year": 1980,
+      "videos": [
+        {
+          "path": "/home/akira/Videos/Akiratv/The Silent Justice Resurgence.mp4",
+          "duration": 10420.03
+        }
+      ]
+    },
+    {
+      "id": "the_silent_destiny",
+      "name": "The Silent Destiny",
+      "cover": "user/covers/the_silent_destiny.jpg",
+      "description": "",
+      "genre": [
+        "Action",
+        "Crime",
+        "Mystery"
+      ],
+      "year": 1998,
+      "videos": [
+        {
+          "path": "/home/akira/Videos/Akiratv/The Silent Destiny.mp4",
+          "duration": 5681.75
+        }
+      ]
+    },
+    {
+      "id": "the_phantom_conspiracy_reload",
+      "name": "The Phantom Conspiracy Reload",
+      "cover": "user/covers/the_phantom_conspiracy_reload.jpg",
+      "description": "",
+      "genre": [
+        "Action",
+        "Mystery"
+      ],
+      "year": 2019,
+      "videos": [
+        {
+          "path": "/home/akira/Videos/Akiratv/The Phantom Conspiracy Reload.mp4",
+          "duration": 6648.95
+        }
+      ]
+    },
+    {
+      "id": "the_sacred_vanguard_part_ii",
+      "name": "The Sacred Vanguard Part II",
+      "cover": "user/covers/the_sacred_vanguard_part_ii.jpg",
+      "description": "",
+      "genre": [
+        "Adventure",
+        "Horror"
+      ],
+      "year": 2017,
+      "videos": [
+        {
+          "path": "/home/akira/Videos/Akiratv/The Sacred Vanguard Part II.mp4",
+          "duration": 9693.65
+        }
+      ]
+    },
+    {
+      "id": "the_lost_storm_part_ii",
+      "name": "The Lost Storm Part II",
+      "cover": "user/covers/the_lost_storm_part_ii.jpg",
+      "description": "",
+      "genre": [
+        "Animation"
+      ],
+      "year": 2025,
+      "videos": [
+        {
+          "path": "/home/akira/Videos/Akiratv/The Lost Storm Part II.mp4",
+          "duration": 7567.76
+        }
+      ]
+    },
+    {
+      "id": "the_hidden_justice_redemption",
+      "name": "The Hidden Justice Redemption",
+      "cover": "user/covers/the_hidden_justice_redemption.jpg",
+      "description": "",
+      "genre": [
+        "Action",
+        "Crime",
+        "Romance"
+      ],
+      "year": 2004,
+      "videos": [
+        {
+          "path": "/home/akira/Videos/Akiratv/The Hidden Justice Redemption.mp4",
+          "duration": 6168.77
+        }
+      ]
+    }
+  ]
+}

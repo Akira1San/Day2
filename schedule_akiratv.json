@@ -1,120 +1,2290 @@
 {
   "weekly": {},
   "calendar": {
-    "2026-04-22_wednesday": {
-      "date": "2026-04-22",
-      "day": "Wednesday",
+    "2026-05-02_saturday": {
+      "date": "2026-05-02",
+      "day": "Saturday",
       "description": "Auto-generated schedule",
       "entries": [
         {
           "time": "00:00:00",
-          "file": "/home/akira/Videos/Akiratv/Purgatory.mp4",
-          "collection_id": "adrenalin_fear_the_rush",
+          "file": "/home/akira/Videos/Akiratv/The Eternal Requiem Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
           "channel": "akiratv",
           "source": "random"
         },
         {
-          "time": "01:34:00",
-          "file": "/home/akira/Videos/Akiratv/barb wire.mp4",
-          "collection_id": "adrenalin_fear_the_rush",
+          "time": "02:28:00",
+          "file": "/home/akira/Videos/Akiratv/The Rising Paradox Part II.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
           "channel": "akiratv",
           "source": "random"
         },
         {
-          "time": "03:07:00",
-          "file": "/home/akira/Videos/Akiratv/Aliens/Predator 2.mp4",
-          "collection_id": "adrenalin_fear_the_rush",
+          "time": "04:11:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Galaxy Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
           "channel": "akiratv",
           "source": "random"
         },
         {
-          "time": "04:45:00",
-          "file": "/home/akira/Videos/Akiratv/Tron legacy.mp4",
-          "collection_id": "adrenalin_fear_the_rush",
+          "time": "07:02:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Alliance Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
           "channel": "akiratv",
           "source": "random"
         },
         {
-          "time": "06:50:00",
-          "file": "/home/akira/Videos/Akiratv/Teenage Mutant Ninja Turtles III.mp4",
-          "collection_id": "adrenalin_fear_the_rush",
+          "time": "09:45:00",
+          "file": "/home/akira/Videos/Akiratv/The Shadow Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "11:55:00",
+          "file": "/home/akira/Videos/Akiratv/The Dark Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "14:07:00",
+          "file": "/home/akira/Videos/Akiratv/The Sacred Justice.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "17:00:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Horizon The Final Chapter.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "19:27:00",
+          "file": "/home/akira/Videos/Akiratv/The Eternal Requiem Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "21:55:00",
+          "file": "/home/akira/Videos/Akiratv/The Rising Paradox Part II.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "23:38:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Galaxy Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        }
+      ]
+    },
+    "2026-05-03_sunday": {
+      "date": "2026-05-03",
+      "day": "Sunday",
+      "description": "Auto-generated schedule",
+      "entries": [
+        {
+          "time": "02:29:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Alliance Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "05:12:00",
+          "file": "/home/akira/Videos/Akiratv/The Shadow Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "07:22:00",
+          "file": "/home/akira/Videos/Akiratv/The Dark Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "09:34:00",
+          "file": "/home/akira/Videos/Akiratv/The Sacred Justice.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "12:27:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Horizon The Final Chapter.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "14:54:00",
+          "file": "/home/akira/Videos/Akiratv/The Eternal Requiem Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "17:22:00",
+          "file": "/home/akira/Videos/Akiratv/The Rising Paradox Part II.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "19:05:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Galaxy Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "21:56:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Alliance Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        }
+      ]
+    },
+    "2026-05-04_monday": {
+      "date": "2026-05-04",
+      "day": "Monday",
+      "description": "Auto-generated schedule",
+      "entries": [
+        {
+          "time": "00:39:00",
+          "file": "/home/akira/Videos/Akiratv/The Shadow Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "02:49:00",
+          "file": "/home/akira/Videos/Akiratv/The Dark Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "05:01:00",
+          "file": "/home/akira/Videos/Akiratv/The Sacred Justice.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "07:54:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Horizon The Final Chapter.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "10:21:00",
+          "file": "/home/akira/Videos/Akiratv/The Eternal Requiem Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "12:49:00",
+          "file": "/home/akira/Videos/Akiratv/The Rising Paradox Part II.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "14:32:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Galaxy Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "17:23:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Alliance Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "20:06:00",
+          "file": "/home/akira/Videos/Akiratv/The Shadow Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "22:16:00",
+          "file": "/home/akira/Videos/Akiratv/The Dark Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        }
+      ]
+    },
+    "2026-05-05_tuesday": {
+      "date": "2026-05-05",
+      "day": "Tuesday",
+      "description": "Auto-generated schedule",
+      "entries": [
+        {
+          "time": "00:28:00",
+          "file": "/home/akira/Videos/Akiratv/The Sacred Justice.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "03:21:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Horizon The Final Chapter.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "05:48:00",
+          "file": "/home/akira/Videos/Akiratv/The Eternal Requiem Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "08:16:00",
+          "file": "/home/akira/Videos/Akiratv/The Rising Paradox Part II.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "09:59:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Galaxy Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "12:50:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Alliance Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "15:33:00",
+          "file": "/home/akira/Videos/Akiratv/The Shadow Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "17:43:00",
+          "file": "/home/akira/Videos/Akiratv/The Dark Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "19:55:00",
+          "file": "/home/akira/Videos/Akiratv/The Sacred Justice.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "22:48:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Horizon The Final Chapter.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        }
+      ]
+    },
+    "2026-05-06_wednesday": {
+      "date": "2026-05-06",
+      "day": "Wednesday",
+      "description": "Auto-generated schedule",
+      "entries": [
+        {
+          "time": "01:15:00",
+          "file": "/home/akira/Videos/Akiratv/The Eternal Requiem Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "03:43:00",
+          "file": "/home/akira/Videos/Akiratv/The Rising Paradox Part II.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "05:26:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Galaxy Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "08:17:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Alliance Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "11:00:00",
+          "file": "/home/akira/Videos/Akiratv/The Shadow Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "13:10:00",
+          "file": "/home/akira/Videos/Akiratv/The Dark Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "15:22:00",
+          "file": "/home/akira/Videos/Akiratv/The Sacred Justice.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "18:15:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Horizon The Final Chapter.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "20:42:00",
+          "file": "/home/akira/Videos/Akiratv/The Eternal Requiem Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "23:10:00",
+          "file": "/home/akira/Videos/Akiratv/The Rising Paradox Part II.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        }
+      ]
+    },
+    "2026-05-07_thursday": {
+      "date": "2026-05-07",
+      "day": "Thursday",
+      "description": "Auto-generated schedule",
+      "entries": [
+        {
+          "time": "00:53:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Galaxy Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "03:44:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Alliance Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "06:27:00",
+          "file": "/home/akira/Videos/Akiratv/The Shadow Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "08:37:00",
+          "file": "/home/akira/Videos/Akiratv/The Dark Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "10:49:00",
+          "file": "/home/akira/Videos/Akiratv/The Sacred Justice.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "13:42:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Horizon The Final Chapter.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "16:09:00",
+          "file": "/home/akira/Videos/Akiratv/The Eternal Requiem Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "18:37:00",
+          "file": "/home/akira/Videos/Akiratv/The Rising Paradox Part II.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "20:20:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Galaxy Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "23:11:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Alliance Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        }
+      ]
+    },
+    "2026-05-08_friday": {
+      "date": "2026-05-08",
+      "day": "Friday",
+      "description": "Auto-generated schedule",
+      "entries": [
+        {
+          "time": "01:54:00",
+          "file": "/home/akira/Videos/Akiratv/The Shadow Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "04:04:00",
+          "file": "/home/akira/Videos/Akiratv/The Dark Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "06:16:00",
+          "file": "/home/akira/Videos/Akiratv/The Sacred Justice.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "09:09:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Horizon The Final Chapter.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "11:36:00",
+          "file": "/home/akira/Videos/Akiratv/The Eternal Requiem Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "14:04:00",
+          "file": "/home/akira/Videos/Akiratv/The Rising Paradox Part II.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "15:47:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Galaxy Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "18:38:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Alliance Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "21:21:00",
+          "file": "/home/akira/Videos/Akiratv/The Shadow Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "23:31:00",
+          "file": "/home/akira/Videos/Akiratv/The Dark Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        }
+      ]
+    },
+    "2026-05-09_saturday": {
+      "date": "2026-05-09",
+      "day": "Saturday",
+      "description": "Auto-generated schedule",
+      "entries": [
+        {
+          "time": "01:43:00",
+          "file": "/home/akira/Videos/Akiratv/The Sacred Justice.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "04:36:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Horizon The Final Chapter.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "07:03:00",
+          "file": "/home/akira/Videos/Akiratv/The Eternal Requiem Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "09:31:00",
+          "file": "/home/akira/Videos/Akiratv/The Rising Paradox Part II.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "11:14:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Galaxy Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "14:05:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Alliance Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "16:48:00",
+          "file": "/home/akira/Videos/Akiratv/The Shadow Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "18:58:00",
+          "file": "/home/akira/Videos/Akiratv/The Dark Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "21:10:00",
+          "file": "/home/akira/Videos/Akiratv/The Sacred Justice.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        }
+      ]
+    },
+    "2026-05-10_sunday": {
+      "date": "2026-05-10",
+      "day": "Sunday",
+      "description": "Auto-generated schedule",
+      "entries": [
+        {
+          "time": "00:03:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Horizon The Final Chapter.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "02:30:00",
+          "file": "/home/akira/Videos/Akiratv/The Eternal Requiem Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "04:58:00",
+          "file": "/home/akira/Videos/Akiratv/The Rising Paradox Part II.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "06:41:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Galaxy Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "09:32:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Alliance Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "12:15:00",
+          "file": "/home/akira/Videos/Akiratv/The Shadow Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "14:25:00",
+          "file": "/home/akira/Videos/Akiratv/The Dark Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "16:37:00",
+          "file": "/home/akira/Videos/Akiratv/The Sacred Justice.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "19:30:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Horizon The Final Chapter.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "21:57:00",
+          "file": "/home/akira/Videos/Akiratv/The Eternal Requiem Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        }
+      ]
+    },
+    "2026-05-11_monday": {
+      "date": "2026-05-11",
+      "day": "Monday",
+      "description": "Auto-generated schedule",
+      "entries": [
+        {
+          "time": "00:25:00",
+          "file": "/home/akira/Videos/Akiratv/The Rising Paradox Part II.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "02:08:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Galaxy Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "04:59:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Alliance Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "07:42:00",
+          "file": "/home/akira/Videos/Akiratv/The Shadow Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "09:52:00",
+          "file": "/home/akira/Videos/Akiratv/The Dark Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "12:04:00",
+          "file": "/home/akira/Videos/Akiratv/The Sacred Justice.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "14:57:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Horizon The Final Chapter.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "17:24:00",
+          "file": "/home/akira/Videos/Akiratv/The Eternal Requiem Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "19:52:00",
+          "file": "/home/akira/Videos/Akiratv/The Rising Paradox Part II.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "21:35:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Galaxy Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        }
+      ]
+    },
+    "2026-05-12_tuesday": {
+      "date": "2026-05-12",
+      "day": "Tuesday",
+      "description": "Auto-generated schedule",
+      "entries": [
+        {
+          "time": "00:26:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Alliance Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "03:09:00",
+          "file": "/home/akira/Videos/Akiratv/The Shadow Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "05:19:00",
+          "file": "/home/akira/Videos/Akiratv/The Dark Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "07:31:00",
+          "file": "/home/akira/Videos/Akiratv/The Sacred Justice.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "10:24:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Horizon The Final Chapter.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "12:51:00",
+          "file": "/home/akira/Videos/Akiratv/The Eternal Requiem Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "15:19:00",
+          "file": "/home/akira/Videos/Akiratv/The Rising Paradox Part II.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "17:02:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Galaxy Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "19:53:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Alliance Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "22:36:00",
+          "file": "/home/akira/Videos/Akiratv/The Shadow Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        }
+      ]
+    },
+    "2026-05-13_wednesday": {
+      "date": "2026-05-13",
+      "day": "Wednesday",
+      "description": "Auto-generated schedule",
+      "entries": [
+        {
+          "time": "00:46:00",
+          "file": "/home/akira/Videos/Akiratv/The Dark Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "02:58:00",
+          "file": "/home/akira/Videos/Akiratv/The Sacred Justice.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "05:51:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Horizon The Final Chapter.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "08:18:00",
+          "file": "/home/akira/Videos/Akiratv/The Eternal Requiem Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "10:46:00",
+          "file": "/home/akira/Videos/Akiratv/The Rising Paradox Part II.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "12:29:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Galaxy Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "15:20:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Alliance Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "18:03:00",
+          "file": "/home/akira/Videos/Akiratv/The Shadow Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "20:13:00",
+          "file": "/home/akira/Videos/Akiratv/The Dark Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "22:25:00",
+          "file": "/home/akira/Videos/Akiratv/The Sacred Justice.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        }
+      ]
+    },
+    "2026-05-14_thursday": {
+      "date": "2026-05-14",
+      "day": "Thursday",
+      "description": "Auto-generated schedule",
+      "entries": [
+        {
+          "time": "01:18:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Horizon The Final Chapter.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "03:45:00",
+          "file": "/home/akira/Videos/Akiratv/The Eternal Requiem Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "06:13:00",
+          "file": "/home/akira/Videos/Akiratv/The Rising Paradox Part II.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "07:56:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Galaxy Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "10:47:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Alliance Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "13:30:00",
+          "file": "/home/akira/Videos/Akiratv/The Shadow Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "15:40:00",
+          "file": "/home/akira/Videos/Akiratv/The Dark Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "17:52:00",
+          "file": "/home/akira/Videos/Akiratv/The Sacred Justice.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "20:45:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Horizon The Final Chapter.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "23:12:00",
+          "file": "/home/akira/Videos/Akiratv/The Eternal Requiem Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        }
+      ]
+    },
+    "2026-05-15_friday": {
+      "date": "2026-05-15",
+      "day": "Friday",
+      "description": "Auto-generated schedule",
+      "entries": [
+        {
+          "time": "01:40:00",
+          "file": "/home/akira/Videos/Akiratv/The Rising Paradox Part II.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "03:23:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Galaxy Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "06:14:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Alliance Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "08:57:00",
+          "file": "/home/akira/Videos/Akiratv/The Shadow Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "11:07:00",
+          "file": "/home/akira/Videos/Akiratv/The Dark Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "13:19:00",
+          "file": "/home/akira/Videos/Akiratv/The Sacred Justice.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "16:12:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Horizon The Final Chapter.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "18:39:00",
+          "file": "/home/akira/Videos/Akiratv/The Eternal Requiem Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "21:07:00",
+          "file": "/home/akira/Videos/Akiratv/The Rising Paradox Part II.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "22:50:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Galaxy Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        }
+      ]
+    },
+    "2026-05-16_saturday": {
+      "date": "2026-05-16",
+      "day": "Saturday",
+      "description": "Auto-generated schedule",
+      "entries": [
+        {
+          "time": "01:41:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Alliance Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "04:24:00",
+          "file": "/home/akira/Videos/Akiratv/The Shadow Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "06:34:00",
+          "file": "/home/akira/Videos/Akiratv/The Dark Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "08:46:00",
+          "file": "/home/akira/Videos/Akiratv/The Sacred Justice.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "11:39:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Horizon The Final Chapter.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "14:06:00",
+          "file": "/home/akira/Videos/Akiratv/The Eternal Requiem Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "16:34:00",
+          "file": "/home/akira/Videos/Akiratv/The Rising Paradox Part II.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "18:17:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Galaxy Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "21:08:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Alliance Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "23:51:00",
+          "file": "/home/akira/Videos/Akiratv/The Shadow Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        }
+      ]
+    },
+    "2026-05-17_sunday": {
+      "date": "2026-05-17",
+      "day": "Sunday",
+      "description": "Auto-generated schedule",
+      "entries": [
+        {
+          "time": "02:01:00",
+          "file": "/home/akira/Videos/Akiratv/The Dark Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "04:13:00",
+          "file": "/home/akira/Videos/Akiratv/The Sacred Justice.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "07:06:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Horizon The Final Chapter.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "09:33:00",
+          "file": "/home/akira/Videos/Akiratv/The Eternal Requiem Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "12:01:00",
+          "file": "/home/akira/Videos/Akiratv/The Rising Paradox Part II.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "13:44:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Galaxy Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "16:35:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Alliance Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "19:18:00",
+          "file": "/home/akira/Videos/Akiratv/The Shadow Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "21:28:00",
+          "file": "/home/akira/Videos/Akiratv/The Dark Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "23:40:00",
+          "file": "/home/akira/Videos/Akiratv/The Sacred Justice.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        }
+      ]
+    },
+    "2026-05-18_monday": {
+      "date": "2026-05-18",
+      "day": "Monday",
+      "description": "Auto-generated schedule",
+      "entries": [
+        {
+          "time": "02:33:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Horizon The Final Chapter.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "05:00:00",
+          "file": "/home/akira/Videos/Akiratv/The Eternal Requiem Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "07:28:00",
+          "file": "/home/akira/Videos/Akiratv/The Rising Paradox Part II.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "09:11:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Galaxy Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "12:02:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Alliance Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "14:45:00",
+          "file": "/home/akira/Videos/Akiratv/The Shadow Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "16:55:00",
+          "file": "/home/akira/Videos/Akiratv/The Dark Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "19:07:00",
+          "file": "/home/akira/Videos/Akiratv/The Sacred Justice.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "22:00:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Horizon The Final Chapter.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        }
+      ]
+    },
+    "2026-05-19_tuesday": {
+      "date": "2026-05-19",
+      "day": "Tuesday",
+      "description": "Auto-generated schedule",
+      "entries": [
+        {
+          "time": "00:27:00",
+          "file": "/home/akira/Videos/Akiratv/The Eternal Requiem Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "02:55:00",
+          "file": "/home/akira/Videos/Akiratv/The Rising Paradox Part II.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "04:38:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Galaxy Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "07:29:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Alliance Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "10:12:00",
+          "file": "/home/akira/Videos/Akiratv/The Shadow Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "12:22:00",
+          "file": "/home/akira/Videos/Akiratv/The Dark Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "14:34:00",
+          "file": "/home/akira/Videos/Akiratv/The Sacred Justice.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "17:27:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Horizon The Final Chapter.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "19:54:00",
+          "file": "/home/akira/Videos/Akiratv/The Eternal Requiem Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "22:22:00",
+          "file": "/home/akira/Videos/Akiratv/The Rising Paradox Part II.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        }
+      ]
+    },
+    "2026-05-20_wednesday": {
+      "date": "2026-05-20",
+      "day": "Wednesday",
+      "description": "Auto-generated schedule",
+      "entries": [
+        {
+          "time": "00:05:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Galaxy Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "02:56:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Alliance Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "05:39:00",
+          "file": "/home/akira/Videos/Akiratv/The Shadow Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "07:49:00",
+          "file": "/home/akira/Videos/Akiratv/The Dark Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "10:01:00",
+          "file": "/home/akira/Videos/Akiratv/The Sacred Justice.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "12:54:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Horizon The Final Chapter.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "15:21:00",
+          "file": "/home/akira/Videos/Akiratv/The Eternal Requiem Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "17:49:00",
+          "file": "/home/akira/Videos/Akiratv/The Rising Paradox Part II.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "19:32:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Galaxy Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "22:23:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Alliance Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        }
+      ]
+    },
+    "2026-05-21_thursday": {
+      "date": "2026-05-21",
+      "day": "Thursday",
+      "description": "Auto-generated schedule",
+      "entries": [
+        {
+          "time": "01:06:00",
+          "file": "/home/akira/Videos/Akiratv/The Shadow Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "03:16:00",
+          "file": "/home/akira/Videos/Akiratv/The Dark Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "05:28:00",
+          "file": "/home/akira/Videos/Akiratv/The Sacred Justice.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
           "channel": "akiratv",
           "source": "random"
         },
         {
           "time": "08:21:00",
-          "file": "/home/akira/Videos/Akiratv/The Cloverfield Paradox.mp4",
-          "collection_id": "adrenalin_fear_the_rush",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Horizon The Final Chapter.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
           "channel": "akiratv",
           "source": "random"
         },
         {
-          "time": "10:00:00",
-          "file": "",
-          "collection_id": "",
-          "channel": "",
-          "source": "random"
-        },
-        {
-          "time": "10:39:00",
-          "file": "/home/akira/Videos/Akiratv/Purgatory.mp4",
-          "collection_id": "adrenalin_fear_the_rush",
+          "time": "10:48:00",
+          "file": "/home/akira/Videos/Akiratv/The Eternal Requiem Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
           "channel": "akiratv",
           "source": "random"
         },
         {
-          "time": "12:13:00",
-          "file": "/home/akira/Videos/Akiratv/barb wire.mp4",
-          "collection_id": "adrenalin_fear_the_rush",
+          "time": "13:16:00",
+          "file": "/home/akira/Videos/Akiratv/The Rising Paradox Part II.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
           "channel": "akiratv",
           "source": "random"
         },
         {
-          "time": "13:00:00",
-          "file": "",
-          "collection_id": "",
-          "channel": "",
-          "source": "random"
-        },
-        {
-          "time": "14:46:00",
-          "file": "/home/akira/Videos/Akiratv/Purgatory.mp4",
-          "collection_id": "adrenalin_fear_the_rush",
+          "time": "14:59:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Galaxy Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
           "channel": "akiratv",
           "source": "random"
         },
         {
-          "time": "16:20:00",
-          "file": "/home/akira/Videos/Akiratv/barb wire.mp4",
-          "collection_id": "adrenalin_fear_the_rush",
+          "time": "17:50:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Alliance Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
           "channel": "akiratv",
           "source": "random"
         },
         {
-          "time": "17:53:00",
-          "file": "/home/akira/Videos/Akiratv/Aliens/Predator 2.mp4",
-          "collection_id": "adrenalin_fear_the_rush",
+          "time": "20:33:00",
+          "file": "/home/akira/Videos/Akiratv/The Shadow Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
           "channel": "akiratv",
           "source": "random"
         },
         {
-          "time": "19:31:00",
-          "file": "/home/akira/Videos/Akiratv/Tron legacy.mp4",
-          "collection_id": "adrenalin_fear_the_rush",
+          "time": "22:43:00",
+          "file": "/home/akira/Videos/Akiratv/The Dark Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        }
+      ]
+    },
+    "2026-05-22_friday": {
+      "date": "2026-05-22",
+      "day": "Friday",
+      "description": "Auto-generated schedule",
+      "entries": [
+        {
+          "time": "00:55:00",
+          "file": "/home/akira/Videos/Akiratv/The Sacred Justice.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
           "channel": "akiratv",
           "source": "random"
         },
         {
-          "time": "21:36:00",
-          "file": "/home/akira/Videos/Akiratv/Teenage Mutant Ninja Turtles III.mp4",
-          "collection_id": "adrenalin_fear_the_rush",
+          "time": "03:48:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Horizon The Final Chapter.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
           "channel": "akiratv",
           "source": "random"
         },
         {
-          "time": "23:07:00",
-          "file": "/home/akira/Videos/Akiratv/The Cloverfield Paradox.mp4",
-          "collection_id": "adrenalin_fear_the_rush",
+          "time": "06:15:00",
+          "file": "/home/akira/Videos/Akiratv/The Eternal Requiem Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "08:43:00",
+          "file": "/home/akira/Videos/Akiratv/The Rising Paradox Part II.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "10:26:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Galaxy Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "13:17:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Alliance Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "16:00:00",
+          "file": "/home/akira/Videos/Akiratv/The Shadow Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "18:10:00",
+          "file": "/home/akira/Videos/Akiratv/The Dark Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "20:22:00",
+          "file": "/home/akira/Videos/Akiratv/The Sacred Justice.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "23:15:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Horizon The Final Chapter.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        }
+      ]
+    },
+    "2026-05-23_saturday": {
+      "date": "2026-05-23",
+      "day": "Saturday",
+      "description": "Auto-generated schedule",
+      "entries": [
+        {
+          "time": "01:42:00",
+          "file": "/home/akira/Videos/Akiratv/The Eternal Requiem Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "04:10:00",
+          "file": "/home/akira/Videos/Akiratv/The Rising Paradox Part II.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "05:53:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Galaxy Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "08:44:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Alliance Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "11:27:00",
+          "file": "/home/akira/Videos/Akiratv/The Shadow Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "13:37:00",
+          "file": "/home/akira/Videos/Akiratv/The Dark Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "15:49:00",
+          "file": "/home/akira/Videos/Akiratv/The Sacred Justice.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "18:42:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Horizon The Final Chapter.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "21:09:00",
+          "file": "/home/akira/Videos/Akiratv/The Eternal Requiem Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "23:37:00",
+          "file": "/home/akira/Videos/Akiratv/The Rising Paradox Part II.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        }
+      ]
+    },
+    "2026-05-24_sunday": {
+      "date": "2026-05-24",
+      "day": "Sunday",
+      "description": "Auto-generated schedule",
+      "entries": [
+        {
+          "time": "01:20:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Galaxy Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "04:11:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Alliance Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "06:54:00",
+          "file": "/home/akira/Videos/Akiratv/The Shadow Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "09:04:00",
+          "file": "/home/akira/Videos/Akiratv/The Dark Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "11:16:00",
+          "file": "/home/akira/Videos/Akiratv/The Sacred Justice.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "14:09:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Horizon The Final Chapter.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "16:36:00",
+          "file": "/home/akira/Videos/Akiratv/The Eternal Requiem Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "19:04:00",
+          "file": "/home/akira/Videos/Akiratv/The Rising Paradox Part II.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "20:47:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Galaxy Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "23:38:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Alliance Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        }
+      ]
+    },
+    "2026-05-25_monday": {
+      "date": "2026-05-25",
+      "day": "Monday",
+      "description": "Auto-generated schedule",
+      "entries": [
+        {
+          "time": "02:21:00",
+          "file": "/home/akira/Videos/Akiratv/The Shadow Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "04:31:00",
+          "file": "/home/akira/Videos/Akiratv/The Dark Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "06:43:00",
+          "file": "/home/akira/Videos/Akiratv/The Sacred Justice.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "09:36:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Horizon The Final Chapter.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "12:03:00",
+          "file": "/home/akira/Videos/Akiratv/The Eternal Requiem Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "14:31:00",
+          "file": "/home/akira/Videos/Akiratv/The Rising Paradox Part II.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "16:14:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Galaxy Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "19:05:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Alliance Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "21:48:00",
+          "file": "/home/akira/Videos/Akiratv/The Shadow Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "23:58:00",
+          "file": "/home/akira/Videos/Akiratv/The Dark Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        }
+      ]
+    },
+    "2026-05-26_tuesday": {
+      "date": "2026-05-26",
+      "day": "Tuesday",
+      "description": "Auto-generated schedule",
+      "entries": [
+        {
+          "time": "02:10:00",
+          "file": "/home/akira/Videos/Akiratv/The Sacred Justice.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "05:03:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Horizon The Final Chapter.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "07:30:00",
+          "file": "/home/akira/Videos/Akiratv/The Eternal Requiem Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "09:58:00",
+          "file": "/home/akira/Videos/Akiratv/The Rising Paradox Part II.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "11:41:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Galaxy Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "14:32:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Alliance Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "17:15:00",
+          "file": "/home/akira/Videos/Akiratv/The Shadow Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "19:25:00",
+          "file": "/home/akira/Videos/Akiratv/The Dark Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "21:37:00",
+          "file": "/home/akira/Videos/Akiratv/The Sacred Justice.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        }
+      ]
+    },
+    "2026-05-27_wednesday": {
+      "date": "2026-05-27",
+      "day": "Wednesday",
+      "description": "Auto-generated schedule",
+      "entries": [
+        {
+          "time": "00:30:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Horizon The Final Chapter.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "02:57:00",
+          "file": "/home/akira/Videos/Akiratv/The Eternal Requiem Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "05:25:00",
+          "file": "/home/akira/Videos/Akiratv/The Rising Paradox Part II.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "07:08:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Galaxy Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "09:59:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Alliance Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "12:42:00",
+          "file": "/home/akira/Videos/Akiratv/The Shadow Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "14:52:00",
+          "file": "/home/akira/Videos/Akiratv/The Dark Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "17:04:00",
+          "file": "/home/akira/Videos/Akiratv/The Sacred Justice.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "19:57:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Horizon The Final Chapter.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "22:24:00",
+          "file": "/home/akira/Videos/Akiratv/The Eternal Requiem Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        }
+      ]
+    },
+    "2026-05-28_thursday": {
+      "date": "2026-05-28",
+      "day": "Thursday",
+      "description": "Auto-generated schedule",
+      "entries": [
+        {
+          "time": "00:52:00",
+          "file": "/home/akira/Videos/Akiratv/The Rising Paradox Part II.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "02:35:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Galaxy Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "05:26:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Alliance Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "08:09:00",
+          "file": "/home/akira/Videos/Akiratv/The Shadow Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "10:19:00",
+          "file": "/home/akira/Videos/Akiratv/The Dark Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "12:31:00",
+          "file": "/home/akira/Videos/Akiratv/The Sacred Justice.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "15:24:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Horizon The Final Chapter.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "17:51:00",
+          "file": "/home/akira/Videos/Akiratv/The Eternal Requiem Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "20:19:00",
+          "file": "/home/akira/Videos/Akiratv/The Rising Paradox Part II.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "22:02:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Galaxy Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        }
+      ]
+    },
+    "2026-05-29_friday": {
+      "date": "2026-05-29",
+      "day": "Friday",
+      "description": "Auto-generated schedule",
+      "entries": [
+        {
+          "time": "00:53:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Alliance Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "03:36:00",
+          "file": "/home/akira/Videos/Akiratv/The Shadow Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "05:46:00",
+          "file": "/home/akira/Videos/Akiratv/The Dark Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "07:58:00",
+          "file": "/home/akira/Videos/Akiratv/The Sacred Justice.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "10:51:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Horizon The Final Chapter.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "13:18:00",
+          "file": "/home/akira/Videos/Akiratv/The Eternal Requiem Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "15:46:00",
+          "file": "/home/akira/Videos/Akiratv/The Rising Paradox Part II.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "17:29:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Galaxy Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "20:20:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Alliance Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "23:03:00",
+          "file": "/home/akira/Videos/Akiratv/The Shadow Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        }
+      ]
+    },
+    "2026-05-30_saturday": {
+      "date": "2026-05-30",
+      "day": "Saturday",
+      "description": "Auto-generated schedule",
+      "entries": [
+        {
+          "time": "01:13:00",
+          "file": "/home/akira/Videos/Akiratv/The Dark Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "03:25:00",
+          "file": "/home/akira/Videos/Akiratv/The Sacred Justice.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "06:18:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Horizon The Final Chapter.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "08:45:00",
+          "file": "/home/akira/Videos/Akiratv/The Eternal Requiem Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "11:13:00",
+          "file": "/home/akira/Videos/Akiratv/The Rising Paradox Part II.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "12:56:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Galaxy Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "15:47:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Alliance Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "18:30:00",
+          "file": "/home/akira/Videos/Akiratv/The Shadow Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "20:40:00",
+          "file": "/home/akira/Videos/Akiratv/The Dark Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "22:52:00",
+          "file": "/home/akira/Videos/Akiratv/The Sacred Justice.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        }
+      ]
+    },
+    "2026-05-31_sunday": {
+      "date": "2026-05-31",
+      "day": "Sunday",
+      "description": "Auto-generated schedule",
+      "entries": [
+        {
+          "time": "01:45:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Horizon The Final Chapter.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "04:12:00",
+          "file": "/home/akira/Videos/Akiratv/The Eternal Requiem Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "06:40:00",
+          "file": "/home/akira/Videos/Akiratv/The Rising Paradox Part II.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "08:23:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Galaxy Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "11:14:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Alliance Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "13:57:00",
+          "file": "/home/akira/Videos/Akiratv/The Shadow Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "16:07:00",
+          "file": "/home/akira/Videos/Akiratv/The Dark Legacy.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "18:19:00",
+          "file": "/home/akira/Videos/Akiratv/The Sacred Justice.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "21:12:00",
+          "file": "/home/akira/Videos/Akiratv/The Cosmic Horizon The Final Chapter.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
+          "channel": "akiratv",
+          "source": "random"
+        },
+        {
+          "time": "23:39:00",
+          "file": "/home/akira/Videos/Akiratv/The Eternal Requiem Redemption.mp4",
+          "collection_id": "the_cosmic_galaxy_redemption",
           "channel": "akiratv",
           "source": "random"
         }

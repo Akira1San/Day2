@@ -41,6 +41,68 @@ class ScheduleGenerator:
         video_name = f"{tag_name} - {name}" if tag_name else name
         return ScheduleEntry(1, pos, pos + duration, video_name)
 
+    def _select_series_videos(self, tag_or_config, day_offset: int) -> List[dict]:
+        """Select videos for a series tag (Tag object or config dict) for given day_offset.
+        Returns list of dicts with keys 'video', 'season', 'episode', matching parse_videos_for_series output.
+        Handles 'season_sequence' mode with season metadata, and falls back to regular sequence/random.
+        """
+        is_dict = isinstance(tag_or_config, dict)
+        collection_videos = tag_or_config.get('collection_videos') if is_dict else getattr(tag_or_config, 'collection_videos', [])
+        if not collection_videos:
+            return []
+
+        video_count = tag_or_config.get('video_count') if is_dict else getattr(tag_or_config, 'video_count', 1)
+        play_mode = tag_or_config.get('play_mode') if is_dict else getattr(tag_or_config, 'play_mode', 'sequence')
+        start_season = tag_or_config.get('start_season') if is_dict else getattr(tag_or_config, 'start_season', 1)
+        start_episode = tag_or_config.get('start_episode') if is_dict else getattr(tag_or_config, 'start_episode', 1)
+
+        has_season_tags = tag_or_config.get('_has_season_tags', False) if is_dict else getattr(tag_or_config, '_has_season_tags', False)
+
+        if play_mode == 'season_sequence' and has_season_tags:
+            # Get the flat ordered list of all season episodes
+            flat = tag_or_config['_flat_ordered'] if is_dict else tag_or_config._flat_ordered
+
+            # Find the starting index based on start_season and start_episode
+            start_idx = 0
+            found = False
+            for i, v in enumerate(flat):
+                s = v.get('_meta_season')
+                e = v.get('_parsed_episode')
+                if s is None:
+                    continue
+                if s > start_season or (s == start_season and e >= start_episode):
+                    start_idx = i
+                    found = True
+                    break
+
+            if not found:
+                return []  # No episodes match start criteria
+
+            # Compute global index for this day
+            effective_idx = start_idx + day_offset * video_count
+            if effective_idx >= len(flat):
+                return []  # Beyond available episodes
+
+            take = min(video_count, len(flat) - effective_idx)
+            selected = flat[effective_idx : effective_idx + take]
+            return [{'video': v, 'season': v.get('_meta_season'), 'episode': v.get('_parsed_episode')} for v in selected]
+        else:
+            # Regular sequence/random with wrap-around of start_episode
+            raw_episode = start_episode + (day_offset * video_count)
+            total_episodes = len(collection_videos)
+            if total_episodes > 0:
+                effective_episode = ((raw_episode - 1) % total_episodes) + 1
+            else:
+                effective_episode = raw_episode
+            videos_to_use, _ = parse_videos_for_series(
+                collection_videos,
+                start_season,
+                effective_episode,
+                play_mode,
+                video_count
+            )
+            return videos_to_use
+
     def _place_tag_videos(self, ct, start: int, end: int, final: List[ScheduleEntry], day_offset: int = 0) -> int:
         """Place custom/series/multi-series tag videos into final schedule. Returns new current_pos."""
         # Handle MultiSeriesTag
@@ -61,21 +123,8 @@ class ScheduleGenerator:
                     pos += 60
                     continue
 
-                # Increment start_episode by day_offset * video_count for day progression, with wrap-around
-                raw_episode = start_episode + (day_offset * video_count)
-                total_episodes = len(collection_videos)
-                if total_episodes > 0:
-                    start_episode = ((raw_episode - 1) % total_episodes) + 1
-                else:
-                    start_episode = raw_episode
-
-                videos_to_use, _ = parse_videos_for_series(
-                    collection_videos,
-                    start_season,
-                    start_episode,
-                    play_mode,
-                    video_count
-                )
+                # Use unified video selection (season_sequence or regular)
+                videos_to_use = self._select_series_videos(series_config, day_offset)
 
                 for v in videos_to_use:
                     if pos >= end:
@@ -240,31 +289,11 @@ class ScheduleGenerator:
         if start_min >= end_min:
             return
 
-        base_start_episode = getattr(st, 'start_episode', 1)
-        video_count = getattr(st, 'video_count', 1)
-        raw_episode = base_start_episode + (day_offset * video_count)
-
-        # Wrap episode index so series cycles across days
-        if st.collection_videos:
-            total_episodes = len(st.collection_videos)
-            if total_episodes > 0:
-                start_episode = ((raw_episode - 1) % total_episodes) + 1
-            else:
-                start_episode = raw_episode
-        else:
-            start_episode = raw_episode
-
         if st.collection_videos:
             for m in range(start_min, end_min):
                 occupied.add(m)
 
-            videos_to_use, _ = parse_videos_for_series(
-                st.collection_videos,
-                getattr(st, 'start_season', 1),
-                start_episode,
-                getattr(st, 'play_mode', 'sequence'),
-                video_count
-            )
+            videos_to_use = self._select_series_videos(st, day_offset)
 
             pos = start_min
             for v in videos_to_use:
@@ -881,22 +910,12 @@ class ScheduleGenerator:
                 series_start = max(original_start, next_custom_pos) + day_offset_minutes
                 series_end = series_start + (original_end - original_start)
 
-                base_start_episode = getattr(st, 'start_episode', 1)
-                video_count = getattr(st, 'video_count', 1)
-                start_episode = base_start_episode + (day_offset * video_count)
-
                 videos_to_use = []
                 if st.collection_videos:
                     for m in range(series_start, series_end):
                         occupied.add(m)
 
-                    videos_to_use, _ = parse_videos_for_series(
-                        st.collection_videos,
-                        getattr(st, 'start_season', 1),
-                        start_episode,
-                        getattr(st, 'play_mode', 'sequence'),
-                        video_count
-                    )
+                    videos_to_use = self._select_series_videos(st, day_offset)
 
                     pos = series_start
                     actual_end = series_start

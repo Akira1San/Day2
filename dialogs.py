@@ -1284,8 +1284,8 @@ class SeriesDialog(BaseTagDialog):
         series_layout = QHBoxLayout()
         series_layout.addWidget(QLabel("Start Season:"))
         self.start_season_spin = QSpinBox()
-        self.start_season_spin.setMinimum(1)
-        self.start_season_spin.setValue(1)
+        self.start_season_spin.setMinimum(0)
+        self.start_season_spin.setValue(0)
         series_layout.addWidget(self.start_season_spin)
 
         series_layout.addWidget(QLabel("Start Episode:"))
@@ -1302,7 +1302,7 @@ class SeriesDialog(BaseTagDialog):
 
         series_layout.addWidget(QLabel("Play Mode:"))
         self.play_mode_combo = QComboBox()
-        self.play_mode_combo.addItems(["sequence", "random"])
+        self.play_mode_combo.addItems(["sequence", "season_sequence", "random"])
         series_layout.addWidget(self.play_mode_combo)
         
         series_layout.addStretch()
@@ -1491,7 +1491,7 @@ class SeriesConfigDialog(QDialog):
             self.play_mode_val = config.get('play_mode', 'sequence')
         else:
             self.collection_path_text = ''
-            self.start_season_val = 1
+            self.start_season_val = 0
             self.start_episode_val = 1
             self.video_count_val = 1
             self.play_mode_val = 'sequence'
@@ -1519,7 +1519,7 @@ class SeriesConfigDialog(QDialog):
         se_layout = QHBoxLayout()
         se_layout.addWidget(QLabel("Start Season:"))
         self.season_spin = QSpinBox()
-        self.season_spin.setMinimum(1)
+        self.season_spin.setMinimum(0)
         self.season_spin.setValue(self.start_season_val)
         se_layout.addWidget(self.season_spin)
         se_layout.addWidget(QLabel("Start Episode:"))
@@ -1538,7 +1538,7 @@ class SeriesConfigDialog(QDialog):
         vc_layout.addWidget(self.count_spin)
         vc_layout.addWidget(QLabel("Play Mode:"))
         self.play_mode_combo = QComboBox()
-        self.play_mode_combo.addItems(["sequence", "random"])
+        self.play_mode_combo.addItems(["sequence", "season_sequence", "random"])
         self.play_mode_combo.setCurrentText(self.play_mode_val)
         vc_layout.addWidget(self.play_mode_combo)
         layout.addLayout(vc_layout)
