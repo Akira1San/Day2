@@ -163,8 +163,16 @@ def qtime_to_minutes(qtime: QTime) -> int:
     return qtime.hour() * 60 + qtime.minute()
 
 
+def qtime_to_seconds(qtime: QTime) -> int:
+    return qtime.hour() * 3600 + qtime.minute() * 60 + qtime.second()
+
+
 def minutes_to_qtime(minutes: int) -> QTime:
     return QTime(minutes // 60, minutes % 60)
+
+
+def seconds_to_qtime(seconds: int) -> QTime:
+    return QTime(seconds // 3600, (seconds % 3600) // 60, seconds % 60)
 
 
 def get_video_display_name(video: Dict[str, Any]) -> str:

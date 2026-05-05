@@ -29,7 +29,7 @@ from PySide6.QtGui import QClipboard, QFont
 
 from utils import (
     load_collection_json, load_blacklist_json,
-    parse_series_episode, parse_videos_for_series, qtime_to_minutes,
+    parse_series_episode, parse_videos_for_series,
     get_video_display_name, format_duration, get_config_paths, filter_videos_by_blacklist,
     get_schedule_profiles
 )
@@ -304,15 +304,15 @@ class MainWindow(QMainWindow):
             current_date = start_date + __import__('datetime').timedelta(days=day_offset)
             day_name = days[current_date.weekday()]
             self.preview_list.addItem(f"=== {current_date} - {day_name} ===")
+            day_start_seconds = day_offset * 86400
+            day_end_seconds = day_start_seconds + 86400
             for entry in entries:
-                start_h = (entry.start_minutes // 60) % 24
-                start_m = entry.start_minutes % 60
-                end_h = (entry.end_minutes // 60) % 24
-                end_m = entry.end_minutes % 60
-                day_start = day_offset * 24 * 60
-                day_end = (day_offset + 1) * 24 * 60
-                if entry.start_minutes >= day_start and entry.start_minutes < day_end:
-                    if entry.start_minutes == day_start:
+                if entry.start_seconds >= day_start_seconds and entry.start_seconds < day_end_seconds:
+                    start_h = (entry.start_seconds // 3600) % 24
+                    start_m = (entry.start_seconds % 3600) // 60
+                    end_h = (entry.end_seconds // 3600) % 24
+                    end_m = (entry.end_seconds % 3600) // 60
+                    if entry.start_seconds == day_start_seconds:
                         self.preview_list.addItem(f"Day {day_offset + 1}\n{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {entry.video_name}")
                     else:
                         self.preview_list.addItem(f"{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {entry.video_name}")
@@ -332,15 +332,15 @@ class MainWindow(QMainWindow):
             current_date = start_date + __import__('datetime').timedelta(days=day_offset)
             day_name = days[current_date.weekday()]
             self.preview_list.addItem(f"=== {current_date} - {day_name} ===")
+            day_start_seconds = day_offset * 86400
+            day_end_seconds = day_start_seconds + 86400
             for entry in entries:
-                start_h = (entry.start_minutes // 60) % 24
-                start_m = entry.start_minutes % 60
-                end_h = (entry.end_minutes // 60) % 24
-                end_m = entry.end_minutes % 60
-                day_start = day_offset * 24 * 60
-                day_end = (day_offset + 1) * 24 * 60
-                if entry.start_minutes >= day_start and entry.start_minutes < day_end:
-                    if entry.start_minutes == day_start:
+                if entry.start_seconds >= day_start_seconds and entry.start_seconds < day_end_seconds:
+                    start_h = (entry.start_seconds // 3600) % 24
+                    start_m = (entry.start_seconds % 3600) // 60
+                    end_h = (entry.end_seconds // 3600) % 24
+                    end_m = (entry.end_seconds % 3600) // 60
+                    if entry.start_seconds == day_start_seconds:
                         self.preview_list.addItem(f"Day {day_offset + 1}\n{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {entry.video_name}")
                     else:
                         self.preview_list.addItem(f"{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {entry.video_name}")
@@ -518,15 +518,17 @@ class MainWindow(QMainWindow):
             "calendar": {}
         }
 
-        def get_schedule_entries_for_day(entries, day_start_minutes: int, day_end_minutes: int):
+        def get_schedule_entries_for_day(entries, day_start_seconds: int, day_end_seconds: int):
             schedule_entries = []
             for entry in entries:
                 # Only include entries that start within this day's window
-                if entry.start_minutes < day_start_minutes or entry.start_minutes >= day_end_minutes:
+                if entry.start_seconds < day_start_seconds or entry.start_seconds >= day_end_seconds:
                     continue
-                start_h = (entry.start_minutes // 60) % 24
-                start_m = entry.start_minutes % 60
-                time_str = f"{start_h:02d}:{start_m:02d}:00"
+                secs = entry.start_seconds % 86400
+                h = secs // 3600
+                m = (secs % 3600) // 60
+                s = secs % 60
+                time_str = f"{h:02d}:{m:02d}:{s:02d}"
 
                 video_name = entry.video_name
 
@@ -585,8 +587,8 @@ class MainWindow(QMainWindow):
             day_name = days[current_date.weekday()]
             key = f"{date_str}_{day_name.lower()}"
 
-            day_start = day_offset * 24 * 60
-            day_end = day_start + 24 * 60
+            day_start = day_offset * 86400
+            day_end = day_start + 86400
             schedule_entries = get_schedule_entries_for_day(all_entries, day_start, day_end)
 
             schedule_data[save_key][key] = {

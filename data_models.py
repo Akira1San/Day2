@@ -190,11 +190,11 @@ class MultiSeriesTag(Tag):
             base += f" ({self.start_time.toString('HH:mm')}-{self.end_time.toString('HH:mm')})"
         return base
 
-    def calculate_schedule(self, start_time_minutes: int) -> List[ScheduleEntry]:
-        """Calculate contiguous episode schedule starting at given minute offset.
-        Returns list of ScheduleEntry objects with day=1 (absolute minutes)."""
+    def calculate_schedule(self, start_time_seconds: int) -> List[ScheduleEntry]:
+        """Calculate contiguous episode schedule starting at given second offset.
+        Returns list of ScheduleEntry objects with day=1 (absolute seconds)."""
         entries = []
-        pos = start_time_minutes
+        pos = start_time_seconds
 
         for series_config in self.series_list:
             collection_videos = series_config.get('collection_videos', [])
@@ -205,9 +205,9 @@ class MultiSeriesTag(Tag):
             series_name = series_config.get('name', 'Series')
 
             if not collection_videos:
-                # Add placeholder entry
-                entries.append(self._create_video_entry(pos, 60, series_name, self.name))
-                pos += 60
+                # Add placeholder entry (1 hour)
+                entries.append(self._create_video_entry(pos, 3600, series_name, self.name))
+                pos += 3600
                 continue
 
             # Determine videos to use, with season_sequence support
@@ -242,9 +242,9 @@ class MultiSeriesTag(Tag):
             for v in videos_to_use:
                 video = v['video']
                 video_name = get_video_display_name(video)
-                duration = int(video.get('duration', 90)) // 60
+                duration = int(video.get('duration', 90))
                 if duration < 1:
-                    duration = 1
+                    duration = 90
                 entries.append(self._create_video_entry(pos, duration, video_name, series_name))
                 pos += duration
 
@@ -306,25 +306,33 @@ class MultiSeriesTag(Tag):
 
 
 class ScheduleEntry:
-    def __init__(self, day: int, start_minutes: int, end_minutes: int, video_name: str):
+    def __init__(self, day: int, start_seconds: int, end_seconds: int, video_name: str):
         self.day = day
-        self.start_minutes = start_minutes
-        self.end_minutes = end_minutes
+        self.start_seconds = start_seconds
+        self.end_seconds = end_seconds
         self.video_name = video_name
 
-    def format_time(self, minutes: int, day: int) -> str:
-        hours = (minutes // 60) % 24
-        mins = minutes % 60
+    @property
+    def start_minutes(self) -> int:
+        return self.start_seconds // 60
+
+    @property
+    def end_minutes(self) -> int:
+        return self.end_seconds // 60
+
+    def format_time(self, seconds: int, day: int) -> str:
+        hours = (seconds // 3600) % 24
+        mins = (seconds % 3600) // 60
         return f"Day {day}\n{hours:02d}:{mins:02d}"
 
     def to_display_string(self) -> str:
-        start_day = (self.start_minutes // (24 * 60)) + 1
-        end_day = (self.end_minutes // (24 * 60)) + 1
-        start_h = (self.start_minutes // 60) % 24
-        start_m = self.start_minutes % 60
-        end_h = (self.end_minutes // 60) % 24
-        end_m = self.end_minutes % 60
-        if self.start_minutes < 24 * 60:
+        start_day = (self.start_seconds // (24 * 3600)) + 1
+        end_day = (self.end_seconds // (24 * 3600)) + 1
+        start_h = (self.start_seconds // 3600) % 24
+        start_m = (self.start_seconds % 3600) // 60
+        end_h = (self.end_seconds // 3600) % 24
+        end_m = (self.end_seconds % 3600) // 60
+        if self.start_seconds < 24 * 3600:
             return f"Day {start_day}\n{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {self.video_name}"
         elif start_day == end_day:
             return f"Day {start_day}\n{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {self.video_name}"
@@ -332,12 +340,12 @@ class ScheduleEntry:
             return f"Day {start_day} {start_h:02d}:{start_m:02d} - Day {end_day} {end_h:02d}:{end_m:02d} - {self.video_name}"
 
     def to_copy_string(self) -> str:
-        start_day = (self.start_minutes // (24 * 60)) + 1
-        end_day = (self.end_minutes // (24 * 60)) + 1
-        start_h = (self.start_minutes // 60) % 24
-        start_m = self.start_minutes % 60
-        end_h = (self.end_minutes // 60) % 24
-        end_m = self.end_minutes % 60
+        start_day = (self.start_seconds // (24 * 3600)) + 1
+        end_day = (self.end_seconds // (24 * 3600)) + 1
+        start_h = (self.start_seconds // 3600) % 24
+        start_m = (self.start_seconds % 3600) // 60
+        end_h = (self.end_seconds // 3600) % 24
+        end_m = (self.end_seconds % 3600) // 60
         if start_day == end_day:
             return f"Day {start_day} {start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {self.video_name}"
         return f"Day {start_day} {start_h:02d}:{start_m:02d} - Day {end_day} {end_h:02d}:{end_m:02d} - {self.video_name}"
