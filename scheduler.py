@@ -105,6 +105,8 @@ class ScheduleGenerator:
 
     def _place_tag_videos(self, ct, start: int, end: int, final: List[ScheduleEntry], day_offset: int = 0) -> int:
         """Place custom/series/multi-series tag videos into final schedule. Returns new current_pos."""
+        logger.debug(f"[PLACE] tag='{ct.name}' play_mode={getattr(ct,'play_mode','?')} day_offset={day_offset} is_series={getattr(ct,'is_series',False)} has_season={getattr(ct,'_has_season_tags',False)}")
+
         # Handle MultiSeriesTag
         if getattr(ct, 'is_multi_series', False):
             pos = start
@@ -145,12 +147,21 @@ class ScheduleGenerator:
 
         if ct.collection_videos:
             video_count = getattr(ct, 'video_count', 1)
-            videos = ct.collection_videos.copy()
+            is_series = getattr(ct, 'is_series', False)
+            play_mode = getattr(ct, 'play_mode', 'sequence')
+            has_season_tags = getattr(ct, '_has_season_tags', False)
 
-            # Series tag (single-series) with sequence mode: compute incrementing start_episode
-            if getattr(ct, 'is_series', False):
+            # Series tag with season_sequence: use correct flat-ordered selection
+            if is_series and play_mode == 'season_sequence' and has_season_tags:
+                logger.debug(f"[PLACE]   -> using _select_series_videos for season_sequence")
+                videos_to_use = self._select_series_videos(ct, day_offset)
+                ordered_videos = [v['video'] for v in videos_to_use]
+                logger.debug(f"[PLACE]   selected {len(videos_to_use)} videos: {[(v.get('_meta_season'), v.get('_parsed_episode')) for v in videos_to_use]}")
+            elif is_series:
+                # Regular sequence/random with wrap-around of start_episode
                 base_start_episode = getattr(ct, 'start_episode', 1)
                 raw_episode = base_start_episode + (day_offset * video_count)
+                videos = ct.collection_videos.copy()
                 total_episodes = len(videos)
                 if total_episodes > 0:
                     start_episode = ((raw_episode - 1) % total_episodes) + 1
@@ -160,13 +171,13 @@ class ScheduleGenerator:
                     videos,
                     getattr(ct, 'start_season', 1),
                     start_episode,
-                    getattr(ct, 'play_mode', 'sequence'),
+                    play_mode,
                     video_count
                 )
                 ordered_videos = [v['video'] for v in videos_to_use]
             else:
-                random.shuffle(videos)
-                ordered_videos = videos
+                random.shuffle(ct.collection_videos)
+                ordered_videos = ct.collection_videos.copy()
 
             pos = start
             vid_idx = 0
