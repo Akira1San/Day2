@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QFileDialog, QMessageBox, QWidget
 )
 from PySide6.QtCore import QTime
-from PySide6.QtGui import QFont
+
 
 from utils import (
     load_collection_json, load_blacklist_json,
@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 class BaseTagDialog(QDialog):
     def __init__(self, parent=None, tag: Optional[Tag] = None):
         super().__init__(parent)
+        self.tag = tag
         self.collection_videos = []
         self.blacklist = []
 
@@ -46,14 +47,7 @@ class BaseTagDialog(QDialog):
         self.end_time_edit.setTime(end_time)
         layout.addWidget(self.end_time_edit)
 
-    def _load_collection_to_list(self, file_path: str, list_widget: QListWidget):
-        collection_videos, _ = load_collection_json(file_path)
-        self.collection_videos = collection_videos
-        for video in collection_videos:
-            path = video.get('path', '')
-            duration = video.get('duration', 0)
-            display_name = get_video_display_name(video)
-            list_widget.addItem(f"{display_name} ({format_duration(duration)})")
+
 
 
 class TagDialog(BaseTagDialog):
@@ -310,7 +304,7 @@ class TagDialog(BaseTagDialog):
             video_name = item.text().split(' (')[0]
             for v in self.collection_videos:
                 if v.get('name', '') == video_name or v.get('path', '').split('/')[-1] == video_name:
-                    if v not in self.blacklist:
+                    if not any(b.get('path') == v.get('path') for b in self.blacklist):
                         self.blacklist.append(v.copy())
                     break
         self.added_videos = filter_videos_by_blacklist(self.added_videos, self.blacklist)
@@ -379,7 +373,7 @@ class TagDialog(BaseTagDialog):
                         break
                 if blacklist_data:
                     break
-            self.blacklist = blacklist_data
+
 
         for video in collection_videos:
             path = video.get('path', '')
@@ -387,6 +381,8 @@ class TagDialog(BaseTagDialog):
             video_data = {'path': path, 'duration': duration, 'name': get_video_display_name(video)}
             self.collection_videos.append(video_data)
             self.videos_list.addItem(f"{video_data['name']} ({format_duration(duration)})")
+            if load_blacklist and any(b.get('path') == path for b in blacklist_data):
+                self.blacklist.append(video_data)
 
         self.refresh_blacklist_list()
 
@@ -553,6 +549,7 @@ class TagDialog(BaseTagDialog):
 class RandomFillDialog(BaseTagDialog):
     def __init__(self, parent=None, tag: Optional[Tag] = None):
         super().__init__(parent, tag)
+        self.tag = tag
         self.setWindowTitle("Add Random Fill Tag" if not tag else "Edit Random Fill Tag")
         self.setModal(True)
         self.added_videos = []
@@ -920,9 +917,7 @@ class RandomFillDialog(BaseTagDialog):
                 if any(b.get('path') == path for b in blacklist_data):
                     self.blacklist.append(video_data)
             
-            for bl_video in blacklist_data:
-                if bl_video not in self.blacklist:
-                    self.blacklist.append(bl_video)
+
         else:
             for video in collection_videos:
                 path = video.get('path', '')
@@ -940,7 +935,7 @@ class RandomFillDialog(BaseTagDialog):
             for video in self.collection_videos:
                 path = video.get('path', '')
                 if not any(b.get('path') == path for b in self.blacklist) and video not in self.added_videos:
-                    self.added_videos.append(video)
+                    self.added_videos.append(video.copy())
             self.refresh_added_list()
 
     def on_video_selected(self, item):
@@ -969,7 +964,7 @@ class RandomFillDialog(BaseTagDialog):
             if video not in self.added_videos:
                 is_blacklisted = any(b.get('path') == video.get('path') for b in self.blacklist)
                 if not is_blacklisted:
-                    self.added_videos.append(video)
+                    self.added_videos.append(video.copy())
         self.refresh_added_list()
 
     def remove_selected_added(self):
@@ -987,8 +982,8 @@ class RandomFillDialog(BaseTagDialog):
             video_name = item.text().split(' (')[0]
             for v in self.collection_videos:
                 if v.get('path', '').split('/')[-1] == video_name:
-                    if v not in self.blacklist:
-                        self.blacklist.append(v)
+                    if not any(b.get('path') == v.get('path') for b in self.blacklist):
+                        self.blacklist.append(v.copy())
                     break
         self.refresh_added_list()
         self.refresh_blacklist_list()
@@ -1361,23 +1356,35 @@ class SeriesDialog(BaseTagDialog):
 
         blck_path = Path(blacklist_path)
         logger.debug(f"[DEBUG] load_available_profiles: blck_path={blck_path}, exists={blck_path.exists()}")
-        blacklist_files = set()
+        blacklist_files = {}
         if blck_path.exists():
             for ini_file in blck_path.glob("*_blacklist.ini"):
-                blacklist_files.add(ini_file.name)
+                name = ini_file.name
+                if name not in blacklist_files:
+                    blacklist_files[name] = str(ini_file.resolve())
             for ini_file in blck_path.glob("*blacklist*.ini"):
-                blacklist_files.add(ini_file.name)
+                name = ini_file.name
+                if name not in blacklist_files:
+                    blacklist_files[name] = str(ini_file.resolve())
             for ini_file in blck_path.glob("**/*_blacklist.ini"):
-                blacklist_files.add(ini_file.name)
+                name = ini_file.name
+                if name not in blacklist_files:
+                    blacklist_files[name] = str(ini_file.resolve())
             for ini_file in blck_path.glob("**/*blacklist*.ini"):
-                blacklist_files.add(ini_file.name)
-        
+                name = ini_file.name
+                if name not in blacklist_files:
+                    blacklist_files[name] = str(ini_file.resolve())
+
         for ini_file in Path('.').glob("*blacklist*.ini"):
-            blacklist_files.add(ini_file.name)
-        
+            name = ini_file.name
+            if name not in blacklist_files:
+                blacklist_files[name] = str(ini_file.resolve())
+
         logger.debug(f"[DEBUG] blacklist_files: {sorted(blacklist_files)}")
         for name in sorted(blacklist_files):
+            index = self.blacklist_profile_combo.count()
             self.blacklist_profile_combo.addItem(name)
+            self.blacklist_profile_combo.setItemData(index, blacklist_files[name])
 
     def collection_profile_selected(self, index):
         if index <= 0:
@@ -1400,16 +1407,25 @@ class SeriesDialog(BaseTagDialog):
             if collection_name in bl_name:
                 logger.debug(f"[DEBUG] found match at {i}")
                 self.blacklist_profile_combo.setCurrentIndex(i)
-                bl_file = Path(blacklist_path) / bl_name
-                if bl_file.exists():
-                    self.load_blacklist_file(str(bl_file))
+                bl_path = self.blacklist_profile_combo.itemData(i)
+                if bl_path and Path(bl_path).exists():
+                    self.load_blacklist_file(bl_path)
+                else:
+                    bl_file = Path(blacklist_path) / bl_name
+                    if bl_file.exists():
+                        self.load_blacklist_file(str(bl_file))
                 break
 
     def blacklist_profile_selected(self, index):
         if index <= 0:
             return
-        file_name = self.blacklist_profile_combo.currentText()
+        # Use stored full path from itemData; fallback to constructing from config path
+        bl_path = self.blacklist_profile_combo.itemData(index)
+        if bl_path and Path(bl_path).exists():
+            self.load_blacklist_file(bl_path)
+            return
         _, blacklist_path = get_config_paths()
+        file_name = self.blacklist_profile_combo.currentText()
         file_path = Path(blacklist_path) / file_name
         if file_path.exists():
             self.load_blacklist_file(str(file_path))
