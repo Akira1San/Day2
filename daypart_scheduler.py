@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import sys
+import json
 import configparser
 import logging
 from logging.handlers import RotatingFileHandler
@@ -34,7 +35,7 @@ from utils import (
     get_schedule_profiles
 )
 from models import Tag, ScheduleEntry, TagManager, ScheduleGenerator
-from dialogs import TagDialog, RandomFillDialog, SeriesDialog, ConfigDialog
+from dialogs import TagDialog, RandomFillDialog, SeriesDialog, ConfigDialog, SchedulePreviewDialog
 
 
 APPROXIMATE_THRESHOLD_MINUTES = 40
@@ -175,6 +176,11 @@ class MainWindow(QMainWindow):
         self.save_schedule_btn.setToolTip("Save schedule to file")
         self.save_schedule_btn.clicked.connect(self.save_schedule)
         bottom_btn_layout.addWidget(self.save_schedule_btn)
+
+        self.inspect_btn = QPushButton("Inspect")
+        self.inspect_btn.setToolTip("Preview saved schedule in separate window")
+        self.inspect_btn.clicked.connect(self.inspect_schedule)
+        bottom_btn_layout.addWidget(self.inspect_btn)
 
         self.schedule_profile_combo = QComboBox()
         self.schedule_profile_combo.setEditable(True)
@@ -604,6 +610,33 @@ class MainWindow(QMainWindow):
 
         QMessageBox.information(self, "Saved", f"Schedule saved to {file_path}")
         self.statusBar().showMessage(f"Schedule saved to {file_path}")
+
+    def inspect_schedule(self):
+        profile_name = self.schedule_profile_combo.currentText().strip()
+        if not profile_name:
+            QMessageBox.warning(self, "No Profile", "Please select or enter a schedule profile name.")
+            return
+
+        file_path = f"schedule_{profile_name}.json"
+        if not Path(file_path).exists():
+            QMessageBox.warning(self, "File Not Found", f"Schedule file '{file_path}' not found.\n\nSave the schedule first using 'Save Schedule'.")
+            return
+
+        try:
+            with open(file_path, 'r') as f:
+                schedule_data = json.load(f)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to load schedule file:\n{e}")
+            return
+
+        calendar_data = schedule_data.get("calendar", {})
+        if not calendar_data:
+            QMessageBox.information(self, "Empty Schedule", "No calendar schedule data found in this file.")
+            return
+
+        dialog = SchedulePreviewDialog(self, profile_name, calendar_data)
+        dialog.exec()
+
 
     def run_approximate(self):
         self.approximate_enabled = not self.approximate_enabled
