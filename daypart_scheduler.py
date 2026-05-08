@@ -178,7 +178,7 @@ class MainWindow(QMainWindow):
         bottom_btn_layout.addWidget(self.save_schedule_btn)
 
         self.inspect_btn = QPushButton("Inspect")
-        self.inspect_btn.setToolTip("Preview saved schedule in separate window")
+        self.inspect_btn.setToolTip("Browse and preview a saved schedule file")
         self.inspect_btn.clicked.connect(self.inspect_schedule)
         bottom_btn_layout.addWidget(self.inspect_btn)
 
@@ -612,15 +612,18 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"Schedule saved to {file_path}")
 
     def inspect_schedule(self):
-        profile_name = self.schedule_profile_combo.currentText().strip()
-        if not profile_name:
-            QMessageBox.warning(self, "No Profile", "Please select or enter a schedule profile name.")
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Schedule File",
+            "",
+            "JSON Files (*.json);;All Files (*)"
+        )
+        if not file_path:
             return
 
-        file_path = f"schedule_{profile_name}.json"
-        if not Path(file_path).exists():
-            QMessageBox.warning(self, "File Not Found", f"Schedule file '{file_path}' not found.\n\nSave the schedule first using 'Save Schedule'.")
-            return
+        profile_name = Path(file_path).stem
+        if profile_name.startswith("schedule_"):
+            profile_name = profile_name[9:]  # Strip "schedule_" prefix
 
         try:
             with open(file_path, 'r') as f:
