@@ -49,6 +49,7 @@ class MainWindow(QMainWindow):
         self.tag_manager = TagManager()
         self.schedule_generator = ScheduleGenerator(self.tag_manager)
         self.schedule_entries: List[ScheduleEntry] = []
+        self.last_generated_schedule = None
         self.approximate_enabled = False
         self.statusBar().showMessage("Approximate: OFF")
         self.setup_ui()
@@ -267,23 +268,22 @@ class MainWindow(QMainWindow):
 
     def refresh_preview(self):
         self.preview_list.clear()
+        mode = None
         if self.approximate_enabled:
             mode = self.approx_mode_combo.currentText().lower().replace("-", "_").replace(" ", "_")
             entries = self.schedule_generator.apply_approximate(mode=mode)
-            self.preview_title.setText(f"24-Hour Schedule Preview [APPROXIMATE {mode.upper()}]")
-            self.approx_btn.setText("APPROXIMATE ON")
-            self.approx_btn.setStyleSheet("background-color: #22c55e; color: white; font-weight: bold; padding: 10px 20px; border-radius: 6px;")
-            self.statusBar().showMessage("Approximate: ON")
         else:
             entries = self.schedule_generator.apply_custom_tags()
-            self.preview_title.setText("24-Hour Schedule Preview [Approximate OFF]")
-            self.approx_btn.setText("Approximate OFF")
-            self.approx_btn.setStyleSheet("background-color: #4a4a5e; color: #a0a0b0; font-weight: bold; padding: 10px 20px; border-radius: 6px;")
-            self.statusBar().showMessage("Approximate: OFF")
-        self.schedule_entries = entries
-
         for entry in entries:
             self.preview_list.addItem(entry.to_display_string())
+        self.schedule_entries = entries
+        # Store for potential save reuse
+        self.last_generated_schedule = {
+            'entries': entries,
+            'num_days': 1,
+            'approximate_enabled': self.approximate_enabled,
+            'mode': mode
+        }
 
     def generate_new_preview(self):
         self.tag_manager.clear_cache()
@@ -304,7 +304,19 @@ class MainWindow(QMainWindow):
         days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
         self.tag_manager.clear_cache()
-        entries = self.schedule_generator.apply_custom_tags(num_days=7) if not self.approximate_enabled else self.schedule_generator.apply_approximate(num_days=7)
+        mode = None
+        if not self.approximate_enabled:
+            entries = self.schedule_generator.apply_custom_tags(num_days=7)
+        else:
+            mode = self.approx_mode_combo.currentText().lower().replace("-", "_").replace(" ", "_")
+            entries = self.schedule_generator.apply_approximate(num_days=7, mode=mode)
+        # Store for save reuse
+        self.last_generated_schedule = {
+            'entries': entries,
+            'num_days': 7,
+            'approximate_enabled': self.approximate_enabled,
+            'mode': mode
+        }
 
         for day_offset in range(7):
             current_date = start_date + __import__('datetime').timedelta(days=day_offset)
@@ -332,7 +344,19 @@ class MainWindow(QMainWindow):
         days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
         self.tag_manager.clear_cache()
-        entries = self.schedule_generator.apply_custom_tags(num_days=30) if not self.approximate_enabled else self.schedule_generator.apply_approximate(num_days=30)
+        mode = None
+        if not self.approximate_enabled:
+            entries = self.schedule_generator.apply_custom_tags(num_days=30)
+        else:
+            mode = self.approx_mode_combo.currentText().lower().replace("-", "_").replace(" ", "_")
+            entries = self.schedule_generator.apply_approximate(num_days=30, mode=mode)
+        # Store for save reuse
+        self.last_generated_schedule = {
+            'entries': entries,
+            'num_days': 30,
+            'approximate_enabled': self.approximate_enabled,
+            'mode': mode
+        }
 
         for day_offset in range(30):
             current_date = start_date + __import__('datetime').timedelta(days=day_offset)
@@ -580,12 +604,32 @@ class MainWindow(QMainWindow):
             num_days = 1
             save_key = "calendar"
 
-        # Always regenerate full schedule for save to include all days (bypass preview cache)
-        if not self.approximate_enabled:
-            all_entries = self.schedule_generator.apply_custom_tags(use_cache=False, num_days=num_days)
-        else:
+        # Determine approximate mode if applicable
+        mode = None
+        if self.approximate_enabled:
             mode = self.approx_mode_combo.currentText().lower().replace("-", "_").replace(" ", "_")
-            all_entries = self.schedule_generator.apply_approximate(num_days=num_days, mode=mode)
+
+        # Check if we can reuse the last generated schedule (matches current settings)
+        reuse = False
+        if hasattr(self, 'last_generated_schedule') and self.last_generated_schedule:
+            ls = self.last_generated_schedule
+            if ls['num_days'] == num_days and ls['approximate_enabled'] == self.approximate_enabled:
+                if not self.approximate_enabled or (self.approximate_enabled and ls['mode'] == mode):
+                    all_entries = ls['entries']
+                    reuse = True
+
+        if not reuse:
+            if not self.approximate_enabled:
+                all_entries = self.schedule_generator.apply_custom_tags(use_cache=False, num_days=num_days)
+            else:
+                all_entries = self.schedule_generator.apply_approximate(num_days=num_days, mode=mode)
+            # Update last_generated_schedule with this fresh generation
+            self.last_generated_schedule = {
+                'entries': all_entries,
+                'num_days': num_days,
+                'approximate_enabled': self.approximate_enabled,
+                'mode': mode if self.approximate_enabled else None
+            }
 
         for day_offset in range(num_days):
             current_date = start_date + timedelta(days=day_offset)
@@ -660,6 +704,13 @@ class MainWindow(QMainWindow):
         self.preview_list.clear()
         for entry in self.schedule_entries:
             self.preview_list.addItem(entry.to_display_string())
+        # Store for save reuse
+        self.last_generated_schedule = {
+            'entries': self.schedule_entries,
+            'num_days': 1,
+            'approximate_enabled': self.approximate_enabled,
+            'mode': mode if self.approximate_enabled else None
+        }
 
     def save_single_tag(self):
         current_row = self.tags_list.currentRow()
