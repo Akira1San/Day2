@@ -986,6 +986,7 @@ class RandomFillDialog(BaseTagDialog):
                     if not any(b.get('path') == v.get('path') for b in self.blacklist):
                         self.blacklist.append(v.copy())
                     break
+        self.added_videos = filter_videos_by_blacklist(self.added_videos, self.blacklist)
         self.refresh_added_list()
         self.refresh_blacklist_list()
 
