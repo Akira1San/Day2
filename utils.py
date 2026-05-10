@@ -18,22 +18,33 @@ def load_collection_json(file_path: str) -> Tuple[List[Dict[str, Any]], Dict[str
             data = json.load(f)
 
         collections = data.get('collections', [])
-        if collections:
-            collection_info = collections[0]
-            for coll in collections:
-                coll_id = coll.get('id', '')
-                coll_tags = coll.get('tags', [])
-                series_name = _extract_tag_value(coll_tags, 'Series:')
-                season_str = _extract_tag_value(coll_tags, 'Season:')
-                season = None
-                if season_str and season_str.isdigit():
-                    season = int(season_str)
-                for video in coll.get('videos', []):
-                    video_copy = video.copy()
-                    video_copy['collection_id'] = coll_id
-                    video_copy['_meta_series'] = series_name
-                    video_copy['_meta_season'] = season
-                    collection_videos.append(video_copy)
+        # Build mapping: collection_id -> collection_info
+        collection_info = {}
+        for coll in collections:
+            coll_id = coll.get('id', '')
+            if coll_id:
+                collection_info[coll_id] = {
+                    'name': coll.get('name', ''),
+                    'cover': coll.get('cover', ''),
+                    'description': coll.get('description', ''),
+                    'genre': coll.get('genre', []),
+                    'year': coll.get('year', '')
+                }
+
+        for coll in collections:
+            coll_id = coll.get('id', '')
+            coll_tags = coll.get('tags', [])
+            series_name = _extract_tag_value(coll_tags, 'Series:')
+            season_str = _extract_tag_value(coll_tags, 'Season:')
+            season = None
+            if season_str and season_str.isdigit():
+                season = int(season_str)
+            for video in coll.get('videos', []):
+                video_copy = video.copy()
+                video_copy['collection_id'] = coll_id
+                video_copy['_meta_series'] = series_name
+                video_copy['_meta_season'] = season
+                collection_videos.append(video_copy)
     except Exception:
         pass
 
@@ -225,3 +236,17 @@ def get_randomfill_config(config_file: str = "config.ini") -> bool:
     except Exception:
         pass
     return False
+
+
+def get_covers_path(config_file: str = "config.ini") -> Optional[Path]:
+    """Read covers_path from [Paths] section. Returns None if not set."""
+    try:
+        config = configparser.ConfigParser()
+        config.read(config_file)
+        if 'Paths' in config:
+            p = config['Paths'].get('covers_path', '').strip()
+            if p:
+                return Path(p)
+    except Exception:
+        pass
+    return None

@@ -11,14 +11,14 @@ from PySide6.QtWidgets import (
     QFileDialog, QMessageBox, QWidget, QScrollArea
 )
 from PySide6.QtCore import QTime, Qt
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QPixmap
 
 
 from utils import (
     load_collection_json, load_blacklist_json,
     qtime_to_minutes, get_video_display_name, format_duration,
     get_config_paths, filter_videos_by_blacklist, get_schedule_profiles,
-    parse_videos_for_series, get_randomfill_config
+    parse_videos_for_series, get_randomfill_config, get_covers_path
 )
 from models import Tag, MultiSeriesTag
 
@@ -361,7 +361,7 @@ class TagDialog(BaseTagDialog):
             self.load_collection(file_path)
 
     def load_collection(self, file_path: str, load_blacklist: bool = True):
-        collection_videos, collection_info = load_collection_json(file_path)
+        collection_videos, collection_info_dict = load_collection_json(file_path)
         self.collection_path.setText(file_path)
         self.videos_list.clear()
         self.collection_videos = []
@@ -372,11 +372,11 @@ class TagDialog(BaseTagDialog):
 
         collection_dir = Path(file_path).parent
         collection_stem = Path(file_path).stem
-
-        blacklist_data = []
+        
         if load_blacklist:
+            blacklist_data = []
             blacklist_patterns = [f"{collection_stem}_blacklist.*", f"{collection_stem.replace('collections_', '')}_blacklist.*"]
-            for search_dir in [collection_dir, Path.cwd()]:
+            for search_dir in [self.collection_dir, Path.cwd()]:
                 for pattern in blacklist_patterns:
                     for bl_file in search_dir.glob(pattern):
                         blacklist_data = load_blacklist_json(str(bl_file))
@@ -385,16 +385,51 @@ class TagDialog(BaseTagDialog):
                         break
                 if blacklist_data:
                     break
+        
+        # Get a default collection info (first one) for display
+        default_coll_info = None
+        if self.collection_info_dict:
+            default_coll_info = next(iter(self.collection_info_dict.values()))
+        
+        self.info_name.setText(f"Name: {default_coll_info.get('name', '-') if default_coll_info else '-'}")
+        self.info_desc.setText(f"Description: {default_coll_info.get('description', '-') if default_coll_info else '-'}")
+        self.info_genre.setText(f"Genre: {', '.join(default_coll_info.get('genre', [])) if default_coll_info else '-'}")
+        self.info_year.setText(f"Year: {default_coll_info.get('year', '-') if default_coll_info else '-'}")
+        self._display_cover_image(None)  # Clear cover initially
+        
+        if load_blacklist:
+            for i, video in enumerate(collection_videos):
+                path = video.get('path', '')
+                duration = video.get('duration', 0)
+                # Preserve collection_id and other metadata
+                video_data = video.copy()
+                if i == 0:
+                    print(f"[DEBUG] Raw first video keys: {list(video.keys())}")
+                    print(f"[DEBUG] Raw first video collection_id: '{video.get('collection_id','MISSING')}'")
+                if 'name' not in video_data:
+                    video_data['name'] = get_video_display_name(video)
+                self.collection_videos.append(video_data)
+                self.videos_list.addItem(f"{video_data['name']} ({format_duration(duration)})")
+                if i == 0:
+                    print(f"[DEBUG] After copy, collection_id: '{video_data.get('collection_id','MISSING')}'")
+                if any(b.get('path') == path for b in blacklist_data):
+                    self.blacklist.append(video_data)
 
-
-        for video in collection_videos:
-            path = video.get('path', '')
-            duration = video.get('duration', 0)
-            video_data = {'path': path, 'duration': duration, 'name': get_video_display_name(video)}
-            self.collection_videos.append(video_data)
-            self.videos_list.addItem(f"{video_data['name']} ({format_duration(duration)})")
-            if load_blacklist and any(b.get('path') == path for b in blacklist_data):
-                self.blacklist.append(video_data)
+        else:
+            for i, video in enumerate(collection_videos):
+                path = video.get('path', '')
+                duration = video.get('duration', 0)
+                # Preserve collection_id and other metadata
+                video_data = video.copy()
+                if i == 0:
+                    print(f"[DEBUG] [else branch] Raw first video keys: {list(video.keys())}")
+                    print(f"[DEBUG] [else branch] Raw first video collection_id: '{video.get('collection_id','MISSING')}'")
+                if 'name' not in video_data:
+                    video_data['name'] = get_video_display_name(video)
+                self.collection_videos.append(video_data)
+                self.videos_list.addItem(f"{video_data['name']} ({format_duration(duration)})")
+                if load_blacklist and any(b.get('path') == path for b in blacklist_data):
+                    self.blacklist.append(video_data)
 
         self.refresh_blacklist_list()
 
@@ -568,6 +603,19 @@ class RandomFillDialog(BaseTagDialog):
         self.blacklist_path = ""
         self.collection_profile = ""
         self.blacklist_profile = ""
+        self.collection_info_dict = {}
+        self.collection_dir = Path('.')
+        # Determine covers root: use configured covers_path if set, else AkiraTV root
+        try:
+            collection_path, _ = get_config_paths()
+            covers_cfg = get_covers_path()
+            if covers_cfg:
+                self.covers_root = covers_cfg
+            else:
+                # Fallback: AkiraTV root (two levels up from collections dir)
+                self.covers_root = Path(collection_path).parent.parent
+        except Exception:
+            self.covers_root = Path('.')
         self.setup_ui()
         self.load_available_profiles()
         
@@ -607,6 +655,13 @@ class RandomFillDialog(BaseTagDialog):
         info_panel = QWidget()
         info_layout = QVBoxLayout(info_panel)
         info_layout.addWidget(QLabel("<b>Collection Info</b>"))
+        
+        # Cover image first, fixed size
+        self.info_cover = QLabel("Cover:")
+        self.info_cover.setFixedSize(200, 280)
+        self.info_cover.setAlignment(Qt.AlignCenter)
+        self.info_cover.setStyleSheet("border: 1px solid gray;")
+        info_layout.addWidget(self.info_cover)
         
         self.info_name = QLabel("Name: -")
         info_layout.addWidget(self.info_name)
@@ -888,22 +943,29 @@ class RandomFillDialog(BaseTagDialog):
             self.load_blacklist_file(str(file_path))
 
     def load_collection(self, file_path: str, load_blacklist: bool = True):
-        collection_videos, collection_info = load_collection_json(file_path)
+        collection_videos, collection_info_dict = load_collection_json(file_path)
+        print(f"[DEBUG] load_collection: file={file_path}")
+        print(f"[DEBUG] collection_info_dict keys: {list(collection_info_dict.keys())}")
         self.collection_path.setText(file_path)
         self.videos_list.clear()
         self.collection_videos = []
         self.added_videos = []
-        
+
+        # Store collection info dict and base directory for cover image resolution
+        self.collection_info_dict = collection_info_dict
+        self.collection_dir = Path(file_path).parent
+        print(f"[DEBUG] collection_dir set to: {self.collection_dir}")
+
         if load_blacklist:
             self.blacklist = []
-        
-        collection_dir = Path(file_path).parent
+
         collection_stem = Path(file_path).stem
+        # ... rest remains same
         
         if load_blacklist:
             blacklist_data = []
             blacklist_patterns = [f"{collection_stem}_blacklist.*", f"{collection_stem.replace('collections_', '')}_blacklist.*"]
-            for search_dir in [collection_dir, Path.cwd()]:
+            for search_dir in [self.collection_dir, Path.cwd()]:
                 for pattern in blacklist_patterns:
                     for bl_file in search_dir.glob(pattern):
                         blacklist_data = load_blacklist_json(str(bl_file))
@@ -913,19 +975,29 @@ class RandomFillDialog(BaseTagDialog):
                 if blacklist_data:
                     break
         
-        self.info_name.setText(f"Name: {collection_info.get('name', '-')}")
-        self.info_desc.setText(f"Description: {collection_info.get('description', '-')}")
-        self.info_genre.setText(f"Genre: {', '.join(collection_info.get('genre', []))}")
-        self.info_year.setText(f"Year: {collection_info.get('year', '-')}")
+        # Get a default collection info (first one) for display
+        default_coll_info = None
+        if self.collection_info_dict:
+            default_coll_info = next(iter(self.collection_info_dict.values()))
+        
+        self.info_name.setText(f"Name: {default_coll_info.get('name', '-') if default_coll_info else '-'}")
+        self.info_desc.setText(f"Description: {default_coll_info.get('description', '-') if default_coll_info else '-'}")
+        self.info_genre.setText(f"Genre: {', '.join(default_coll_info.get('genre', [])) if default_coll_info else '-'}")
+        self.info_year.setText(f"Year: {default_coll_info.get('year', '-') if default_coll_info else '-'}")
+        self._display_cover_image(None)  # Clear cover initially
         
         if load_blacklist:
-            for video in collection_videos:
+            for i, video in enumerate(collection_videos):
                 path = video.get('path', '')
                 duration = video.get('duration', 0)
-                video_data = {'path': path, 'duration': duration, 'name': get_video_display_name(video)}
+                # Preserve collection_id and other metadata
+                video_data = video.copy()
+                if 'name' not in video_data:
+                    video_data['name'] = get_video_display_name(video)
                 self.collection_videos.append(video_data)
                 self.videos_list.addItem(f"{video_data['name']} ({format_duration(duration)})")
-                
+                if i == 0:
+                    print(f"[DEBUG] First video: name={video_data['name']}, collection_id={video.get('collection_id','MISSING')}")
                 if any(b.get('path') == path for b in blacklist_data):
                     self.blacklist.append(video_data)
             
@@ -934,7 +1006,9 @@ class RandomFillDialog(BaseTagDialog):
             for video in collection_videos:
                 path = video.get('path', '')
                 duration = video.get('duration', 0)
-                video_data = {'path': path, 'duration': duration, 'name': get_video_display_name(video)}
+                video_data = video.copy()
+                if 'name' not in video_data:
+                    video_data['name'] = get_video_display_name(video)
                 self.collection_videos.append(video_data)
                 self.videos_list.addItem(f"{video_data['name']} ({format_duration(duration)})")
         
@@ -956,6 +1030,45 @@ class RandomFillDialog(BaseTagDialog):
             video = self.collection_videos[row]
             info = f"Name: {video.get('name', '-')}\nPath: {video.get('path', '-')}\nDuration: {int(video.get('duration', 0))}s"
             self.video_info.setText(info)
+            # Show cover image for this video's collection
+            coll_id = video.get('collection_id', '')
+            print(f"[DEBUG] Selected video: {video.get('name')}, collection_id='{coll_id}'")
+            print(f"[DEBUG] Available collection IDs: {list(self.collection_info_dict.keys())}")
+            coll_info = self.collection_info_dict.get(coll_id, {})
+            cover_path = coll_info.get('cover', '')
+            print(f"[DEBUG] Cover path from collection info: '{cover_path}'")
+            self._display_cover_image(cover_path)
+
+    def _display_cover_image(self, cover_path: Optional[str]):
+        """Display cover image in the info panel. Resolves cover paths relative to configured covers root."""
+        print(f"[DEBUG] _display_cover_image called with: '{cover_path}'")
+        print(f"[DEBUG] covers_root: {self.covers_root}")
+        if not cover_path:
+            self.info_cover.setText("Cover:\n(No cover)")
+            self.info_cover.setPixmap(QPixmap())  # clear any previous pixmap
+            return
+        
+        # If absolute path, use directly; else resolve relative to covers root
+        cover_full = Path(cover_path)
+        if not cover_full.is_absolute():
+            cover_full = self.covers_root / cover_path
+        
+        print(f"[DEBUG] Resolved full path: {cover_full}")
+        print(f"[DEBUG] Path exists: {cover_full.exists()}")
+        if cover_full.exists():
+            pixmap = QPixmap(str(cover_full))
+            print(f"[DEBUG] Pixmap isNull: {pixmap.isNull()}")
+            if not pixmap.isNull():
+                # Scale to fixed size (200x280) keeping aspect ratio
+                scaled = pixmap.scaled(200, 280, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                self.info_cover.setPixmap(scaled)
+                # Do NOT call setText, that clears the pixmap
+            else:
+                self.info_cover.setText("Cover:\n(invalid image)")
+                self.info_cover.setPixmap(QPixmap())
+        else:
+            self.info_cover.setText(f"Cover:\n{cover_path}\n(not found)")
+            self.info_cover.setPixmap(QPixmap())
 
     def select_all_videos(self):
         self.videos_list.selectAll()
@@ -1160,6 +1273,17 @@ class ConfigDialog(QDialog):
         blacklist_layout.addWidget(browse_bl_btn)
         layout.addLayout(blacklist_layout)
 
+        layout.addWidget(QLabel("Covers Path (optional):"))
+        covers_layout = QHBoxLayout()
+        self.covers_path_edit = QLineEdit()
+        self.covers_path_edit.setPlaceholderText("Leave empty to use default")
+        covers_layout.addWidget(self.covers_path_edit)
+        
+        browse_cov_btn = QPushButton("Browse")
+        browse_cov_btn.clicked.connect(self.browse_covers_path)
+        covers_layout.addWidget(browse_cov_btn)
+        layout.addLayout(covers_layout)
+
         layout.addWidget(QLabel("Schedule Profiles (comma-separated names):"))
         self.schedule_profiles_edit = QLineEdit()
         self.schedule_profiles_edit.setPlaceholderText("akiratv, superman, horror")
@@ -1188,6 +1312,11 @@ class ConfigDialog(QDialog):
         if path:
             self.blacklist_path_edit.setText(path)
 
+    def browse_covers_path(self):
+        path = QFileDialog.getExistingDirectory(self, "Select Covers Directory", "")
+        if path:
+            self.covers_path_edit.setText(path)
+
     def load_config(self):
         if Path(self.config_path).exists():
             config = configparser.ConfigParser()
@@ -1195,6 +1324,7 @@ class ConfigDialog(QDialog):
             if 'Paths' in config:
                 self.collection_path_edit.setText(config['Paths'].get('collection_path', ''))
                 self.blacklist_path_edit.setText(config['Paths'].get('blacklist_path', ''))
+                self.covers_path_edit.setText(config['Paths'].get('covers_path', ''))
             if 'ScheduleProfiles' in config:
                 self.schedule_profiles_edit.setText(config['ScheduleProfiles'].get('profiles', ''))
             if 'RandomFill' in config:
@@ -1205,7 +1335,8 @@ class ConfigDialog(QDialog):
         config = configparser.ConfigParser()
         config['Paths'] = {
             'collection_path': self.collection_path_edit.text(),
-            'blacklist_path': self.blacklist_path_edit.text()
+            'blacklist_path': self.blacklist_path_edit.text(),
+            'covers_path': self.covers_path_edit.text()
         }
         profiles = self.schedule_profiles_edit.text().strip()
         if profiles:
