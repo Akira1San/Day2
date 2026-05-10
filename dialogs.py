@@ -313,11 +313,20 @@ class TagDialog(BaseTagDialog):
         self.refresh_blacklist_list()
 
     def remove_from_blacklist(self):
-        for item in self.blacklist_list.selectedItems():
-            row = self.blacklist_list.row(item)
-            if 0 <= row < len(self.blacklist):
-                self.blacklist.pop(row)
-        self.added_videos = filter_videos_by_blacklist(self.added_videos, self.blacklist)
+        selected_items = self.blacklist_list.selectedItems()
+        if not selected_items:
+            return
+        # Collect paths of videos to remove from blacklist
+        paths_to_remove = {item.data(Qt.UserRole) for item in selected_items}
+        # Find the corresponding video dicts in blacklist
+        removed_videos = [v for v in self.blacklist if v.get('path') in paths_to_remove]
+        # Update blacklist
+        self.blacklist = [v for v in self.blacklist if v.get('path') not in paths_to_remove]
+        # Add back to added_videos if not already present
+        existing_paths = {v.get('path') for v in self.added_videos}
+        for v in removed_videos:
+            if v.get('path') not in existing_paths:
+                self.added_videos.append(v)
         self.refresh_added_list()
         self.refresh_blacklist_list()
 
@@ -332,7 +341,9 @@ class TagDialog(BaseTagDialog):
         self.blacklist_list.clear()
         sorted_blacklist = sorted(self.blacklist, key=lambda v: v.get('path', '').split('/')[-1])
         for video in sorted_blacklist:
-            self.blacklist_list.addItem(get_video_display_name(video))
+            item = QListWidgetItem(get_video_display_name(video))
+            item.setData(Qt.UserRole, video.get('path', ''))
+            self.blacklist_list.addItem(item)
         self.update_counts()
 
     def update_counts(self):
@@ -991,10 +1002,21 @@ class RandomFillDialog(BaseTagDialog):
         self.refresh_blacklist_list()
 
     def remove_from_blacklist(self):
-        for item in self.blacklist_list.selectedItems():
-            row = self.blacklist_list.row(item)
-            if 0 <= row < len(self.blacklist):
-                self.blacklist.pop(row)
+        selected_items = self.blacklist_list.selectedItems()
+        if not selected_items:
+            return
+        # Collect paths of videos to remove from blacklist
+        paths_to_remove = {item.data(Qt.UserRole) for item in selected_items}
+        # Find the corresponding video dicts in blacklist
+        removed_videos = [v for v in self.blacklist if v.get('path') in paths_to_remove]
+        # Update blacklist
+        self.blacklist = [v for v in self.blacklist if v.get('path') not in paths_to_remove]
+        # Add back to added_videos if not already present
+        existing_paths = {v.get('path') for v in self.added_videos}
+        for v in removed_videos:
+            if v.get('path') not in existing_paths:
+                self.added_videos.append(v)
+        self.refresh_added_list()
         self.refresh_blacklist_list()
 
     def refresh_added_list(self):
@@ -1008,7 +1030,9 @@ class RandomFillDialog(BaseTagDialog):
         self.blacklist_list.clear()
         sorted_blacklist = sorted(self.blacklist, key=lambda v: v.get('path', '').split('/')[-1])
         for video in sorted_blacklist:
-            self.blacklist_list.addItem(get_video_display_name(video))
+            item = QListWidgetItem(get_video_display_name(video))
+            item.setData(Qt.UserRole, video.get('path', ''))
+            self.blacklist_list.addItem(item)
         self.update_counts()
 
     def update_counts(self):
