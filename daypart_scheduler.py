@@ -62,7 +62,7 @@ class MainWindow(QMainWindow):
         main_layout = QHBoxLayout(central)
 
         self.tags_panel = QWidget()
-        self.tags_panel.setFixedWidth(400)
+        self.tags_panel.setFixedWidth(500)
         tags_layout = QVBoxLayout(self.tags_panel)
 
         tags_title = QLabel("Daypart Tags")
@@ -149,8 +149,42 @@ class MainWindow(QMainWindow):
         scroll.setWidget(self.preview_list)
         preview_layout.addWidget(scroll)
 
-        bottom_btn_layout = QHBoxLayout()
+        # Initialize combo boxes before layout
+        self.schedule_profile_combo = QComboBox()
+        self.schedule_profile_combo.setEditable(True)
+        self.load_schedule_profiles()
+
+        self.approx_mode_combo = QComboBox()
+        self.approx_mode_combo.addItems(["Linear", "Find-Replace", "Early Fill", "Late Fill", "Priority", "Best Fit", "Round Robin", "Linear Spanning", "Exhaustive"])
+        self.approx_mode_combo.setToolTip("Approximate algorithm mode")
+        self.approx_mode_combo.setFixedWidth(120)
+
+        # Initialize buttons before layout
+        self.copy_btn = QPushButton("Copy")
+        self.copy_btn.setToolTip("Copy preview to clipboard")
+        self.copy_btn.clicked.connect(self.copy_preview)
+
+        self.generate_btn = QPushButton("Generate")
+        self.generate_btn.setToolTip("Generate preview based on radio selection")
+        self.generate_btn.clicked.connect(self.generate_new_preview)
+
+        self.save_schedule_btn = QPushButton("Save Schedule")
+        self.save_schedule_btn.setToolTip("Save schedule to file")
+        self.save_schedule_btn.clicked.connect(self.save_schedule)
+
+        self.inspect_btn = QPushButton("Inspect")
+        self.inspect_btn.setToolTip("Browse and preview a saved schedule file")
+        self.inspect_btn.clicked.connect(self.inspect_schedule)
+
+        self.approx_btn = QPushButton("Approximate OFF")
+        self.approx_btn.setToolTip("Toggle approximate scheduling mode")
+        self.approx_btn.setStyleSheet("background-color: #4a4a5e; color: #a0a0b0; font-weight: bold; padding: 10px 20px; border-radius: 6px;")
+        self.approx_btn.clicked.connect(self.run_approximate)
+
+        bottom_btn_layout = QVBoxLayout()
         
+        # First row: view options and profile
+        row1_layout = QHBoxLayout()
         self.view_group = QButtonGroup(self)
         self.daily_radio = QRadioButton("Daily")
         self.daily_radio.setChecked(True)
@@ -159,49 +193,25 @@ class MainWindow(QMainWindow):
         self.view_group.addButton(self.daily_radio)
         self.view_group.addButton(self.weekly_radio)
         self.view_group.addButton(self.monthly_radio)
-        bottom_btn_layout.addWidget(self.daily_radio)
-        bottom_btn_layout.addWidget(self.weekly_radio)
-        bottom_btn_layout.addWidget(self.monthly_radio)
+        row1_layout.addWidget(self.daily_radio)
+        row1_layout.addWidget(self.weekly_radio)
+        row1_layout.addWidget(self.monthly_radio)
         
-        self.copy_btn = QPushButton("Copy")
-        self.copy_btn.setToolTip("Copy preview to clipboard")
-        self.copy_btn.clicked.connect(self.copy_preview)
-        bottom_btn_layout.addWidget(self.copy_btn)
-
-        self.generate_btn = QPushButton("Generate")
-        self.generate_btn.setToolTip("Generate preview based on radio selection")
-        self.generate_btn.clicked.connect(self.generate_new_preview)
-        bottom_btn_layout.addWidget(self.generate_btn)
-
-        self.save_schedule_btn = QPushButton("Save Schedule")
-        self.save_schedule_btn.setToolTip("Save schedule to file")
-        self.save_schedule_btn.clicked.connect(self.save_schedule)
-        bottom_btn_layout.addWidget(self.save_schedule_btn)
-
-        self.inspect_btn = QPushButton("Inspect")
-        self.inspect_btn.setToolTip("Browse and preview a saved schedule file")
-        self.inspect_btn.clicked.connect(self.inspect_schedule)
-        bottom_btn_layout.addWidget(self.inspect_btn)
-
-        self.schedule_profile_combo = QComboBox()
-        self.schedule_profile_combo.setEditable(True)
-        self.load_schedule_profiles()
-        bottom_btn_layout.addWidget(QLabel("Profile:"))
-        bottom_btn_layout.addWidget(self.schedule_profile_combo)
-
-        bottom_btn_layout.addStretch()
-
-        self.approx_mode_combo = QComboBox()
-        self.approx_mode_combo.addItems(["Linear", "Find-Replace", "Early Fill", "Late Fill", "Priority", "Best Fit", "Round Robin", "Linear Spanning", "Exhaustive"])
-        self.approx_mode_combo.setToolTip("Approximate algorithm mode")
-        self.approx_mode_combo.setFixedWidth(120)
-        bottom_btn_layout.addWidget(self.approx_mode_combo)
-
-        self.approx_btn = QPushButton("Approximate OFF")
-        self.approx_btn.setToolTip("Toggle approximate scheduling mode")
-        self.approx_btn.setStyleSheet("background-color: #4a4a5e; color: #a0a0b0; font-weight: bold; padding: 10px 20px; border-radius: 6px;")
-        self.approx_btn.clicked.connect(self.run_approximate)
-        bottom_btn_layout.addWidget(self.approx_btn)
+        row1_layout.addWidget(QLabel("Profile:"))
+        row1_layout.addWidget(self.schedule_profile_combo)
+        row1_layout.addStretch()
+        bottom_btn_layout.addLayout(row1_layout)
+        
+        # Second row: action buttons and approximate controls
+        row2_layout = QHBoxLayout()
+        row2_layout.addWidget(self.copy_btn)
+        row2_layout.addWidget(self.generate_btn)
+        row2_layout.addWidget(self.save_schedule_btn)
+        row2_layout.addWidget(self.inspect_btn)
+        row2_layout.addStretch()
+        row2_layout.addWidget(self.approx_mode_combo)
+        row2_layout.addWidget(self.approx_btn)
+        bottom_btn_layout.addLayout(row2_layout)
 
         preview_layout.addLayout(bottom_btn_layout)
 
