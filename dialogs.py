@@ -219,18 +219,22 @@ class TagDialog(BaseTagDialog):
             add_btn = QPushButton("Add >>")
             add_btn.clicked.connect(self.add_selected_videos)
             btn_layout.addWidget(add_btn)
-        else:
-            remove_btn = QPushButton("<< Remove")
-            remove_btn.clicked.connect(self.remove_selected_added)
-            btn_layout.addWidget(remove_btn)
+         else:
+             remove_btn = QPushButton("<< Remove")
+             remove_btn.clicked.connect(self.remove_selected_added)
+             btn_layout.addWidget(remove_btn)
 
-            remove_all_btn = QPushButton("Remove All")
-            remove_all_btn.clicked.connect(self.remove_all_added)
-            btn_layout.addWidget(remove_all_btn)
+             remove_all_btn = QPushButton("Remove All")
+             remove_all_btn.clicked.connect(self.remove_all_added)
+             btn_layout.addWidget(remove_all_btn)
 
-            blacklist_btn = QPushButton("Add to Blacklist >>")
-            blacklist_btn.clicked.connect(self.add_to_blacklist)
-            btn_layout.addWidget(blacklist_btn)
+             clear_sel_btn = QPushButton("Clear Selection")
+             clear_sel_btn.clicked.connect(self.clear_selection)
+             btn_layout.addWidget(clear_sel_btn)
+
+             blacklist_btn = QPushButton("Add to Blacklist >>")
+             blacklist_btn.clicked.connect(self.add_to_blacklist)
+             btn_layout.addWidget(blacklist_btn)
 
         vbox.addLayout(btn_layout)
 
@@ -256,6 +260,10 @@ class TagDialog(BaseTagDialog):
         remove_blacklist_btn.clicked.connect(self.remove_from_blacklist)
         btn_layout.addWidget(remove_blacklist_btn)
 
+        clear_sel_btn = QPushButton("Clear Selection")
+        clear_sel_btn.clicked.connect(self.clear_blacklist_selection)
+        btn_layout.addWidget(clear_sel_btn)
+
         load_blacklist_btn = QPushButton("Load")
         load_blacklist_btn.clicked.connect(self.load_blacklist_file)
         btn_layout.addWidget(load_blacklist_btn)
@@ -278,29 +286,32 @@ class TagDialog(BaseTagDialog):
             info = f"Name: {video.get('name', '-')}\nPath: {video.get('path', '-')}\nDuration: {int(video.get('duration', 0))}s"
             self.video_info.setText(info)
 
-    def select_all_videos(self):
-        self.videos_list.selectAll()
+     def select_all_videos(self):
+         self.videos_list.selectAll()
 
-    def clear_selection(self):
-        self.videos_list.clearSelection()
+     def clear_selection(self):
+         self.videos_list.clearSelection()
 
-    def add_selected_videos(self):
-        for item in self.videos_list.selectedItems():
-            row = self.videos_list.row(item)
-            if 0 <= row < len(self.collection_videos):
-                video = self.collection_videos[row]
-            else:
-                text = item.text()
-                video_name = text.split(' (')[0]
-                video = {'name': video_name}
+     def clear_blacklist_selection(self):
+         self.blacklist_list.clearSelection()
 
-            if video not in self.added_videos:
-                is_blacklisted = any(b.get('path') == video.get('path') for b in self.blacklist)
-                if not is_blacklisted:
-                    self.added_videos.append(video.copy())
-        self.refresh_added_list()
+     def add_selected_videos(self):
+         for item in self.videos_list.selectedItems():
+             row = self.videos_list.row(item)
+             if 0 <= row < len(self.collection_videos):
+                 video = self.collection_videos[row]
+             else:
+                 text = item.text()
+                 video_name = text.split(' (')[0]
+                 video = {'name': video_name}
+             
+             if video not in self.added_videos:
+                 is_blacklisted = any(b.get('path') == video.get('path') for b in self.blacklist)
+                 if not is_blacklisted:
+                     self.added_videos.append(video.copy())
+         self.refresh_added_list()
 
-    def remove_selected_added(self):
+     def remove_selected_added(self):
         for item in self.added_list.selectedItems():
             video_name = item.text().split(' (')[0]
             self.added_videos = [v for v in self.added_videos if v.get('name', '') != video_name]
@@ -310,19 +321,19 @@ class TagDialog(BaseTagDialog):
         self.added_videos = []
         self.refresh_added_list()
 
-    def add_to_blacklist(self):
-        for item in self.added_list.selectedItems():
-            video_name = item.text().split(' (')[0]
-            for v in self.collection_videos:
-                if v.get('name', '') == video_name or v.get('path', '').split('/')[-1] == video_name:
-                    if not any(b.get('path') == v.get('path') for b in self.blacklist):
-                        self.blacklist.append(v.copy())
-                    break
-        self.added_videos = filter_videos_by_blacklist(self.added_videos, self.blacklist)
-        self.refresh_added_list()
-        self.refresh_blacklist_list()
+     def add_to_blacklist(self):
+         for item in self.added_list.selectedItems():
+             video_name = item.text().split(' (')[0]
+             for v in self.collection_videos:
+                 if v.get('name', '') == video_name or v.get('path', '').split('/')[-1] == video_name:
+                     if not any(b.get('path') == v.get('path') for b in self.blacklist):
+                         self.blacklist.append(v.copy())
+                     break
+          self.added_videos = filter_videos_by_blacklist(self.added_videos, self.blacklist)
+          self.refresh_added_list()
+          self.refresh_blacklist_list()
 
-    def remove_from_blacklist(self):
+      def remove_from_blacklist(self):
         selected_items = self.blacklist_list.selectedItems()
         if not selected_items:
             return
@@ -807,18 +818,22 @@ class RandomFillDialog(BaseTagDialog):
             add_btn = QPushButton("Add >>")
             add_btn.clicked.connect(self.add_selected_videos)
             btn_layout.addWidget(add_btn)
-        else:
-            remove_btn = QPushButton("<< Remove")
-            remove_btn.clicked.connect(self.remove_selected_added)
-            btn_layout.addWidget(remove_btn)
-            
-            remove_all_btn = QPushButton("Remove All")
-            remove_all_btn.clicked.connect(self.remove_all_added)
-            btn_layout.addWidget(remove_all_btn)
-            
-            blacklist_btn = QPushButton("Add to Blacklist >>")
-            blacklist_btn.clicked.connect(self.add_to_blacklist)
-            btn_layout.addWidget(blacklist_btn)
+         else:
+             remove_btn = QPushButton("<< Remove")
+             remove_btn.clicked.connect(self.remove_selected_added)
+             btn_layout.addWidget(remove_btn)
+             
+             remove_all_btn = QPushButton("Remove All")
+             remove_all_btn.clicked.connect(self.remove_all_added)
+             btn_layout.addWidget(remove_all_btn)
+             
+             clear_sel_btn = QPushButton("Clear Selection")
+             clear_sel_btn.clicked.connect(self.clear_selection)
+             btn_layout.addWidget(clear_sel_btn)
+             
+             blacklist_btn = QPushButton("Add to Blacklist >>")
+             blacklist_btn.clicked.connect(self.add_to_blacklist)
+             btn_layout.addWidget(blacklist_btn)
         
         vbox.addLayout(btn_layout)
         
@@ -843,6 +858,10 @@ class RandomFillDialog(BaseTagDialog):
         remove_blacklist_btn = QPushButton("<< Remove")
         remove_blacklist_btn.clicked.connect(self.remove_from_blacklist)
         btn_layout.addWidget(remove_blacklist_btn)
+
+        clear_sel_btn = QPushButton("Clear Selection")
+        clear_sel_btn.clicked.connect(self.clear_blacklist_selection)
+        btn_layout.addWidget(clear_sel_btn)
         
         load_blacklist_btn = QPushButton("Load")
         load_blacklist_btn.clicked.connect(self.load_blacklist_file)
@@ -1115,15 +1134,18 @@ class RandomFillDialog(BaseTagDialog):
                 self.info_cover.setPixmap(QPixmap())
         else:
             self.info_cover.setText(f"Cover:\n{cover_path}\n(not found)")
-            self.info_cover.setPixmap(QPixmap())
+             self.info_cover.setPixmap(QPixmap())
 
-    def select_all_videos(self):
-        self.videos_list.selectAll()
+     def select_all_videos(self):
+         self.videos_list.selectAll()
 
-    def clear_selection(self):
-        self.videos_list.clearSelection()
+     def clear_selection(self):
+         self.videos_list.clearSelection()
 
-    def add_selected_videos(self):
+     def clear_blacklist_selection(self):
+         self.blacklist_list.clearSelection()
+
+     def add_selected_videos(self):
         for item in self.videos_list.selectedItems():
             row = self.videos_list.row(item)
             if 0 <= row < len(self.collection_videos):
