@@ -742,10 +742,12 @@ class RandomFillDialog(BaseTagDialog):
         added_widget = self._create_video_list_section("Added Videos", False)
         self.added_list = added_widget.videos_list
         self.added_count_label = added_widget.count_label
+        self.added_list.itemClicked.connect(self.on_added_video_selected)
         
         blacklist_widget = self._create_blacklist_section()
         self.blacklist_list = blacklist_widget.blacklist_list
         self.blacklist_count_label = blacklist_widget.count_label
+        self.blacklist_list.itemClicked.connect(self.on_blacklist_video_selected)
         
         lists_inner.addWidget(collection_widget.widget)
         lists_inner.addWidget(added_widget.widget)
@@ -1046,6 +1048,43 @@ class RandomFillDialog(BaseTagDialog):
             coll_info = self.collection_info_dict.get(coll_id, {})
             cover_path = coll_info.get('cover', '')
             print(f"[DEBUG] Cover path from collection info: '{cover_path}'")
+            self._display_cover_image(cover_path)
+
+    def on_added_video_selected(self, item):
+        row = self.added_list.row(item)
+        if 0 <= row < len(self.added_videos):
+            video = self.added_videos[row]
+            info = f"Name: {video.get('name', '-')}\nPath: {video.get('path', '-')}\nDuration: {int(video.get('duration', 0))}s"
+            self.video_info.setText(info)
+            # Show cover image for this video's collection
+            coll_id = video.get('collection_id', '')
+            if not coll_id:
+                path = video.get('path', '')
+                for v in self.collection_videos:
+                    if v.get('path', '') == path:
+                        coll_id = v.get('collection_id', '')
+                        break
+            coll_info = self.collection_info_dict.get(coll_id, {})
+            cover_path = coll_info.get('cover', '')
+            self._display_cover_image(cover_path)
+
+    def on_blacklist_video_selected(self, item):
+        row = self.blacklist_list.row(item)
+        if 0 <= row < len(self.blacklist):
+            video = self.blacklist[row]
+            info = f"Name: {video.get('name', '-')}\nPath: {video.get('path', '-')}\nDuration: {int(video.get('duration', 0))}s"
+            self.video_info.setText(info)
+            # Show cover image for this video's collection
+            coll_id = video.get('collection_id', '')
+            if not coll_id:
+                # Try to find collection_id from collection_videos by matching path
+                path = video.get('path', '')
+                for v in self.collection_videos:
+                    if v.get('path', '') == path:
+                        coll_id = v.get('collection_id', '')
+                        break
+            coll_info = self.collection_info_dict.get(coll_id, {})
+            cover_path = coll_info.get('cover', '')
             self._display_cover_image(cover_path)
 
     def _display_cover_image(self, cover_path: Optional[str]):
