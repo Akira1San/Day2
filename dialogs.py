@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QFileDialog, QMessageBox, QWidget, QScrollArea
 )
 from PySide6.QtCore import QTime, Qt
-from PySide6.QtGui import QFont, QPixmap
+from PySide6.QtGui import QFont, QPixmap, QMouseEvent
 
 
 from utils import (
@@ -23,6 +23,17 @@ from utils import (
 from models import Tag, MultiSeriesTag
 
 logger = logging.getLogger(__name__)
+
+
+class VideoListWidget(QListWidget):
+    """List widget with ExtendedSelection: plain click selects one, Ctrl toggles, Shift ranges."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setSelectionMode(QListWidget.ExtendedSelection)
+
+
+
+
 
 
 class BaseTagDialog(QDialog):
@@ -189,10 +200,9 @@ class TagDialog(BaseTagDialog):
         count_label = QLabel("Count: 0")
         vbox.addWidget(count_label)
 
-        videos_list = QListWidget()
+        videos_list = VideoListWidget()
         videos_list.setMinimumHeight(200)
         if with_buttons:
-            videos_list.setSelectionMode(QListWidget.MultiSelection)
             videos_list.itemClicked.connect(self.on_video_selected)
         vbox.addWidget(videos_list)
 
@@ -774,10 +784,9 @@ class RandomFillDialog(BaseTagDialog):
         count_label = QLabel("Count: 0")
         vbox.addWidget(count_label)
         
-        videos_list = QListWidget()
+        videos_list = VideoListWidget()
         videos_list.setMinimumHeight(200)
         if with_buttons:
-            videos_list.setSelectionMode(QListWidget.MultiSelection)
             videos_list.itemClicked.connect(self.on_video_selected)
         vbox.addWidget(videos_list)
         
