@@ -247,7 +247,7 @@ class TagDialog(BaseTagDialog):
         count_label = QLabel("Count: 0")
         vbox.addWidget(count_label)
 
-        blacklist_list = QListWidget()
+        blacklist_list = VideoListWidget()
         blacklist_list.setMinimumHeight(200)
         vbox.addWidget(blacklist_list)
 
@@ -344,7 +344,9 @@ class TagDialog(BaseTagDialog):
         sorted_added = sorted(self.added_videos, key=lambda v: v.get('path', '').split('/')[-1])
         self.added_list.clear()
         for video in sorted_added:
-            self.added_list.addItem(f"{get_video_display_name(video)} ({format_duration(video.get('duration', 0))})")
+            item = QListWidgetItem(f"{get_video_display_name(video)} ({format_duration(video.get('duration', 0))})")
+            item.setData(Qt.UserRole, video.get('path', ''))
+            self.added_list.addItem(item)
         self.update_counts()
 
     def refresh_blacklist_list(self):
@@ -833,7 +835,7 @@ class RandomFillDialog(BaseTagDialog):
         count_label = QLabel("Count: 0")
         vbox.addWidget(count_label)
         
-        blacklist_list = QListWidget()
+        blacklist_list = VideoListWidget()
         blacklist_list.setMinimumHeight(200)
         vbox.addWidget(blacklist_list)
         
@@ -1051,15 +1053,14 @@ class RandomFillDialog(BaseTagDialog):
             self._display_cover_image(cover_path)
 
     def on_added_video_selected(self, item):
-        row = self.added_list.row(item)
-        if 0 <= row < len(self.added_videos):
-            video = self.added_videos[row]
+        path = item.data(Qt.UserRole)
+        video = next((v for v in self.added_videos if v.get('path') == path), None)
+        if video:
             info = f"Name: {video.get('name', '-')}\nPath: {video.get('path', '-')}\nDuration: {int(video.get('duration', 0))}s"
             self.video_info.setText(info)
             # Show cover image for this video's collection
             coll_id = video.get('collection_id', '')
             if not coll_id:
-                path = video.get('path', '')
                 for v in self.collection_videos:
                     if v.get('path', '') == path:
                         coll_id = v.get('collection_id', '')
@@ -1069,16 +1070,14 @@ class RandomFillDialog(BaseTagDialog):
             self._display_cover_image(cover_path)
 
     def on_blacklist_video_selected(self, item):
-        row = self.blacklist_list.row(item)
-        if 0 <= row < len(self.blacklist):
-            video = self.blacklist[row]
+        path = item.data(Qt.UserRole)
+        video = next((v for v in self.blacklist if v.get('path') == path), None)
+        if video:
             info = f"Name: {video.get('name', '-')}\nPath: {video.get('path', '-')}\nDuration: {int(video.get('duration', 0))}s"
             self.video_info.setText(info)
             # Show cover image for this video's collection
             coll_id = video.get('collection_id', '')
             if not coll_id:
-                # Try to find collection_id from collection_videos by matching path
-                path = video.get('path', '')
                 for v in self.collection_videos:
                     if v.get('path', '') == path:
                         coll_id = v.get('collection_id', '')
@@ -1184,7 +1183,9 @@ class RandomFillDialog(BaseTagDialog):
         sorted_added = sorted(self.added_videos, key=lambda v: v.get('path', '').split('/')[-1])
         self.added_list.clear()
         for video in sorted_added:
-            self.added_list.addItem(f"{get_video_display_name(video)} ({format_duration(video.get('duration', 0))})")
+            item = QListWidgetItem(f"{get_video_display_name(video)} ({format_duration(video.get('duration', 0))})")
+            item.setData(Qt.UserRole, video.get('path', ''))
+            self.added_list.addItem(item)
         self.update_counts()
 
     def refresh_blacklist_list(self):
