@@ -252,8 +252,11 @@ def get_covers_path(config_file: str = "config.ini") -> Optional[Path]:
     return None
 
 
-def extract_movie_sequence_key(path: str) -> Tuple[int, int]:
-    """Extract (movie_number, part_number) from filename.
+def extract_movie_sequence_key(video_or_path) -> Tuple[int, int]:
+    """Extract (movie_number, part_number) from a video dict or path string.
+    
+    If given a dict, tries 'name' field first, then falls back to 'path'.
+    If given a string, treats it as a path.
     
     Patterns matched (in order of precedence):
     1. Explicit movie/film markers: "Movie 1", "Film 1" -> movie from marker
@@ -264,8 +267,17 @@ def extract_movie_sequence_key(path: str) -> Tuple[int, int]:
     
     Returns: (movie_num, part_num) with defaults (1, 0)
     """
-    # Strip extension to avoid matching digits like in "mp4"
-    name = Path(path).stem
+    # Determine source string
+    if isinstance(video_or_path, dict):
+        name = video_or_path.get('name', '')
+        if not name:
+            name = video_or_path.get('path', '')
+    else:
+        name = str(video_or_path)
+    
+    # Strip extension if this looks like a file path
+    if '/' in name or ('.' in name and '\\' not in name):
+        name = Path(name).stem
     
     # 1. Check for explicit movie/film markers
     movie_match = re.search(r'(?:movie|film)\s*(\d+)', name, re.IGNORECASE)
@@ -322,8 +334,7 @@ def group_videos_by_movie(videos: List[Dict]) -> Dict[int, List[Dict]]:
     
     groups = {}
     for v in unique_videos:
-        path = v.get('path', '')
-        movie_num, part_num = extract_movie_sequence_key(path)
+        movie_num, part_num = extract_movie_sequence_key(v)
         groups.setdefault(movie_num, []).append((part_num, v))
     
     result = {}

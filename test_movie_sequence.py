@@ -15,23 +15,23 @@ def test_extract_movie_sequence_key():
     print("\n=== Testing extract_movie_sequence_key ===")
     
     test_cases = [
-        ("Movie 1 Part 1.mp4", (1, 1)),
-        ("Movie 1 Part 2.mp4", (1, 2)),
-        ("Movie 2 Part 1.mp4", (2, 1)),
-        ("Film 3 x1.mp4", (3, 1)),  # "Film 3" with multiplier x1
-        ("1 - Video Name.mp4", (1, 0)),  # Leading number only
-        ("2x03 - Episode.mp4", (2, 3)),  # Two number groups: 2x03
-        ("S01E02.mp4", (1, 2)),  # Season/Episode format
-        ("NoNumbersHere.mkv", (1, 0)),  # Default
-        ("Movie 10 Part 5.mp4", (10, 5)),
-        ("Part 7.mp4", (7, 0)),  # Only "Part 7"
+        ({'name': 'Movie 1 Part 1', 'path': 'Movie 1 Part 1.mp4'}, (1, 1)),
+        ({'name': 'Movie 1 Part 2', 'path': 'Movie 1 Part 2.mp4'}, (1, 2)),
+        ({'name': 'Movie 2 Part 1', 'path': 'Movie 2 Part 1.mp4'}, (2, 1)),
+        ({'name': 'Film 3 x1',      'path': 'Film 3 x1.mp4'},      (3, 1)),
+        ({'name': '1 - Video Name', 'path': '1 - Video Name.mp4'}, (1, 0)),
+        ({'name': '2x03 - Episode', 'path': '2x03 - Episode.mp4'}, (2, 3)),
+        ({'name': 'S01E02',         'path': 'S01E02.mp4'},         (1, 2)),
+        ({'name': 'NoNumbersHere',  'path': 'NoNumbersHere.mkv'},  (1, 0)),
+        ({'name': 'Movie 10 Part 5','path': 'Movie 10 Part 5.mp4'},(10, 5)),
+        ({'name': 'Part 7',         'path': 'Part 7.mp4'},         (7, 0)),
     ]
     
-    for filename, expected in test_cases:
-        result = extract_movie_sequence_key(filename)
+    for video, expected in test_cases:
+        result = extract_movie_sequence_key(video)
         status = "✓" if result == expected else "✗"
-        print(f"  {status} {filename:30s} -> {result} (expected {expected})")
-        assert result == expected, f"Failed for {filename}: got {result}, expected {expected}"
+        print(f"  {status} {video['name']:30s} -> {result} (expected {expected})")
+        assert result == expected, f"Failed for {video['name']}: got {result}, expected {expected}"
     
     print("All extract_movie_sequence_key tests passed!")
 
@@ -41,14 +41,14 @@ def test_group_videos_by_movie():
     print("\n=== Testing group_videos_by_movie ===")
     
     videos = [
-        {'id': 1, 'path': '/movies/Movie 1 Part 1.mp4', 'duration': 90},
-        {'id': 2, 'path': '/movies/Movie 1 Part 2.mp4', 'duration': 95},
-        {'id': 3, 'path': '/movies/Movie 2 Part 1.mp4', 'duration': 100},
-        {'id': 4, 'path': '/movies/Movie 2 Part 2.mp4', 'duration': 105},
-        {'id': 5, 'path': '/movies/Movie 2 Part 3.mp4', 'duration': 110},
-        {'id': 6, 'path': '/movies/Movie 3.mp4', 'duration': 120},
+        {'id': 1, 'name': 'Movie 1 Part 1', 'path': '/movies/Movie 1 Part 1.mp4', 'duration': 90},
+        {'id': 2, 'name': 'Movie 1 Part 2', 'path': '/movies/Movie 1 Part 2.mp4', 'duration': 95},
+        {'id': 3, 'name': 'Movie 2 Part 1', 'path': '/movies/Movie 2 Part 1.mp4', 'duration': 100},
+        {'id': 4, 'name': 'Movie 2 Part 2', 'path': '/movies/Movie 2 Part 2.mp4', 'duration': 105},
+        {'id': 5, 'name': 'Movie 2 Part 3', 'path': '/movies/Movie 2 Part 3.mp4', 'duration': 110},
+        {'id': 6, 'name': 'Movie 3',        'path': '/movies/Movie 3.mp4',       'duration': 120},
         # Duplicate by id (id=1) - should be filtered out
-        {'id': 1, 'path': '/movies/Movie 1 Part 1 (copy).mp4', 'duration': 90},
+        {'id': 1, 'name': 'Movie 1 Part 1 copy', 'path': '/movies/Movie 1 Part 1 (copy).mp4', 'duration': 90},
     ]
     
     groups = group_videos_by_movie(videos)
@@ -57,7 +57,7 @@ def test_group_videos_by_movie():
     for movie_num, group_videos in groups.items():
         print(f"    Movie {movie_num}: {len(group_videos)} videos")
         for v in group_videos:
-            print(f"      - id={v.get('id')} {v['path'].split('/')[-1]}")
+            print(f"      - id={v.get('id')} name={v.get('name')}")
     
     assert len(groups) == 3, f"Expected 3 movie groups, got {len(groups)}"
     assert 1 in groups and len(groups[1]) == 2, "Movie 1 should have 2 unique parts"
@@ -80,11 +80,11 @@ def test_get_videos_for_day():
     print("\n=== Testing _get_videos_for_day ===")
     
     videos = [
-        {'path': '/movies/Movie 1 Part 1.mp4', 'duration': 90},
-        {'path': '/movies/Movie 1 Part 2.mp4', 'duration': 95},
-        {'path': '/movies/Movie 2 Part 1.mp4', 'duration': 100},
-        {'path': '/movies/Movie 2 Part 2.mp4', 'duration': 105},
-        {'path': '/movies/Movie 3 Part 1.mp4', 'duration': 120},
+        {'id': 1, 'name': 'Movie 1 Part 1', 'path': '/movies/Movie 1 Part 1.mp4', 'duration': 90},
+        {'id': 2, 'name': 'Movie 1 Part 2', 'path': '/movies/Movie 1 Part 2.mp4', 'duration': 95},
+        {'id': 3, 'name': 'Movie 2 Part 1', 'path': '/movies/Movie 2 Part 1.mp4', 'duration': 100},
+        {'id': 4, 'name': 'Movie 2 Part 2', 'path': '/movies/Movie 2 Part 2.mp4', 'duration': 105},
+        {'id': 5, 'name': 'Movie 3 Part 1', 'path': '/movies/Movie 3 Part 1.mp4', 'duration': 120},
     ]
     
     tag_manager = TagManager()
@@ -108,19 +108,19 @@ def test_get_videos_for_day():
     for day in range(5):
         vids = gen._get_videos_for_day(videos, day)
         seq_results.append(vids)
-        movie_nums = [extract_movie_sequence_key(v['path'])[0] for v in vids]
+        movie_nums = [extract_movie_sequence_key(v)[0] for v in vids]
         print(f"  Movie Sequence, day {day}: movies={movie_nums}")
     
     # Day 0 -> Movie 1 (all parts)
-    assert all(extract_movie_sequence_key(v['path'])[0] == 1 for v in seq_results[0])
+    assert all(extract_movie_sequence_key(v)[0] == 1 for v in seq_results[0])
     # Day 1 -> Movie 2
-    assert all(extract_movie_sequence_key(v['path'])[0] == 2 for v in seq_results[1])
+    assert all(extract_movie_sequence_key(v)[0] == 2 for v in seq_results[1])
     # Day 2 -> Movie 3
-    assert all(extract_movie_sequence_key(v['path'])[0] == 3 for v in seq_results[2])
+    assert all(extract_movie_sequence_key(v)[0] == 3 for v in seq_results[2])
     # Day 3 -> wraps to Movie 1
-    assert all(extract_movie_sequence_key(v['path'])[0] == 1 for v in seq_results[3])
+    assert all(extract_movie_sequence_key(v)[0] == 1 for v in seq_results[3])
     # Day 4 -> wraps to Movie 2
-    assert all(extract_movie_sequence_key(v['path'])[0] == 2 for v in seq_results[4])
+    assert all(extract_movie_sequence_key(v)[0] == 2 for v in seq_results[4])
     
     print("All _get_videos_for_day tests passed!")
 
@@ -130,12 +130,12 @@ def test_build_random_entries_movie_sequence():
     print("\n=== Testing _build_random_entries (movie_sequence) ===")
     
     videos = [
-        {'path': '/movies/Movie 1 Part 1.mp4', 'duration': 90},
-        {'path': '/movies/Movie 1 Part 2.mp4', 'duration': 90},
-        {'path': '/movies/Movie 2 Part 1.mp4', 'duration': 90},
-        {'path': '/movies/Movie 2 Part 2.mp4', 'duration': 90},
-        {'path': '/movies/Movie 2 Part 3.mp4', 'duration': 90},
-        {'path': '/movies/Movie 3 Part 1.mp4', 'duration': 90},
+        {'id': 1, 'name': 'Movie 1 Part 1', 'path': '/movies/Movie 1 Part 1.mp4', 'duration': 90},
+        {'id': 2, 'name': 'Movie 1 Part 2', 'path': '/movies/Movie 1 Part 2.mp4', 'duration': 90},
+        {'id': 3, 'name': 'Movie 2 Part 1', 'path': '/movies/Movie 2 Part 1.mp4', 'duration': 90},
+        {'id': 4, 'name': 'Movie 2 Part 2', 'path': '/movies/Movie 2 Part 2.mp4', 'duration': 90},
+        {'id': 5, 'name': 'Movie 2 Part 3', 'path': '/movies/Movie 2 Part 3.mp4', 'duration': 90},
+        {'id': 6, 'name': 'Movie 3 Part 1', 'path': '/movies/Movie 3 Part 1.mp4', 'duration': 90},
     ]
     
     tag_manager = TagManager()
@@ -162,11 +162,12 @@ def test_build_random_entries_movie_sequence():
     day0_movies = set()
     for e in day0_entries:
         name = e.video_name
-        if "Movie 1" in name or "Part 1" in name:
+        # Extract from "RandomFill - Movie 1 Part 1.mp4"
+        if "Movie 1" in name:
             day0_movies.add(1)
-        elif "Movie 2" in name or "Part 2" in name:
+        elif "Movie 2" in name:
             day0_movies.add(2)
-        elif "Movie 3" in name or "Part 3" in name:
+        elif "Movie 3" in name:
             day0_movies.add(3)
     
     print(f"  Day 0 unique movie numbers: {day0_movies}")
@@ -194,10 +195,10 @@ def test_custom_tag_movie_sequence():
     print("\n=== Testing custom tag with movie_sequence ===")
     
     videos = [
-        {'path': '/movies/Movie 1 Part 1.mp4', 'duration': 90},
-        {'path': '/movies/Movie 1 Part 2.mp4', 'duration': 90},
-        {'path': '/movies/Movie 2 Part 1.mp4', 'duration': 90},
-        {'path': '/movies/Movie 2 Part 2.mp4', 'duration': 90},
+        {'id': 1, 'name': 'Movie 1 Part 1', 'path': '/movies/Movie 1 Part 1.mp4', 'duration': 90},
+        {'id': 2, 'name': 'Movie 1 Part 2', 'path': '/movies/Movie 1 Part 2.mp4', 'duration': 90},
+        {'id': 3, 'name': 'Movie 2 Part 1', 'path': '/movies/Movie 2 Part 1.mp4', 'duration': 90},
+        {'id': 4, 'name': 'Movie 2 Part 2', 'path': '/movies/Movie 2 Part 2.mp4', 'duration': 90},
     ]
     
     tag_manager = TagManager()
@@ -228,9 +229,9 @@ def test_custom_tag_movie_sequence():
     # Should contain only Movie 1 parts (since day_offset=0 picks movie 1)
     movie_nums = set()
     for e in entries:
-        path = e.video_name.split(" - ")[-1] if " - " in e.video_name else e.video_name
-        # Need to extract from display name... entries created via _create_video_entry
-        movie_num = extract_movie_sequence_key(path)[0]
+        # Entry created via _create_video_entry includes tag name prefix: "Movies - ..."
+        vid_name = e.video_name.split(" - ")[-1] if " - " in e.video_name else e.video_name
+        movie_num = extract_movie_sequence_key({'name': vid_name, 'path': vid_name})[0]
         movie_nums.add(movie_num)
     
     print(f"  Movie numbers used: {movie_nums}")
