@@ -53,6 +53,7 @@ class MainWindow(QMainWindow):
         self.approximate_enabled = False
         self.statusBar().showMessage("Approximate: OFF")
         self.setup_ui()
+        self.schedule_generator.video_order_mode = "random"
         self.load_default_tags()
         self.refresh_preview()
 
@@ -199,6 +200,13 @@ class MainWindow(QMainWindow):
         
         row1_layout.addWidget(QLabel("Profile:"))
         row1_layout.addWidget(self.schedule_profile_combo)
+        row1_layout.addWidget(QLabel("Video Order:"))
+        self.video_order_combo = QComboBox()
+        self.video_order_combo.addItems(["Random", "Movie Sequence"])
+        self.video_order_combo.setToolTip("Global video ordering mode for non-series tags")
+        self.video_order_combo.setFixedWidth(150)
+        self.video_order_combo.currentIndexChanged.connect(self._on_video_order_changed)
+        row1_layout.addWidget(self.video_order_combo)
         row1_layout.addStretch()
         bottom_btn_layout.addLayout(row1_layout)
         
@@ -297,6 +305,7 @@ class MainWindow(QMainWindow):
 
     def generate_new_preview(self):
         self.tag_manager.clear_cache()
+        self.schedule_generator.video_order_mode = self.video_order_combo.currentText().lower().replace(" ", "_")
         
         if self.weekly_radio.isChecked():
             self.generate_weekly_preview()
@@ -314,6 +323,7 @@ class MainWindow(QMainWindow):
         days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
         self.tag_manager.clear_cache()
+        self.schedule_generator.video_order_mode = self.video_order_combo.currentText().lower().replace(" ", "_")
         mode = None
         if not self.approximate_enabled:
             entries = self.schedule_generator.apply_custom_tags(num_days=7)
@@ -354,6 +364,7 @@ class MainWindow(QMainWindow):
         days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
         self.tag_manager.clear_cache()
+        self.schedule_generator.video_order_mode = self.video_order_combo.currentText().lower().replace(" ", "_")
         mode = None
         if not self.approximate_enabled:
             entries = self.schedule_generator.apply_custom_tags(num_days=30)
@@ -698,6 +709,7 @@ class MainWindow(QMainWindow):
     def run_approximate(self):
         self.approximate_enabled = not self.approximate_enabled
         self.tag_manager.clear_cache()
+        self.schedule_generator.video_order_mode = self.video_order_combo.currentText().lower().replace(" ", "_")
         mode = self.approx_mode_combo.currentText().lower().replace("-", "_").replace(" ", "_")
         if self.approximate_enabled:
             self.schedule_entries = self.schedule_generator.apply_approximate(mode=mode)
@@ -719,8 +731,14 @@ class MainWindow(QMainWindow):
             'entries': self.schedule_entries,
             'num_days': 1,
             'approximate_enabled': self.approximate_enabled,
-            'mode': mode if self.approximate_enabled else None
-        }
+             'mode': mode if self.approximate_enabled else None
+         }
+
+    def _on_video_order_changed(self):
+        mode_text = self.video_order_combo.currentText().lower().replace(" ", "_")
+        self.schedule_generator.video_order_mode = mode_text
+        self.tag_manager.clear_cache()
+        self.refresh_preview()
 
     def save_single_tag(self):
         current_row = self.tags_list.currentRow()

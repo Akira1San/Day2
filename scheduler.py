@@ -15,6 +15,8 @@ from utils import (
     qtime_to_seconds,
     get_video_display_name,
     parse_videos_for_series,
+    group_videos_by_movie,
+    extract_movie_sequence_key,
 )
 from data_models import Tag, MultiSeriesTag, ScheduleEntry, TagManager
 from strategies import (
@@ -36,6 +38,7 @@ logger = logging.getLogger(__name__)
 class ScheduleGenerator:
     def __init__(self, tag_manager: TagManager):
         self.tag_manager = tag_manager
+        self.video_order_mode = "random"  # "random" | "movie_sequence"
 
     def _create_video_entry(self, pos: int, duration: int, name: str, tag_name: str = "") -> ScheduleEntry:
         video_name = f"{tag_name} - {name}" if tag_name else name
@@ -102,6 +105,34 @@ class ScheduleGenerator:
                 video_count
             )
             return videos_to_use
+
+    def _get_videos_for_day(self, videos: List[dict], day_offset: int) -> List[dict]:
+        """Select videos according to global video_order_mode for a given day.
+
+        Args:
+            videos: Full list of collection videos
+            day_offset: 0-based day index (0=day1, 1=day2, ...)
+
+        Returns:
+            Ordered list of videos to use for this day
+        """
+        if not videos:
+            return []
+
+        if self.video_order_mode == 'movie_sequence':
+            groups = group_videos_by_movie(videos)
+            if not groups:
+                return videos.copy()
+            movie_numbers = sorted(groups.keys())
+            # Select movie group based on day_offset (wrap around)
+            selected_movie = movie_numbers[day_offset % len(movie_numbers)]
+            day_videos = groups[selected_movie].copy()
+            return day_videos
+        else:
+            # Random mode: shuffle
+            shuffled = videos.copy()
+            random.shuffle(shuffled)
+            return shuffled
 
     def _place_tag_videos(self, ct, start: int, end: int, final: List[ScheduleEntry], day_offset: int = 0) -> int:
         """Place custom/series/multi-series tag videos into final schedule. Returns new current_pos."""
@@ -176,8 +207,11 @@ class ScheduleGenerator:
                 )
                 ordered_videos = [v['video'] for v in videos_to_use]
             else:
-                random.shuffle(ct.collection_videos)
-                ordered_videos = ct.collection_videos.copy()
+                # For non-series custom tags: use day-aware selection
+                day_offset = start // 86400  # start is absolute seconds
+                ordered_videos = self._get_videos_for_day(ct.collection_videos, day_offset)
+                if getattr(ct, 'randomize_videos', False):
+                    random.shuffle(ordered_videos)
 
             pos = start
             vid_idx = 0
@@ -199,18 +233,164 @@ class ScheduleGenerator:
             return end
 
     def _build_random_entries(self, videos: List[dict], start_pos: int, end_pos: int, tag_name: str = "") -> List[ScheduleEntry]:
-        """Build schedule entries by cycling through videos from start_pos to end_pos."""
+        """Build schedule entries by cycling through videos from start_pos to end_pos, respecting day boundaries in movie_sequence mode."""
         entries = []
-        pos = start_pos
         if not videos:
             placeholder = f"{tag_name} - No videos" if tag_name else "No videos"
-            entries.append(ScheduleEntry(1, pos, pos + 3600, placeholder))
+            entries.append(ScheduleEntry(1, start_pos, start_pos + 3600, placeholder))
             return entries
-        videos = videos.copy()
-        random.shuffle(videos)
+
+        if self.video_order_mode != 'movie_sequence':
+            # Original random behavior: single shuffle, continuous across range
+            vids = videos.copy()
+            random.shuffle(vids)
+            pos = start_pos
+            vid_idx = 0
+            while pos < end_pos:
+                video = vids[vid_idx % len(vids)]
+                video_name = get_video_display_name(video)
+                duration = int(video.get('duration', 90))
+                if duration < 1:
+                    duration = 90
+                name = f"{tag_name} - {video_name}" if tag_name else video_name
+                entries.append(ScheduleEntry(1, pos, pos + duration, name))
+                pos += duration
+                vid_idx += 1
+            return entries
+
+        # movie_sequence mode: respect day boundaries, each day gets its movie group
+        start_day = start_pos // 86400
+        end_day = (end_pos - 1) // 86400 if end_pos > start_pos else start_day
+
+        for day in range(start_day, end_day + 1):
+            seg_start = max(start_pos, day * 86400)
+            seg_end = min(end_pos, (day + 1) * 86400)
+            if seg_start >= seg_end:
+                continue
+            day_videos = self._get_videos_for_day(videos, day)
+            if not day_videos:
+                continue
+            pos = seg_start
+            vid_idx = 0
+            while pos < seg_end:
+                video = day_videos[vid_idx % len(day_videos)]
+                video_name = get_video_display_name(video)
+                duration = int(video.get('duration', 90))
+                if duration < 1:
+                    duration = 90
+                entry_end = min(pos + duration, seg_end)
+                name = f"{tag_name} - {video_name}" if tag_name else video_name
+                entries.append(ScheduleEntry(1, pos, entry_end, name))
+                pos = entry_end
+                vid_idx += 1
+
+        entries.sort(key=lambda e: e.start_seconds)
+        return entries
+
+        if self.video_order_mode != 'movie_sequence':
+            # Original random behavior: single shuffle, continuous across range
+            vids = videos.copy()
+            random.shuffle(vids)
+            pos = start_pos
+            vid_idx = 0
+            while pos < end_pos:
+                video = vids[vid_idx % len(vids)]
+                video_name = get_video_display_name(video)
+                duration = int(video.get('duration', 90))
+                if duration < 1:
+                    duration = 90
+                name = f"{tag_name} - {video_name}" if tag_name else video_name
+                entries.append(ScheduleEntry(1, pos, pos + duration, name))
+                pos += duration
+                vid_idx += 1
+            return entries
+
+        # movie_sequence mode: respect day boundaries, each day gets its movie group
+        start_day = start_pos // 86400
+        end_day = (end_pos - 1) // 86400 if end_pos > start_pos else start_day
+
+        for day in range(start_day, end_day + 1):
+            seg_start = max(start_pos, day * 86400)
+            seg_end = min(end_pos, (day + 1) * 86400)
+            if seg_start >= seg_end:
+                continue
+            day_videos = self._get_videos_for_day(videos, day)
+            if not day_videos:
+                continue
+            pos = seg_start
+            vid_idx = 0
+            while pos < seg_end:
+                video = day_videos[vid_idx % len(day_videos)]
+                video_name = get_video_display_name(video)
+                duration = int(video.get('duration', 90))
+                if duration < 1:
+                    duration = 90
+                entry_end = min(pos + duration, seg_end)
+                name = f"{tag_name} - {video_name}" if tag_name else video_name
+                entries.append(ScheduleEntry(1, pos, entry_end, name))
+                pos = entry_end
+                vid_idx += 1
+
+        entries.sort(key=lambda e: e.start_seconds)
+        return entries
+
+        # Determine day range covered
+        start_day = start_pos // 86400
+        end_day = (end_pos - 1) // 86400 if end_pos > start_pos else start_day
+
+        for day in range(start_day, end_day + 1):
+            seg_start = max(start_pos, day * 86400)
+            seg_end = min(end_pos, (day + 1) * 86400)
+            if seg_start >= seg_end:
+                continue
+            day_videos = self._get_videos_for_day(videos, day)
+            if not day_videos:
+                continue
+            pos = seg_start
+            vid_idx = 0
+            while pos < seg_end:
+                video = day_videos[vid_idx % len(day_videos)]
+                video_name = get_video_display_name(video)
+                duration = int(video.get('duration', 90))
+                if duration < 1:
+                    duration = 90
+                entry_end = min(pos + duration, seg_end)
+                name = f"{tag_name} - {video_name}" if tag_name else video_name
+                entries.append(ScheduleEntry(1, pos, entry_end, name))
+                pos = entry_end
+                vid_idx += 1
+
+        entries.sort(key=lambda e: e.start_seconds)
+        return entries
+
+        # Determine number of days spanned and starting day offset
+        total_span = end_pos - start_pos
+        num_days = (total_span + 86399) // 86400  # ceil division
+        start_day_offset = start_pos // 86400
+
+        # Build ordered video list according to global mode
+        if self.video_order_mode == 'movie_sequence' and num_days > 1:
+            groups = group_videos_by_movie(videos)
+            if groups:
+                movie_nums = sorted(groups.keys())
+                ordered_videos = []
+                for day_idx in range(num_days):
+                    movie_idx = (start_day_offset + day_idx) % len(movie_nums)
+                    day_group = groups[movie_nums[movie_idx]]
+                    ordered_videos.extend(day_group)
+            else:
+                # No groups found, fallback to random shuffle
+                ordered_videos = videos.copy()
+                random.shuffle(ordered_videos)
+        else:
+            # Single-day or random mode
+            day_offset = start_day_offset
+            ordered_videos = self._get_videos_for_day(videos, day_offset)
+
         vid_idx = 0
+        pos = start_pos
         while pos < end_pos:
-            video = videos[vid_idx % len(videos)]
+            video = ordered_videos[vid_idx % len(ordered_videos)]
             video_name = get_video_display_name(video)
             duration = int(video.get('duration', 90))
             if duration < 1:
@@ -236,21 +416,46 @@ class ScheduleGenerator:
             return []
 
         entries = []
-        random.shuffle(collection_videos)
-        video_index = 0
-        current_second = 0
 
-        while current_second < remaining_seconds:
-            video = collection_videos[video_index % len(collection_videos)]
-            video_name = get_video_display_name(video)
-            duration = int(video.get('duration', 90))
-            if duration < 1:
-                duration = 90
-            end_second = min(current_second + duration, remaining_seconds)
-
-            entries.append(ScheduleEntry(1, current_second, end_second, video_name))
-            current_second = end_second
-            video_index += 1
+        if self.video_order_mode == 'movie_sequence':
+            # Day-by-day using movie groups
+            num_days = (remaining_seconds + 86399) // 86400  # ceiling division
+            for day_offset in range(num_days):
+                day_start = day_offset * 86400
+                day_end = min(day_start + 86400, remaining_seconds)
+                if day_start >= day_end:
+                    break
+                day_videos = self._get_videos_for_day(collection_videos, day_offset)
+                if not day_videos:
+                    continue
+                pos = day_start
+                vid_idx = 0
+                while pos < day_end:
+                    video = day_videos[vid_idx % len(day_videos)]
+                    video_name = get_video_display_name(video)
+                    duration = int(video.get('duration', 90))
+                    if duration < 1:
+                        duration = 90
+                    entry_end = min(pos + duration, day_end)
+                    entries.append(ScheduleEntry(1, pos, entry_end, video_name))
+                    pos = entry_end
+                    vid_idx += 1
+        else:
+            # Random mode: single shuffle across entire span
+            shuffled = collection_videos.copy()
+            random.shuffle(shuffled)
+            current_second = 0
+            video_index = 0
+            while current_second < remaining_seconds and video_index < len(shuffled):
+                video = shuffled[video_index]
+                video_name = get_video_display_name(video)
+                duration = int(video.get('duration', 90))
+                if duration < 1:
+                    duration = 90
+                end_second = min(current_second + duration, remaining_seconds)
+                entries.append(ScheduleEntry(1, current_second, end_second, video_name))
+                current_second = end_second
+                video_index += 1
 
         return entries
 
@@ -268,8 +473,12 @@ class ScheduleGenerator:
             for s in range(start_sec, end_sec):
                 occupied.add(s)
             video_count = getattr(ct, 'video_count', 1)
-            videos = ct.collection_videos.copy()
-            random.shuffle(videos)
+            # Compute day offset from start_sec (absolute seconds)
+            day_offset = start_sec // 86400
+            videos = self._get_videos_for_day(ct.collection_videos, day_offset)
+            # Honor randomize_videos flag: if true, shuffle within the day's selection
+            if getattr(ct, 'randomize_videos', False):
+                random.shuffle(videos)
             pos = start_sec
             vid_idx = 0
             while pos < end_sec and vid_idx < video_count and vid_idx < len(videos):
@@ -344,11 +553,12 @@ class ScheduleGenerator:
         rf_fill_24h = getattr(rf, 'fill_24h', False)
 
         if rf_fill_24h:
-            rf_videos = rf.collection_videos.copy() if rf.collection_videos else []
-            if not rf_videos:
+            rf_videos_base = rf.collection_videos.copy() if rf.collection_videos else []
+            if not rf_videos_base:
                 return
-            random.shuffle(rf_videos)
-
+            # Determine day_offset from start_offset (passed param)
+            day_offset = start_offset // 86400
+            rf_videos = self._get_videos_for_day(rf_videos_base, day_offset)
             gaps = []
             if merged_ranges:
                 prev_end = start_offset
@@ -388,15 +598,19 @@ class ScheduleGenerator:
             if rf_start >= rf_end:
                 return
 
+            # Determine day offset from absolute rf_start
+            day_offset = rf_start // 86400
+            rf_videos_base = rf.collection_videos.copy() if rf.collection_videos else []
+            if not rf_videos_base:
+                return
+            rf_videos = self._get_videos_for_day(rf_videos_base, day_offset)
+
             pos = rf_start
             if continuation_pos > rf_start:
                 pos = continuation_pos
             elif continuation_pos > 0:
                 pos = continuation_pos
 
-            rf_videos = rf.collection_videos.copy() if rf.collection_videos else []
-            if rf_videos:
-                random.shuffle(rf_videos)
             vid_idx = 0
 
             while pos < rf_end or (continuation_pos is not None and pos < continuation_pos + (rf_end - rf_start)):
@@ -842,8 +1056,10 @@ class ScheduleGenerator:
                         for s in range(custom_start, custom_end):
                             occupied.add(s)
                         video_count = getattr(ct, 'video_count', 1)
-                        videos = ct.collection_videos.copy()
-                        random.shuffle(videos)
+                        # Use day-aware video selection
+                        videos = self._get_videos_for_day(ct.collection_videos, day_offset)
+                        if getattr(ct, 'randomize_videos', False):
+                            random.shuffle(videos)
                         pos = custom_start
                         vid_idx = 0
                         actual_end = custom_start
@@ -889,8 +1105,10 @@ class ScheduleGenerator:
                         for s in range(custom_start, custom_end):
                             occupied.add(s)
                         video_count = getattr(ct, 'video_count', 1)
-                        videos = ct.collection_videos.copy()
-                        random.shuffle(videos)
+                        # Use day-aware video selection
+                        videos = self._get_videos_for_day(ct.collection_videos, day_offset)
+                        if getattr(ct, 'randomize_videos', False):
+                            random.shuffle(videos)
                         pos = custom_start
                         vid_idx = 0
                         actual_end = custom_start

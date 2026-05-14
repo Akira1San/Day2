@@ -250,3 +250,52 @@ def get_covers_path(config_file: str = "config.ini") -> Optional[Path]:
     except Exception:
         pass
     return None
+
+
+def extract_movie_sequence_key(path: str) -> Tuple[int, int]:
+    """Extract (movie_number, part_number) from filename.
+    
+    Patterns matched:
+    - "Movie 1", "Part 1", "Film 1" (with optional multiplier suffix like "x1")
+    - Leading number: "1 - Video Name"
+    - Two number groups: "1x02" or "S01E02" format (movie=first, part=second)
+    
+    Returns: (movie_num, part_num) with defaults (1, 0)
+    """
+    name = path.split('/')[-1] if '/' in path else path
+    
+    # Try explicit markers: "Movie 1", "Part 1", "Film 1"
+    m = re.search(r'(?:movie|part|film)\s*(\d+)', name, re.IGNORECASE)
+    if m:
+        movie = int(m.group(1))
+        # Check for part/multiplier suffix like "x1", "x2"
+        m2 = re.search(r'x(\d+)', name, re.IGNORECASE)
+        part = int(m2.group(1)) if m2 else 0
+        return (movie, part)
+    
+    # Extract all number sequences
+    numbers = [int(n) for n in re.findall(r'\d+', name)]
+    if not numbers:
+        return (1, 0)
+    if len(numbers) == 1:
+        return (numbers[0], 0)
+    return (numbers[0], numbers[1])
+
+
+def group_videos_by_movie(videos: List[Dict]) -> Dict[int, List[Dict]]:
+    """Group videos into movie buckets sorted by movie number.
+    Within each group, sort by part number then preserve original order.
+    Returns: {movie_num: [video1, video2, ...]} sorted by movie_num ascending.
+    """
+    groups = {}
+    for v in videos:
+        path = v.get('path', '')
+        movie_num, part_num = extract_movie_sequence_key(path)
+        groups.setdefault(movie_num, []).append((part_num, v))
+    
+    result = {}
+    for movie_num in sorted(groups.keys()):
+        # Sort by part number, then by original order
+        items = sorted(groups[movie_num], key=lambda x: x[0])
+        result[movie_num] = [v for _, v in items]
+    return result
