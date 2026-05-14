@@ -1132,7 +1132,7 @@ class RandomFillDialog(BaseTagDialog):
                 # Do NOT call setText, that clears the pixmap
             else:
                 self.info_cover.setText("Cover:\n(invalid image)")
-            self.info_cover.setPixmap(QPixmap())
+                self.info_cover.setPixmap(QPixmap())
         else:
             self.info_cover.setText(f"Cover:\n{cover_path}\n(not found)")
             self.info_cover.setPixmap(QPixmap())
