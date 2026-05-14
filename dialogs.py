@@ -229,7 +229,7 @@ class TagDialog(BaseTagDialog):
             btn_layout.addWidget(remove_all_btn)
 
             clear_sel_btn = QPushButton("Clear Selection")
-            clear_sel_btn.clicked.connect(self.clear_selection)
+            clear_sel_btn.clicked.connect(self.clear_added_selection)
             btn_layout.addWidget(clear_sel_btn)
 
             blacklist_btn = QPushButton("Add to Blacklist >>")
@@ -294,6 +294,9 @@ class TagDialog(BaseTagDialog):
 
     def clear_blacklist_selection(self):
         self.blacklist_list.clearSelection()
+
+    def clear_added_selection(self):
+        self.added_list.clearSelection()
 
     def add_selected_videos(self):
         for item in self.videos_list.selectedItems():
@@ -829,7 +832,7 @@ class RandomFillDialog(BaseTagDialog):
             btn_layout.addWidget(remove_all_btn)
 
             clear_sel_btn = QPushButton("Clear Selection")
-            clear_sel_btn.clicked.connect(self.clear_selection)
+            clear_sel_btn.clicked.connect(self.clear_added_selection)
             btn_layout.addWidget(clear_sel_btn)
 
             blacklist_btn = QPushButton("Add to Blacklist >>")
@@ -1145,6 +1148,9 @@ class RandomFillDialog(BaseTagDialog):
 
     def clear_blacklist_selection(self):
         self.blacklist_list.clearSelection()
+
+    def clear_added_selection(self):
+        self.added_list.clearSelection()
 
     def add_selected_videos(self):
         for item in self.videos_list.selectedItems():
