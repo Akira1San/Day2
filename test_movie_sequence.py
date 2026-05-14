@@ -41,14 +41,14 @@ def test_group_videos_by_movie():
     print("\n=== Testing group_videos_by_movie ===")
     
     videos = [
-        {'path': '/movies/Movie 1 Part 1.mp4', 'duration': 90},
-        {'path': '/movies/Movie 1 Part 2.mp4', 'duration': 95},
-        {'path': '/movies/Movie 2 Part 1.mp4', 'duration': 100},
-        {'path': '/movies/Movie 2 Part 2.mp4', 'duration': 105},
-        {'path': '/movies/Movie 2 Part 3.mp4', 'duration': 110},
-        {'path': '/movies/Movie 3.mp4', 'duration': 120},
-        # Duplicate should be deduplicated
-        {'path': '/movies/Movie 1 Part 1.mp4', 'duration': 90},
+        {'id': 1, 'path': '/movies/Movie 1 Part 1.mp4', 'duration': 90},
+        {'id': 2, 'path': '/movies/Movie 1 Part 2.mp4', 'duration': 95},
+        {'id': 3, 'path': '/movies/Movie 2 Part 1.mp4', 'duration': 100},
+        {'id': 4, 'path': '/movies/Movie 2 Part 2.mp4', 'duration': 105},
+        {'id': 5, 'path': '/movies/Movie 2 Part 3.mp4', 'duration': 110},
+        {'id': 6, 'path': '/movies/Movie 3.mp4', 'duration': 120},
+        # Duplicate by id (id=1) - should be filtered out
+        {'id': 1, 'path': '/movies/Movie 1 Part 1 (copy).mp4', 'duration': 90},
     ]
     
     groups = group_videos_by_movie(videos)
@@ -57,14 +57,21 @@ def test_group_videos_by_movie():
     for movie_num, group_videos in groups.items():
         print(f"    Movie {movie_num}: {len(group_videos)} videos")
         for v in group_videos:
-            print(f"      - {v['path'].split('/')[-1]}")
+            print(f"      - id={v.get('id')} {v['path'].split('/')[-1]}")
     
     assert len(groups) == 3, f"Expected 3 movie groups, got {len(groups)}"
     assert 1 in groups and len(groups[1]) == 2, "Movie 1 should have 2 unique parts"
     assert 2 in groups and len(groups[2]) == 3, "Movie 2 should have 3 parts"
     assert 3 in groups and len(groups[3]) == 1, "Movie 3 should have 1 video"
     
-    print("Deduplication check: Movie 1 has 2 videos (duplicate removed)")
+    # Verify duplicate by id was removed
+    all_ids = []
+    for grp in groups.values():
+        for v in grp:
+            all_ids.append(v.get('id'))
+    assert len(all_ids) == len(set(all_ids)), "Duplicate IDs should be removed"
+    
+    print("Deduplication by id: verified")
     print("All group_videos_by_movie tests passed!")
 
 

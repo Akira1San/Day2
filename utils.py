@@ -300,17 +300,25 @@ def group_videos_by_movie(videos: List[Dict]) -> Dict[int, List[Dict]]:
     Within each group, sort by part number then preserve original order.
     Returns: {movie_num: [video1, video2, ...]} sorted by movie_num ascending.
     
-    Duplicate videos (same path) are removed to prevent scheduling the same
-    video multiple times within a single day.
+    Duplicate videos (same id) are removed to prevent scheduling the same
+    video multiple times within a single day. Falls back to path if id is missing.
     """
-    # Deduplicate by path to avoid showing same video multiple times
+    # Deduplicate by id to avoid showing same video multiple times
+    seen_ids = set()
     seen_paths = set()
     unique_videos = []
     for v in videos:
-        path = v.get('path', '')
-        if path not in seen_paths:
-            seen_paths.add(path)
-            unique_videos.append(v)
+        vid_id = v.get('id')
+        if vid_id is not None:
+            if vid_id not in seen_ids:
+                seen_ids.add(vid_id)
+                unique_videos.append(v)
+        else:
+            # Fallback to path if id not present
+            path = v.get('path', '')
+            if path not in seen_paths:
+                seen_paths.add(path)
+                unique_videos.append(v)
     
     groups = {}
     for v in unique_videos:
