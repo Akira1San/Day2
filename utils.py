@@ -255,25 +255,38 @@ def get_covers_path(config_file: str = "config.ini") -> Optional[Path]:
 def extract_movie_sequence_key(path: str) -> Tuple[int, int]:
     """Extract (movie_number, part_number) from filename.
     
-    Patterns matched:
-    - "Movie 1", "Part 1", "Film 1" (with optional multiplier suffix like "x1")
-    - Leading number: "1 - Video Name"
-    - Two number groups: "1x02" or "S01E02" format (movie=first, part=second)
+    Patterns matched (in order of precedence):
+    1. Explicit movie/film markers: "Movie 1", "Film 1" -> movie from marker
+       Part can be indicated by "Part 2" or "x2" suffix.
+    2. Standalone "Part N" at start indicates movie number (e.g., "Part 7" -> movie 7, part 0).
+    3. Leading number: "1 - Video Name" -> movie=1, part=0.
+    4. Two number groups: "1x02" or "S01E02" -> movie=first, part=second.
     
     Returns: (movie_num, part_num) with defaults (1, 0)
     """
-    name = path.split('/')[-1] if '/' in path else path
+    # Strip extension to avoid matching digits like in "mp4"
+    name = Path(path).stem
     
-    # Try explicit markers: "Movie 1", "Part 1", "Film 1"
-    m = re.search(r'(?:movie|part|film)\s*(\d+)', name, re.IGNORECASE)
-    if m:
-        movie = int(m.group(1))
-        # Check for part/multiplier suffix like "x1", "x2"
-        m2 = re.search(r'x(\d+)', name, re.IGNORECASE)
-        part = int(m2.group(1)) if m2 else 0
+    # 1. Check for explicit movie/film markers
+    movie_match = re.search(r'(?:movie|film)\s*(\d+)', name, re.IGNORECASE)
+    if movie_match:
+        movie = int(movie_match.group(1))
+        # Look for explicit part number: "Part N" or "xN"
+        part_match = re.search(r'part\s*(\d+)', name, re.IGNORECASE)
+        if part_match:
+            part = int(part_match.group(1))
+        else:
+            x_match = re.search(r'x(\d+)', name, re.IGNORECASE)
+            part = int(x_match.group(1)) if x_match else 0
         return (movie, part)
     
-    # Extract all number sequences
+    # 2. Standalone "Part N" at start indicates movie number
+    part_only_match = re.match(r'part\s*(\d+)', name, re.IGNORECASE)
+    if part_only_match:
+        movie = int(part_only_match.group(1))
+        return (movie, 0)
+    
+    # 3. Extract all number sequences
     numbers = [int(n) for n in re.findall(r'\d+', name)]
     if not numbers:
         return (1, 0)
