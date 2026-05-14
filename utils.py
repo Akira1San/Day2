@@ -286,9 +286,21 @@ def group_videos_by_movie(videos: List[Dict]) -> Dict[int, List[Dict]]:
     """Group videos into movie buckets sorted by movie number.
     Within each group, sort by part number then preserve original order.
     Returns: {movie_num: [video1, video2, ...]} sorted by movie_num ascending.
+    
+    Duplicate videos (same path) are removed to prevent scheduling the same
+    video multiple times within a single day.
     """
-    groups = {}
+    # Deduplicate by path to avoid showing same video multiple times
+    seen_paths = set()
+    unique_videos = []
     for v in videos:
+        path = v.get('path', '')
+        if path not in seen_paths:
+            seen_paths.add(path)
+            unique_videos.append(v)
+    
+    groups = {}
+    for v in unique_videos:
         path = v.get('path', '')
         movie_num, part_num = extract_movie_sequence_key(path)
         groups.setdefault(movie_num, []).append((part_num, v))
