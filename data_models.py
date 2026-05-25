@@ -399,7 +399,10 @@ class TagManager:
              is_random_fill: bool = False, blacklist: List[dict] = None,
                     blacklist_path: str = "", fill_24h: bool = False,
                     collection_profile: str = "", blacklist_profile: str = "",
-                    randomize_videos: bool = False) -> bool:
+                    randomize_videos: bool = False,
+                    series_end_behavior: str = "stop",
+                    series_repeat_season: int = 0,
+                    series_random_season: int = 0) -> bool:
         if 0 <= index < len(self.tags):
             t = self.tags[index]
             t.name = name
@@ -418,6 +421,9 @@ class TagManager:
             t.collection_profile = collection_profile
             t.blacklist_profile = blacklist_profile
             t.randomize_videos = randomize_videos
+            t.series_end_behavior = series_end_behavior
+            t.series_repeat_season = series_repeat_season
+            t.series_random_season = series_random_season
             # Apply blacklist filtering to collection_videos
             t.collection_videos = collection_videos or []
             if t.collection_videos and t.blacklist:

@@ -492,8 +492,11 @@ class MainWindow(QMainWindow):
                  new_tag.fill_24h if hasattr(new_tag, 'fill_24h') else False,
                  new_tag.collection_profile if hasattr(new_tag, 'collection_profile') else '',
                  new_tag.blacklist_profile if hasattr(new_tag, 'blacklist_profile') else '',
-                 new_tag.randomize_videos if hasattr(new_tag, 'randomize_videos') else False
-             )
+                  new_tag.randomize_videos if hasattr(new_tag, 'randomize_videos') else False,
+                  new_tag.series_end_behavior if hasattr(new_tag, 'series_end_behavior') else 'stop',
+                  new_tag.series_repeat_season if hasattr(new_tag, 'series_repeat_season') else 0,
+                  new_tag.series_random_season if hasattr(new_tag, 'series_random_season') else 0
+              )
              self.refresh_tags_list()
              self.refresh_preview()
 
