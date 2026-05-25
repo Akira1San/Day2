@@ -32,6 +32,9 @@ def serialize_tag_to_string(tag) -> str:
         lines.append(f"start_episode = {getattr(tag, 'start_episode', 1)}")
         lines.append(f"play_mode = {getattr(tag, 'play_mode', 'sequence')}")
         lines.append(f"video_count = {getattr(tag, 'video_count', 1)}")
+        lines.append(f"series_end_behavior = {getattr(tag, 'series_end_behavior', 'stop')}")
+        lines.append(f"series_repeat_season = {getattr(tag, 'series_repeat_season', 0)}")
+        lines.append(f"series_random_season = {getattr(tag, 'series_random_season', 0)}")
         lines.append(f"collection_profile = {getattr(tag, 'collection_profile', '')}")
         lines.append(f"blacklist_profile = {getattr(tag, 'blacklist_profile', '')}")
     
@@ -111,11 +114,18 @@ def deserialize_tag_from_string(data: str, tag_class, qtime_from_string):
             if blacklist_file.exists():
                 blacklist = load_blacklist_json(str(blacklist_file))
         
+        series_end_behavior = tag_section.get('series_end_behavior', 'stop')
+        series_repeat_season = int(tag_section.get('series_repeat_season', 0))
+        series_random_season = int(tag_section.get('series_random_season', 0))
+        
         return tag_class('custom', name, qtime_from_string(start, 'HH:mm'), qtime_from_string(end, 'HH:mm'), 
                         collection_videos, collection_path, video_count=video_count, 
                         is_series=True, start_season=start_season, start_episode=start_episode, 
                         play_mode=play_mode, collection_profile=collection_profile,
-                        blacklist_profile=blacklist_profile, blacklist=blacklist)
+                        blacklist_profile=blacklist_profile, blacklist=blacklist,
+                        series_end_behavior=series_end_behavior,
+                        series_repeat_season=series_repeat_season,
+                        series_random_season=series_random_season)
     
     elif tag_type == 'multi_series':
         series_list_str = tag_section.get('series_list', '[]')

@@ -15,6 +15,7 @@ from utils import (
     qtime_to_seconds,
     get_video_display_name,
     parse_videos_for_series,
+    parse_series_episode,
     group_videos_by_movie,
     extract_movie_sequence_key,
 )
@@ -46,26 +47,31 @@ class ScheduleGenerator:
 
     def _select_series_videos(self, tag_or_config, day_offset: int) -> List[dict]:
         """Select videos for a series tag (Tag object or config dict) for given day_offset.
-        Returns list of dicts with keys 'video', 'season', 'episode', matching parse_videos_for_series output.
-        Handles 'season_sequence' mode with season metadata, and falls back to regular sequence/random.
+        Supports end-behavior: stop (default), repeat, random.
+        Returns list of dicts with keys 'video', 'season', 'episode'.
         """
         is_dict = isinstance(tag_or_config, dict)
-        collection_videos = tag_or_config.get('collection_videos') if is_dict else getattr(tag_or_config, 'collection_videos', [])
+        def _get(key, default=None):
+            return tag_or_config.get(key, default) if is_dict else getattr(tag_or_config, key, default)
+
+        collection_videos = _get('collection_videos', [])
         if not collection_videos:
             return []
 
-        video_count = tag_or_config.get('video_count') if is_dict else getattr(tag_or_config, 'video_count', 1)
-        play_mode = tag_or_config.get('play_mode') if is_dict else getattr(tag_or_config, 'play_mode', 'sequence')
-        start_season = tag_or_config.get('start_season') if is_dict else getattr(tag_or_config, 'start_season', 1)
-        start_episode = tag_or_config.get('start_episode') if is_dict else getattr(tag_or_config, 'start_episode', 1)
+        video_count = _get('video_count', 1)
+        play_mode = _get('play_mode', 'sequence')
+        start_season = _get('start_season', 1)
+        start_episode = _get('start_episode', 1)
+        has_season_tags = _get('_has_season_tags', False)
+        end_behavior = _get('series_end_behavior', 'stop')
+        repeat_season = _get('series_repeat_season', 0)
+        random_season = _get('series_random_season', 0)
 
-        has_season_tags = tag_or_config.get('_has_season_tags', False) if is_dict else getattr(tag_or_config, '_has_season_tags', False)
-
+        # Build the eligible video list with consistent ordering
         if play_mode == 'season_sequence' and has_season_tags:
-            # Get the flat ordered list of all season episodes
-            flat = tag_or_config['_flat_ordered'] if is_dict else tag_or_config._flat_ordered
-
-            # Find the starting index based on start_season and start_episode
+            flat = _get('_flat_ordered')
+            if not flat:
+                return []
             start_idx = 0
             found = False
             for i, v in enumerate(flat):
@@ -77,34 +83,85 @@ class ScheduleGenerator:
                     start_idx = i
                     found = True
                     break
-
             if not found:
-                return []  # No episodes match start criteria
-
-            # Compute global index for this day
-            effective_idx = start_idx + day_offset * video_count
-            if effective_idx >= len(flat):
-                return []  # Beyond available episodes
-
-            take = min(video_count, len(flat) - effective_idx)
-            selected = flat[effective_idx : effective_idx + take]
-            return [{'video': v, 'season': v.get('_meta_season'), 'episode': v.get('_parsed_episode')} for v in selected]
+                return []
+            # Normalize to parsed format for uniform handling below
+            eligible = [{'video': v, 'season': v.get('_meta_season'), 'episode': v.get('_parsed_episode')} for v in flat[start_idx:]]
         else:
-            # Regular sequence/random with wrap-around of start_episode
-            raw_episode = start_episode + (day_offset * video_count)
-            total_episodes = len(collection_videos)
-            if total_episodes > 0:
-                effective_episode = ((raw_episode - 1) % total_episodes) + 1
+            # Build sorted eligible list from collection videos
+            parsed = []
+            for idx, vid in enumerate(collection_videos):
+                path = vid.get('path', '')
+                season, episode = parse_series_episode(path)
+                if season > start_season or (season == start_season and episode >= start_episode):
+                    parsed.append({'video': vid, 'season': season, 'episode': episode, 'index': idx})
+
+            if not parsed:
+                return []
+
+            # Deterministic ordering: sort by (season, episode)
+            parsed.sort(key=lambda v: (v['season'], v['episode'], v['index']))
+
+            # For random play mode, apply deterministic shuffle to the ordering
+            if play_mode == 'random':
+                seed = f"{_get('collection_path', '')}_{_get('name', '')}_ordering"
+                rng = random.Random(seed)
+                rng.shuffle(parsed)
+
+            # Keep full parsed structure (video + season + episode) for return
+            eligible = parsed
+
+        total_eligible = len(eligible)
+        if total_eligible == 0:
+            return []
+
+        effective_idx = day_offset * video_count
+
+        # Random end-behavior: shuffle pool, cycle without repeats
+        if end_behavior == 'random':
+            if random_season == 0:
+                pool_idx = list(range(total_eligible))
             else:
-                effective_episode = raw_episode
-            videos_to_use, _ = parse_videos_for_series(
-                collection_videos,
-                start_season,
-                effective_episode,
-                play_mode,
-                video_count
-            )
-            return videos_to_use
+                pool_idx = [i for i in range(total_eligible)
+                            if eligible[i]['season'] == random_season]
+            if not pool_idx:
+                return []
+            pool_size = len(pool_idx)
+            seed_str = f"{_get('collection_path', '')}_{_get('name', '')}_random"
+            cycle_num = effective_idx // pool_size
+            local_idx = effective_idx % pool_size
+            rng = random.Random(f"{seed_str}_cycle_{cycle_num}")
+            shuffled_idx = list(pool_idx)
+            rng.shuffle(shuffled_idx)
+            selected_idx = shuffled_idx[local_idx : local_idx + video_count]
+            return [eligible[i] for i in selected_idx]
+
+        # Check if past the eligible range
+        if effective_idx + video_count > total_eligible:
+            if end_behavior == 'stop':
+                return []
+            if end_behavior == 'repeat':
+                if repeat_season == 0:
+                    wrap_idx = 0
+                else:
+                    wrap_idx = 0
+                    for i in range(total_eligible):
+                        s = eligible[i]['season']
+                        if s is not None and s >= repeat_season:
+                            wrap_idx = i
+                            break
+                wrap_range = total_eligible - wrap_idx
+                if wrap_range <= 0:
+                    return []
+                idx_in_range = (effective_idx - wrap_idx) % wrap_range
+                selected = []
+                for i in range(video_count):
+                    selected.append(eligible[wrap_idx + (idx_in_range + i) % wrap_range])
+                return selected
+
+        # Normal: within eligible range
+        take = min(video_count, total_eligible - effective_idx)
+        return eligible[effective_idx : effective_idx + take]
 
     def _get_videos_for_day(self, videos: List[dict], day_offset: int) -> List[dict]:
         """Select videos according to global video_order_mode for a given day.
@@ -182,30 +239,11 @@ class ScheduleGenerator:
             play_mode = getattr(ct, 'play_mode', 'sequence')
             has_season_tags = getattr(ct, '_has_season_tags', False)
 
-            # Series tag with season_sequence: use correct flat-ordered selection
-            if is_series and play_mode == 'season_sequence' and has_season_tags:
-                logger.debug(f"[PLACE]   -> using _select_series_videos for season_sequence")
+            if is_series:
+                logger.debug(f"[PLACE]   -> using _select_series_videos")
                 videos_to_use = self._select_series_videos(ct, day_offset)
                 ordered_videos = [v['video'] for v in videos_to_use]
-                logger.debug(f"[PLACE]   selected {len(videos_to_use)} videos: {[(v.get('_meta_season'), v.get('_parsed_episode')) for v in videos_to_use]}")
-            elif is_series:
-                # Regular sequence/random with wrap-around of start_episode
-                base_start_episode = getattr(ct, 'start_episode', 1)
-                raw_episode = base_start_episode + (day_offset * video_count)
-                videos = ct.collection_videos.copy()
-                total_episodes = len(videos)
-                if total_episodes > 0:
-                    start_episode = ((raw_episode - 1) % total_episodes) + 1
-                else:
-                    start_episode = raw_episode
-                videos_to_use, _ = parse_videos_for_series(
-                    videos,
-                    getattr(ct, 'start_season', 1),
-                    start_episode,
-                    play_mode,
-                    video_count
-                )
-                ordered_videos = [v['video'] for v in videos_to_use]
+                logger.debug(f"[PLACE]   selected {len(videos_to_use)} videos")
             else:
                 # For non-series custom tags: use day-aware selection
                 day_offset = start // 86400  # start is absolute seconds

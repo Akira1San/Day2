@@ -34,10 +34,13 @@ class Tag:
                  is_series: bool = False,
                  start_season: int = 1,
                  start_episode: int = 1,
-                 play_mode: str = "sequence",
-                 fill_24h: bool = False,
-                 collection_profile: str = "",
-                 blacklist_profile: str = ""):
+                  play_mode: str = "sequence",
+                  fill_24h: bool = False,
+                  collection_profile: str = "",
+                  blacklist_profile: str = "",
+                  series_end_behavior: str = "stop",
+                  series_repeat_season: int = 0,
+                  series_random_season: int = 0):
         self.tag_type = tag_type
         self.name = name
         self.start_time = start_time or QTime(0, 0)
@@ -56,6 +59,9 @@ class Tag:
         self.fill_24h = fill_24h
         self.collection_profile = collection_profile
         self.blacklist_profile = blacklist_profile
+        self.series_end_behavior = series_end_behavior
+        self.series_repeat_season = series_repeat_season
+        self.series_random_season = series_random_season
         
         # Apply blacklist filtering if both collection_videos and blacklist are present
         if self.collection_videos and self.blacklist:
