@@ -370,8 +370,8 @@ class ScheduleGenerator:
             random.shuffle(shuffled)
             current_second = 0
             video_index = 0
-            while current_second < remaining_seconds and video_index < len(shuffled):
-                video = shuffled[video_index]
+            while current_second < remaining_seconds:
+                video = shuffled[video_index % len(shuffled)]
                 video_name = get_video_display_name(video)
                 duration = int(video.get('duration', 90))
                 if duration < 1:
