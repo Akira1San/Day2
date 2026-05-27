@@ -9,7 +9,7 @@ from .base import BaseTagDialog
 from .profile_mixin import SeriesProfileMixin
 from .widgets.video_list import create_video_section, create_blacklist_section
 from utils import (
-    load_collection_json,
+    load_collection_json, load_blacklist_json,
     qtime_to_minutes, get_video_display_name, format_duration,
     filter_videos_by_blacklist, get_randomfill_config
 )
