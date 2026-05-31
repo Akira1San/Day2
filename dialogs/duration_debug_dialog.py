@@ -97,8 +97,14 @@ class DurationDebugDialog(QDialog):
         self.table.setColumnCount(7)
         headers = ["#", "Day", "Time", "Video", "Scheduled", "Collection", "Status"]
         self.table.setHorizontalHeaderLabels(headers)
-        self.table.horizontalHeader().setStretchLastSection(True)
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Fixed)
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(6, QHeaderView.ResizeToContents)
+        self.table.setColumnWidth(0, 40)
         self.table.setSelectionMode(QTableWidget.NoSelection)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.verticalHeader().setVisible(False)
@@ -136,7 +142,6 @@ class DurationDebugDialog(QDialog):
                     item.setFont(font)
                 self.table.setItem(row, col, item)
 
-        self.table.resizeColumnsToContents()
         layout.addWidget(self.table)
 
         self.copy_btn = QPushButton("Copy to Clipboard")
