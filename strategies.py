@@ -131,9 +131,9 @@ class CustomTagMergeStrategy:
                     duration = int(video.get('duration', 90))
                     if duration < 1:
                         duration = 90
-                    duration = min(duration, end - pos)
-                    if duration < 1:
-                        break
+                    if pos + duration > end:
+                        vid_idx += 1
+                        continue
                     final.append(ScheduleEntry(1, pos, pos + duration, video_name))
                     pos += duration
                     vid_idx += 1

@@ -224,11 +224,9 @@ class ScheduleGenerator:
                     duration = int(video.get('duration', 90))
                     if duration < 1:
                         duration = 90
-                    # Truncate if would exceed slot end
+                    # Skip if video doesn't fit in remaining slot space
                     if pos + duration > end:
-                        duration = end - pos
-                        if duration < 1:
-                            break
+                        continue
                     final.append(self._create_video_entry(pos, duration, video_name, series_name))
                     pos += duration
             return pos
@@ -259,9 +257,9 @@ class ScheduleGenerator:
                 duration = int(video.get('duration', 90))
                 if duration < 1:
                     duration = 90
-                duration = min(duration, end - pos)
-                if duration < 1:
-                    break
+                if pos + duration > end:
+                    vid_idx += 1
+                    continue
                 final.append(self._create_video_entry(pos, duration, video_name, ct.name))
                 pos += duration
                 vid_idx += 1
@@ -407,9 +405,9 @@ class ScheduleGenerator:
                 duration = int(video.get('duration', 90))
                 if duration < 1:
                     duration = 90
-                duration = min(duration, end_sec - pos)
-                if duration < 1:
-                    break
+                if pos + duration > end_sec:
+                    vid_idx += 1
+                    continue
                 custom_entries.append(self._create_video_entry(pos, duration, video_name, ct.name))
                 pos += duration
                 vid_idx += 1
@@ -443,9 +441,8 @@ class ScheduleGenerator:
                 duration = int(video.get('duration', 90))
                 if duration < 1:
                     duration = 90
-                duration = min(duration, end_sec - pos)
-                if duration < 1:
-                    break
+                if pos + duration > end_sec:
+                    continue
                 series_entries.append(self._create_video_entry(pos, duration, video_name, st.name))
                 pos += duration
         else:
@@ -496,17 +493,22 @@ class ScheduleGenerator:
             vid_idx = start_vid_idx
             for gap_start, gap_end in gaps:
                 pos = gap_start
+                skips_since_progress = 0
                 while pos < gap_end:
                     video = rf_videos[vid_idx % len(rf_videos)]
                     video_name = get_video_display_name(video)
                     duration = int(video.get('duration', 90))
                     if duration < 1:
                         duration = 90
-                    duration = min(duration, gap_end - pos)
-                    if duration < 1:
-                        break
+                    if pos + duration > gap_end:
+                        vid_idx += 1
+                        skips_since_progress += 1
+                        if skips_since_progress >= len(rf_videos):
+                            break
+                        continue
                     fill_entries.append(self._create_video_entry(pos, duration, video_name, rf.name))
                     pos += duration
+                    skips_since_progress = 0
                     vid_idx += 1
         else:
             rf_start = qtime_to_seconds(rf.start_time)
@@ -997,9 +999,9 @@ class ScheduleGenerator:
                             duration = int(video.get('duration', 90))
                             if duration < 1:
                                 duration = 90
-                            duration = min(duration, custom_end - pos)
-                            if duration < 1:
-                                break
+                            if pos + duration > custom_end:
+                                vid_idx += 1
+                                continue
                             final.append(self._create_video_entry(pos, duration, video_name, ct.name))
                             actual_end = pos + duration
                             pos += duration
@@ -1046,9 +1048,9 @@ class ScheduleGenerator:
                             duration = int(video.get('duration', 90))
                             if duration < 1:
                                 duration = 90
-                            duration = min(duration, custom_end - pos)
-                            if duration < 1:
-                                break
+                            if pos + duration > custom_end:
+                                vid_idx += 1
+                                continue
                             final.append(self._create_video_entry(pos, duration, video_name, ct.name))
                             actual_end = pos + duration
                             pos += duration
@@ -1087,9 +1089,8 @@ class ScheduleGenerator:
                         duration = int(video.get('duration', 90))
                         if duration < 1:
                             duration = 90
-                        duration = min(duration, series_end - pos)
-                        if duration < 1:
-                            break
+                        if pos + duration > series_end:
+                            continue
                         final.append(self._create_video_entry(pos, duration, video_name, st.name))
                         actual_end = pos + duration
                         pos += duration
