@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+    QApplication, QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QHeaderView
 )
 from PySide6.QtCore import Qt
@@ -59,7 +59,7 @@ class DurationDebugDialog(QDialog):
             elif not info['had_duration']:
                 status = "default"
                 coll_dur = info['duration']
-            elif scheduled != info['duration']:
+            elif scheduled != int(info['duration']):
                 status = "mismatch"
                 coll_dur = info['duration']
             else:
@@ -113,7 +113,7 @@ class DurationDebugDialog(QDialog):
             end_m = (entry.end_seconds % 3600) // 60
             time_str = f"{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d}"
 
-            coll_str = f"{coll_dur}s" if coll_dur is not None else "N/A"
+            coll_str = f"{int(coll_dur)}s" if coll_dur is not None else "N/A"
             status_label = self.STATUS_LABELS.get(status, status)
 
             items_data = [
@@ -139,12 +139,32 @@ class DurationDebugDialog(QDialog):
         self.table.resizeColumnsToContents()
         layout.addWidget(self.table)
 
+        self.copy_btn = QPushButton("Copy to Clipboard")
+        self.copy_btn.clicked.connect(self.copy_to_clipboard)
+
         btn_layout = QHBoxLayout()
+        btn_layout.addWidget(self.copy_btn)
         btn_layout.addStretch()
         close_btn = QPushButton("Close")
         close_btn.clicked.connect(self.accept)
         btn_layout.addWidget(close_btn)
         layout.addLayout(btn_layout)
+
+    def copy_to_clipboard(self):
+        lines = []
+        lines.append("#\tDay\tTime\tVideo\tScheduled\tCollection\tStatus")
+        for row, (entry, scheduled, coll_dur, status) in enumerate(self.comparison_data):
+            start_h = (entry.start_seconds // 3600) % 24
+            start_m = (entry.start_seconds % 3600) // 60
+            end_h = (entry.end_seconds // 3600) % 24
+            end_m = (entry.end_seconds % 3600) // 60
+            time_str = f"{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d}"
+            coll_str = f"{int(coll_dur)}s" if coll_dur is not None else "N/A"
+            status_label = self.STATUS_LABELS.get(status, status)
+            lines.append(
+                f"{row + 1}\t{entry.day}\t{time_str}\t{entry.video_name}\t{scheduled}s\t{coll_str}\t{status_label}"
+            )
+        QApplication.clipboard().setText("\n".join(lines))
 
     def apply_styles(self):
         self.setStyleSheet("""
