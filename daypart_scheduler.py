@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (
     QFileDialog, QSpinBox, QComboBox
 )
 from PySide6.QtCore import Qt, QTime
-from PySide6.QtGui import QClipboard, QFont
+from PySide6.QtGui import QClipboard, QColor, QFont
 
 from utils import (
     load_collection_json, load_blacklist_json,
@@ -341,7 +341,16 @@ class MainWindow(QMainWindow):
         for day_offset in range(7):
             current_date = start_date + __import__('datetime').timedelta(days=day_offset)
             day_name = days[current_date.weekday()]
-            self.preview_list.addItem(f"=== {current_date} - {day_name} ===")
+            item = QListWidgetItem(f"=== {current_date} - {day_name} ===")
+            is_weekend = day_name in ("Saturday", "Sunday")
+            bg_color = QColor("#ef4444") if is_weekend else QColor("#7c3aed")
+            item.setBackground(bg_color)
+            item.setForeground(QColor("#ffffff"))
+            font = item.font()
+            font.setBold(True)
+            item.setFont(font)
+            item.setFlags(item.flags() & ~Qt.ItemIsSelectable)
+            self.preview_list.addItem(item)
             day_start_seconds = day_offset * 86400
             day_end_seconds = day_start_seconds + 86400
             for entry in entries:
@@ -382,7 +391,16 @@ class MainWindow(QMainWindow):
         for day_offset in range(30):
             current_date = start_date + __import__('datetime').timedelta(days=day_offset)
             day_name = days[current_date.weekday()]
-            self.preview_list.addItem(f"=== {current_date} - {day_name} ===")
+            item = QListWidgetItem(f"=== {current_date} - {day_name} ===")
+            is_weekend = day_name in ("Saturday", "Sunday")
+            bg_color = QColor("#ef4444") if is_weekend else QColor("#7c3aed")
+            item.setBackground(bg_color)
+            item.setForeground(QColor("#ffffff"))
+            font = item.font()
+            font.setBold(True)
+            item.setFont(font)
+            item.setFlags(item.flags() & ~Qt.ItemIsSelectable)
+            self.preview_list.addItem(item)
             day_start_seconds = day_offset * 86400
             day_end_seconds = day_start_seconds + 86400
             for entry in entries:
