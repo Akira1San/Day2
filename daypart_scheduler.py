@@ -35,7 +35,7 @@ from utils import (
     get_schedule_profiles
 )
 from models import Tag, ScheduleEntry, TagManager, ScheduleGenerator
-from dialogs import TagDialog, RandomFillDialog, SeriesDialog, ConfigDialog, SchedulePreviewDialog
+from dialogs import TagDialog, RandomFillDialog, SeriesDialog, ConfigDialog, SchedulePreviewDialog, DurationDebugDialog
 
 
 APPROXIMATE_THRESHOLD_MINUTES = 40
@@ -216,6 +216,10 @@ class MainWindow(QMainWindow):
         row2_layout.addWidget(self.generate_btn)
         row2_layout.addWidget(self.save_schedule_btn)
         row2_layout.addWidget(self.inspect_btn)
+        self.debug_btn = QPushButton("Debug")
+        self.debug_btn.setToolTip("Debug video durations — compare schedule vs collection data")
+        self.debug_btn.clicked.connect(self.debug_durations)
+        row2_layout.addWidget(self.debug_btn)
         row2_layout.addStretch()
         row2_layout.addWidget(self.approx_mode_combo)
         row2_layout.addWidget(self.approx_btn)
@@ -330,7 +334,8 @@ class MainWindow(QMainWindow):
         else:
             mode = self.approx_mode_combo.currentText().lower().replace("-", "_").replace(" ", "_")
             entries = self.schedule_generator.apply_approximate(num_days=7, mode=mode)
-        # Store for save reuse
+        # Store for save reuse and debug
+        self.schedule_entries = entries
         self.last_generated_schedule = {
             'entries': entries,
             'num_days': 7,
@@ -380,7 +385,8 @@ class MainWindow(QMainWindow):
         else:
             mode = self.approx_mode_combo.currentText().lower().replace("-", "_").replace(" ", "_")
             entries = self.schedule_generator.apply_approximate(num_days=30, mode=mode)
-        # Store for save reuse
+        # Store for save reuse and debug
+        self.schedule_entries = entries
         self.last_generated_schedule = {
             'entries': entries,
             'num_days': 30,
@@ -413,6 +419,26 @@ class MainWindow(QMainWindow):
                         self.preview_list.addItem(f"Day {day_offset + 1}\n{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {entry.video_name}")
                     else:
                         self.preview_list.addItem(f"{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {entry.video_name}")
+
+    def debug_durations(self):
+        entries = self.schedule_entries
+        if not entries and self.last_generated_schedule:
+            entries = self.last_generated_schedule.get('entries', [])
+        if not entries:
+            self.statusBar().showMessage("No schedule entries to debug. Generate a preview first.")
+            return
+
+        from pathlib import Path
+        from utils import get_config_paths, load_collection_videos_only
+        collection_path, _ = get_config_paths()
+        all_videos = []
+        coll_dir = Path(collection_path)
+        if coll_dir.exists():
+            for json_file in sorted(coll_dir.glob("*.json")):
+                all_videos.extend(load_collection_videos_only(str(json_file)))
+
+        dialog = DurationDebugDialog(self, entries, all_videos)
+        dialog.exec()
 
     def save_tags(self):
         self.tag_manager.save_tags("tags.ini")
