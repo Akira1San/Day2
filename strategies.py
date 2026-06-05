@@ -41,6 +41,15 @@ class CustomTagMergeStrategy:
             entries = self.sg.generate_random_fill(24 * 3600 * num_days)
             return entries
 
+        # Fast-path: when only a fill_24h random fill tag is present (and no
+        # custom / series / multi-series tags), build one continuous stream from
+        # 0 to num_days*24*3600. This matches the Approximate modes and avoids
+        # the per-day branch below, which would otherwise reset each day to
+        # 00:00 and leave gaps at the end of every day.
+        rf_24h_tags = [rf for rf in random_fill_tags if getattr(rf, 'fill_24h', False)]
+        if rf_24h_tags and not custom_tags and not series_tags and not multi_series_tags:
+            return self.sg.generate_random_fill(24 * 3600 * num_days)
+
         occupied = set()
         custom_entries = []
         series_entries = []
