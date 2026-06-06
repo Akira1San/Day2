@@ -3,10 +3,18 @@
 
 import sys
 import os
+import json
+import tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from PySide6.QtCore import QTime
-from utils import extract_movie_sequence_key, group_videos_by_movie
+from utils import (
+    extract_movie_sequence_key,
+    group_videos_by_movie,
+    _extract_movie_tag,
+    load_collection_json,
+    load_collection_videos_only,
+)
 from scheduler import ScheduleGenerator
 from data_models import Tag, TagManager
 
@@ -341,6 +349,288 @@ def test_generate_rotates_starting_movie():
     print("All Bug 3 rotation tests passed!")
 
 
+def test_extract_movie_tag_helper():
+    """Test the _extract_movie_tag helper directly with all supported formats."""
+    print("\n=== Testing _extract_movie_tag helper ===")
+
+    cases = [
+        # (tags, expected_movie, expected_part)
+        (["3"],                                 3, None),
+        (["movie 7"],                           7, None),
+        (["Movie 7"],                           7, None),
+        (["Movie: 7"],                          7, None),
+        (["film 4"],                            4, None),
+        (["Film: 4"],                           4, None),
+        (["Part 2"],                           None, 2),
+        (["Part: 2"],                          None, 2),
+        (["part 2"],                           None, 2),
+        (["Movie: 5", "Part: 2"],               5,    2),
+        (["Episodic"],                          None, None),
+        (["Series: Arcane"],                    None, None),
+        ([],                                   None, None),
+        (["Some", "Other", "Tag"],              None, None),
+        # Tag with leading whitespace
+        (["  3  "],                              3, None),
+        # Multiple movie tags: last movie tag wins (helper overwrites on each match)
+        (["movie 1", "movie 2"],                2, None),
+        # Numeric + movie N -> last numeric-or-named wins
+        (["1", "movie 5"],                      5, None),
+        # "video movie N" pattern (user's actual format): "movie" in the middle
+        (["video movie 1"],                     1, None),
+        (["video movie 3"],                     3, None),
+        (["video movie 7"],                     7, None),
+        (["Video Movie 4"],                     4, None),
+        # "video part N" pattern
+        (["video movie 1", "video part 2"],     1,    2),
+        # Edge cases that must NOT match
+        (["transport 7"],                       None, None),  # part preceded by 's'
+        (["compartment 5"],                     None, None),  # part preceded by 'm'
+        (["amovie 1"],                          None, None),  # movie preceded by 'a'
+        (["superfilm 2"],                       None, None),  # film preceded by 'r'
+        (["Department: 2"],                     None, None),  # part preceded by 'De'
+    ]
+    for tags, exp_movie, exp_part in cases:
+        m, p = _extract_movie_tag(tags)
+        status = "\u2713" if (m == exp_movie and p == exp_part) else "\u2717"
+        print(f"  {status} {tags!r:40s} -> movie={m}, part={p} (expected movie={exp_movie}, part={exp_part})")
+        assert m == exp_movie, f"Failed for {tags!r}: got movie={m}, expected {exp_movie}"
+        assert p == exp_part, f"Failed for {tags!r}: got part={p}, expected {exp_part}"
+
+    print("All _extract_movie_tag helper tests passed!")
+
+
+def _write_temp_collection(coll_data):
+    """Helper: write a collection JSON to a temp file and return the path."""
+    tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)
+    json.dump(coll_data, tmp)
+    tmp.close()
+    return tmp.name
+
+
+def test_load_collection_json_with_movie_tags():
+    """Test that load_collection_json extracts _meta_movie / _meta_part from tags."""
+    print("\n=== Testing load_collection_json with movie tags ===")
+
+    data = {
+        "collections": [
+            {
+                "id": "sw4",
+                "name": "Star Wars: A New Hope",
+                "videos": [{"path": "/vids/sw4.mp4", "duration": 7200}],
+                "tags": ["1"],
+            },
+            {
+                "id": "sw5",
+                "name": "Star Wars: Empire Strikes Back",
+                "videos": [{"path": "/vids/sw5.mp4", "duration": 7800}],
+                "tags": ["2"],
+            },
+            {
+                "id": "sw6",
+                "name": "Star Wars: Return of the Jedi",
+                "videos": [{"path": "/vids/sw6.mp4", "duration": 8000}],
+                "tags": ["movie 3"],
+            },
+            {
+                "id": "some_show",
+                "name": "Normal Series",
+                "videos": [{"path": "/vids/ep01.mp4", "duration": 1800}],
+                "tags": ["Episodic"],
+            },
+            {
+                "id": "no_tags",
+                "name": "No Tags At All",
+                "videos": [{"path": "/vids/foo.mp4", "duration": 1800}],
+            },
+        ]
+    }
+    path = _write_temp_collection(data)
+    try:
+        videos, info = load_collection_json(path)
+    finally:
+        os.unlink(path)
+
+    # Build id -> video mapping
+    by_id = {v["collection_id"]: v for v in videos}
+
+    # All 5 collections present
+    assert set(by_id.keys()) == {"sw4", "sw5", "sw6", "some_show", "no_tags"}
+
+    # Tagged entries have _meta_movie populated
+    assert by_id["sw4"]["_meta_movie"] == 1
+    assert by_id["sw4"]["_meta_part"] is None
+    assert by_id["sw5"]["_meta_movie"] == 2
+    assert by_id["sw5"]["_meta_part"] is None
+    assert by_id["sw6"]["_meta_movie"] == 3
+    assert by_id["sw6"]["_meta_part"] is None
+
+    # Untagged entries have None for both
+    assert by_id["some_show"]["_meta_movie"] is None
+    assert by_id["some_show"]["_meta_part"] is None
+    assert by_id["no_tags"]["_meta_movie"] is None
+    assert by_id["no_tags"]["_meta_part"] is None
+
+    # collection_info still works
+    assert "sw4" in info
+    assert info["sw4"]["name"] == "Star Wars: A New Hope"
+
+    print("All load_collection_json movie-tag tests passed!")
+
+
+def test_load_collection_videos_only_with_movie_tags():
+    """Test that load_collection_videos_only also extracts _meta_movie / _meta_part."""
+    print("\n=== Testing load_collection_videos_only with movie tags ===")
+
+    data = {
+        "collections": [
+            {
+                "id": "a",
+                "name": "Movie 5",
+                "videos": [{"path": "/vids/a.mp4"}],
+                "tags": ["Movie: 5", "Part: 2"],
+            },
+            {
+                "id": "b",
+                "name": "Plain",
+                "videos": [{"path": "/vids/b.mp4"}],
+                "tags": ["Episodic"],
+            },
+        ]
+    }
+    path = _write_temp_collection(data)
+    try:
+        videos = load_collection_videos_only(path)
+    finally:
+        os.unlink(path)
+
+    by_id = {v["collection_id"]: v for v in videos}
+    assert by_id["a"]["_meta_movie"] == 5
+    assert by_id["a"]["_meta_part"] == 2
+    assert by_id["b"]["_meta_movie"] is None
+    assert by_id["b"]["_meta_part"] is None
+
+    print("All load_collection_videos_only movie-tag tests passed!")
+
+
+def test_extract_movie_sequence_key_with_meta():
+    """Test that extract_movie_sequence_key honors _meta_movie / _meta_part from dict."""
+    print("\n=== Testing extract_movie_sequence_key with _meta_movie ===")
+
+    # _meta_movie present, _meta_part present
+    v = {"_meta_movie": 7, "_meta_part": 3, "name": "anything",
+         "path": "1 - anything.mp4"}
+    assert extract_movie_sequence_key(v) == (7, 3), \
+        f"Expected (7, 3), got {extract_movie_sequence_key(v)}"
+
+    # _meta_movie present, _meta_part missing -> defaults to 0
+    v = {"_meta_movie": 5, "name": "1 - anything", "path": "1 - anything.mp4"}
+    assert extract_movie_sequence_key(v) == (5, 0), \
+        f"Expected (5, 0), got {extract_movie_sequence_key(v)}"
+
+    # _meta_movie present, _meta_part explicitly None -> defaults to 0
+    v = {"_meta_movie": 5, "_meta_part": None, "name": "1 - anything",
+         "path": "1 - anything.mp4"}
+    assert extract_movie_sequence_key(v) == (5, 0), \
+        f"Expected (5, 0), got {extract_movie_sequence_key(v)}"
+
+    # _meta_movie explicitly None -> falls back to filename parsing
+    v = {"_meta_movie": None, "name": "Movie 1 Part 1", "path": "Movie 1 Part 1.mp4"}
+    assert extract_movie_sequence_key(v) == (1, 1), \
+        f"Expected (1, 1), got {extract_movie_sequence_key(v)}"
+
+    # No _meta_movie at all -> falls back to filename parsing (existing behavior)
+    v = {"name": "Movie 2 Part 3", "path": "Movie 2 Part 3.mp4"}
+    assert extract_movie_sequence_key(v) == (2, 3), \
+        f"Expected (2, 3), got {extract_movie_sequence_key(v)}"
+
+    # String input is unchanged
+    assert extract_movie_sequence_key("Movie 1 Part 1.mp4") == (1, 1)
+    assert extract_movie_sequence_key("S01E02.mp4") == (1, 2)
+
+    print("All extract_movie_sequence_key with _meta_movie tests passed!")
+
+
+def test_group_videos_by_movie_with_meta():
+    """Test that group_videos_by_movie groups videos using _meta_movie from tags."""
+    print("\n=== Testing group_videos_by_movie with mixed sources ===")
+
+    # Mixed: some videos use _meta_movie from JSON tags, others use filename parsing
+    videos = [
+        # From JSON tags
+        {"id": 1, "_meta_movie": 1, "_meta_part": 0,
+         "name": "Star Wars 4", "path": "/vids/sw4.mp4"},
+        {"id": 2, "_meta_movie": 1, "_meta_part": 1,
+         "name": "Star Wars 5", "path": "/vids/sw5.mp4"},
+        # From filename parsing
+        {"id": 3, "name": "Movie 2 Part 1", "path": "/vids/m2p1.mp4"},
+        {"id": 4, "name": "Movie 2 Part 2", "path": "/vids/m2p2.mp4"},
+        # Untagged but filename would have given (1, 0) - tag overrides filename
+        {"id": 5, "_meta_movie": 3, "_meta_part": 0,
+         "name": "1 - misleading name", "path": "/vids/m3.mp4"},
+    ]
+
+    groups = group_videos_by_movie(videos)
+    print(f"  Groups formed: {sorted(groups.keys())}")
+    for movie_num, group_videos in sorted(groups.items()):
+        print(f"    Movie {movie_num}: {len(group_videos)} videos")
+        for v in group_videos:
+            print(f"      - id={v.get('id')} name={v.get('name')}")
+
+    # 3 distinct movie groups
+    assert sorted(groups.keys()) == [1, 2, 3]
+    # Movie 1: 2 videos (ids 1, 2)
+    assert sorted(v["id"] for v in groups[1]) == [1, 2]
+    # Movie 2: 2 videos (ids 3, 4)
+    assert sorted(v["id"] for v in groups[2]) == [3, 4]
+    # Movie 3: 1 video (id 5) - tag wins over misleading filename
+    assert [v["id"] for v in groups[3]] == [5]
+
+    print("All group_videos_by_movie mixed-sources tests passed!")
+
+
+def test_movie_sequence_end_to_end_with_tags():
+    """End-to-end: load collection JSON with tags, then group + schedule."""
+    print("\n=== End-to-end: load -> group -> schedule (with tags) ===")
+
+    data = {
+        "collections": [
+            {"id": "m1", "name": "Movie 1",
+             "videos": [{"path": "/vids/m1.mp4"}], "tags": ["1"]},
+            {"id": "m2", "name": "Movie 2",
+             "videos": [{"path": "/vids/m2.mp4"}], "tags": ["2"]},
+            {"id": "m3", "name": "Movie 3",
+             "videos": [{"path": "/vids/m3.mp4"}], "tags": ["3"]},
+        ]
+    }
+    path = _write_temp_collection(data)
+    try:
+        videos, _ = load_collection_json(path)
+    finally:
+        os.unlink(path)
+
+    # Group by movie
+    groups = group_videos_by_movie(videos)
+    assert sorted(groups.keys()) == [1, 2, 3], \
+        f"Expected [1, 2, 3], got {sorted(groups.keys())}"
+    assert len(groups[1]) == 1
+    assert len(groups[2]) == 1
+    assert len(groups[3]) == 1
+
+    # Now schedule with movie_sequence mode and verify day-by-day movie picks
+    tag_manager = TagManager()
+    gen = ScheduleGenerator(tag_manager)
+    gen.video_order_mode = "movie_sequence"
+
+    for day, expected_movie in [(0, 1), (1, 2), (2, 3), (3, 1)]:
+        vids = gen._get_videos_for_day(videos, day)
+        movie_nums = [extract_movie_sequence_key(v)[0] for v in vids]
+        assert all(m == expected_movie for m in movie_nums), (
+            f"Day {day}: expected all movies={expected_movie}, got {movie_nums}"
+        )
+
+    print("End-to-end movie_sequence with tags: passed!")
+
+
 if __name__ == "__main__":
     try:
         test_extract_movie_sequence_key()
@@ -349,6 +639,12 @@ if __name__ == "__main__":
         test_build_random_entries_movie_sequence()
         test_custom_tag_movie_sequence()
         test_generate_rotates_starting_movie()
+        test_extract_movie_tag_helper()
+        test_load_collection_json_with_movie_tags()
+        test_load_collection_videos_only_with_movie_tags()
+        test_extract_movie_sequence_key_with_meta()
+        test_group_videos_by_movie_with_meta()
+        test_movie_sequence_end_to_end_with_tags()
         print("\n" + "="*50)
         print("ALL TESTS PASSED!")
         print("="*50)

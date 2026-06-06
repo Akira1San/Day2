@@ -39,11 +39,14 @@ def load_collection_json(file_path: str) -> Tuple[List[Dict[str, Any]], Dict[str
             season = None
             if season_str and season_str.isdigit():
                 season = int(season_str)
+            movie_num, part_num = _extract_movie_tag(coll_tags)
             for video in coll.get('videos', []):
                 video_copy = video.copy()
                 video_copy['collection_id'] = coll_id
                 video_copy['_meta_series'] = series_name
                 video_copy['_meta_season'] = season
+                video_copy['_meta_movie'] = movie_num
+                video_copy['_meta_part'] = part_num
                 collection_videos.append(video_copy)
     except Exception:
         pass
@@ -60,6 +63,43 @@ def _extract_tag_value(tags: List[str], prefix: str) -> Optional[str]:
             value = tag[len(prefix):].strip()
             return value if value else None
     return None
+
+
+def _extract_movie_tag(tags: List[str]) -> Tuple[Optional[int], Optional[int]]:
+    """Scan tags for movie sequence identifiers.
+
+    Returns: (movie_number, part_number) or (None, None) if no movie tag found.
+
+    Tag formats matched:
+    - Purely numeric: "3" -> movie=3
+    - "Movie: N", "Movie N", "movie N" -> movie=N
+    - "Part: N", "Part N", "part N" -> part=N
+    """
+    movie = None
+    part = None
+
+    for tag in tags:
+        tag_stripped = tag.strip()
+
+        # Purely numeric tag -> movie number
+        if tag_stripped.isdigit():
+            movie = int(tag_stripped)
+            continue
+
+        # Check for "Movie: N" or "movie N" etc. (anywhere in the tag, e.g. "video movie 1")
+        m = re.search(r'\b(?:movie|film)[:\s]*(\d+)', tag_stripped, re.IGNORECASE)
+        if m:
+            movie = int(m.group(1))
+            continue
+
+        # Check for "Part: N" or "part N" etc. (anywhere in the tag, with word boundary
+        # so we don't false-match "transport 7" -> part=7)
+        m = re.search(r'\bpart[:\s]*(\d+)', tag_stripped, re.IGNORECASE)
+        if m:
+            part = int(m.group(1))
+            continue
+
+    return (movie, part)  # either or both may be None
 
 
 def load_collection_videos_only(file_path: str) -> List[Dict[str, Any]]:
@@ -83,12 +123,15 @@ def load_collection_videos_only(file_path: str) -> List[Dict[str, Any]]:
             season = None
             if season_str and season_str.isdigit():
                 season = int(season_str)
+            movie_num, part_num = _extract_movie_tag(coll_tags)
 
             for video in coll.get('videos', []):
                 video_copy = video.copy()
                 video_copy['collection_id'] = coll_id
                 video_copy['_meta_series'] = series_name
                 video_copy['_meta_season'] = season
+                video_copy['_meta_movie'] = movie_num
+                video_copy['_meta_part'] = part_num
                 videos.append(video_copy)
 
         return videos
@@ -255,18 +298,30 @@ def get_covers_path(config_file: str = "config.ini") -> Optional[Path]:
 def extract_movie_sequence_key(video_or_path) -> Tuple[int, int]:
     """Extract (movie_number, part_number) from a video dict or path string.
     
-    If given a dict, tries 'name' field first, then falls back to 'path'.
-    If given a string, treats it as a path.
+    If given a dict, first checks for explicit movie metadata (_meta_movie).
+    If _meta_movie is set, returns it immediately with _meta_part (default 0).
+    Otherwise falls back to parsing 'name' or 'path' from the dict (or the
+    string itself when given a path string).
     
     Patterns matched (in order of precedence):
-    1. Explicit movie/film markers: "Movie 1", "Film 1" -> movie from marker
-       Part can be indicated by "Part 2" or "x2" suffix.
-    2. Standalone "Part N" at start indicates movie number (e.g., "Part 7" -> movie 7, part 0).
-    3. Leading number: "1 - Video Name" -> movie=1, part=0.
-    4. Two number groups: "1x02" or "S01E02" -> movie=first, part=second.
+    1. _meta_movie / _meta_part from video dict (if present) -> return immediately
+    2. Filename parsing: existing behavior
+       1. Explicit movie/film markers: "Movie 1", "Film 1" -> movie from marker
+          Part can be indicated by "Part 2" or "x2" suffix.
+       2. Standalone "Part N" at start indicates movie number (e.g., "Part 7" -> movie 7, part 0).
+       3. Leading number: "1 - Video Name" -> movie=1, part=0.
+       4. Two number groups: "1x02" or "S01E02" -> movie=first, part=second.
     
     Returns: (movie_num, part_num) with defaults (1, 0)
     """
+    # 1. Explicit movie metadata from dict (set by _extract_movie_tag via collection JSON tags)
+    if isinstance(video_or_path, dict):
+        meta_movie = video_or_path.get('_meta_movie')
+        if meta_movie is not None:
+            meta_part = video_or_path.get('_meta_part', 0) or 0
+            return (meta_movie, meta_part)
+        # else: fall through to filename parsing
+
     # Determine source string
     if isinstance(video_or_path, dict):
         name = video_or_path.get('name', '')
