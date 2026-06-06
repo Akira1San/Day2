@@ -236,8 +236,109 @@ def test_custom_tag_movie_sequence():
     
     print(f"  Movie numbers used: {movie_nums}")
     assert len(movie_nums) == 1, f"Custom tag should use only 1 movie group, got {movie_nums}"
-    
+
     print("All custom tag tests passed!")
+
+
+def test_generate_rotates_starting_movie():
+    """Bug 3 fix: re-Generate in movie_sequence mode should produce a different preview.
+
+    Each call to apply_custom_tags bumps _generate_count, which rotates the
+    starting movie group. So day 1 should cycle through Movie 1 -> Movie 2 ->
+    Movie 3 -> Movie 1 on successive Generate clicks.
+    """
+    print("\n=== Testing Bug 3 fix: rotation on each Generate click ===")
+
+    videos = [
+        {'id': 1, 'name': 'Movie 1 Part 1', 'path': '/movies/Movie 1 Part 1.mp4', 'duration': 90},
+        {'id': 2, 'name': 'Movie 1 Part 2', 'path': '/movies/Movie 1 Part 2.mp4', 'duration': 90},
+        {'id': 3, 'name': 'Movie 2 Part 1', 'path': '/movies/Movie 2 Part 1.mp4', 'duration': 90},
+        {'id': 4, 'name': 'Movie 2 Part 2', 'path': '/movies/Movie 2 Part 2.mp4', 'duration': 90},
+        {'id': 5, 'name': 'Movie 3 Part 1', 'path': '/movies/Movie 3 Part 1.mp4', 'duration': 90},
+    ]
+
+    tag_manager = TagManager()
+    custom_tag = Tag(
+        name="Movies",
+        tag_type="custom",
+        start_time="00:00",
+        end_time="23:59",
+        collection_videos=videos,
+        video_count=1,
+    )
+    custom_tag.start_time = QTime(0, 0)
+    custom_tag.end_time = QTime(23, 59)
+    tag_manager.add_tag(custom_tag)
+
+    gen = ScheduleGenerator(tag_manager)
+    gen.video_order_mode = 'movie_sequence'
+
+    # Click 1: should pick Movie 1 for day 0
+    gen._generate_count = 0
+    day0_v1 = gen._get_videos_for_day(videos, 0)
+    movie_v1 = extract_movie_sequence_key(day0_v1[0])[0]
+    print(f"  Click 1, day 0: Movie {movie_v1} (expected 1)")
+
+    # Click 2: should pick Movie 2 for day 0
+    gen._generate_count = 1
+    day0_v2 = gen._get_videos_for_day(videos, 0)
+    movie_v2 = extract_movie_sequence_key(day0_v2[0])[0]
+    print(f"  Click 2, day 0: Movie {movie_v2} (expected 2)")
+
+    # Click 3: should pick Movie 3 for day 0
+    gen._generate_count = 2
+    day0_v3 = gen._get_videos_for_day(videos, 0)
+    movie_v3 = extract_movie_sequence_key(day0_v3[0])[0]
+    print(f"  Click 3, day 0: Movie {movie_v3} (expected 3)")
+
+    # Click 4: should wrap to Movie 1
+    gen._generate_count = 3
+    day0_v4 = gen._get_videos_for_day(videos, 0)
+    movie_v4 = extract_movie_sequence_key(day0_v4[0])[0]
+    print(f"  Click 4, day 0: Movie {movie_v4} (expected 1 - wrap)")
+
+    assert movie_v1 == 1, f"Click 1 should pick Movie 1, got {movie_v1}"
+    assert movie_v2 == 2, f"Click 2 should pick Movie 2, got {movie_v2}"
+    assert movie_v3 == 3, f"Click 3 should pick Movie 3, got {movie_v3}"
+    assert movie_v4 == 1, f"Click 4 should wrap to Movie 1, got {movie_v4}"
+
+    # Also test that apply_custom_tags actually bumps the counter
+    gen._generate_count = 0
+    tag_manager.clear_cache()
+    gen.apply_custom_tags(use_cache=False)
+    after_first = gen._generate_count
+    gen.apply_custom_tags(use_cache=False)
+    after_second = gen._generate_count
+    print(f"  _generate_count after clicks: {after_first} -> {after_second}")
+    assert after_first == 1, f"Count after 1 click should be 1, got {after_first}"
+    assert after_second == 2, f"Count after 2 clicks should be 2, got {after_second}"
+
+    # And the produced schedule should differ between clicks
+    gen._generate_count = 0
+    tag_manager.clear_cache()
+    schedule_a = gen.apply_custom_tags(use_cache=False)
+    gen._generate_count = 1
+    tag_manager.clear_cache()
+    schedule_b = gen.apply_custom_tags(use_cache=False)
+
+    def first_video_name(schedule):
+        for e in schedule:
+            if e.start_seconds < 86400 and "Movie" in e.video_name:
+                return e.video_name
+        return None
+
+    name_a = first_video_name(schedule_a)
+    name_b = first_video_name(schedule_b)
+    print(f"  Schedule A first video: {name_a}")
+    print(f"  Schedule B first video: {name_b}")
+    assert name_a != name_b, (
+        f"Two consecutive Generate clicks should produce different previews, "
+        f"both had: {name_a}"
+    )
+    assert "Movie 1" in name_a or "Movie 2" in name_a or "Movie 3" in name_a
+    assert "Movie 1" in name_b or "Movie 2" in name_b or "Movie 3" in name_b
+
+    print("All Bug 3 rotation tests passed!")
 
 
 if __name__ == "__main__":
@@ -247,6 +348,7 @@ if __name__ == "__main__":
         test_get_videos_for_day()
         test_build_random_entries_movie_sequence()
         test_custom_tag_movie_sequence()
+        test_generate_rotates_starting_movie()
         print("\n" + "="*50)
         print("ALL TESTS PASSED!")
         print("="*50)

@@ -40,6 +40,10 @@ class ScheduleGenerator:
     def __init__(self, tag_manager: TagManager):
         self.tag_manager = tag_manager
         self.video_order_mode = "random"  # "random" | "movie_sequence"
+        # Bug 3 fix: counter that rotates the starting movie on each Generate click
+        # so re-Generate produces visibly different previews in movie_sequence mode.
+        # Reset only by explicit re-initialization; not bumped by per-tag/cached calls.
+        self._generate_count = 0
 
     def _create_video_entry(self, pos: int, duration: int, name: str, tag_name: str = "") -> ScheduleEntry:
         video_name = f"{tag_name} - {name}" if tag_name else name
@@ -181,8 +185,11 @@ class ScheduleGenerator:
             if not groups:
                 return videos.copy()
             movie_numbers = sorted(groups.keys())
-            # Select movie group based on day_offset (wrap around)
-            selected_movie = movie_numbers[day_offset % len(movie_numbers)]
+            # Bug 3 fix: rotate the starting movie by _generate_count so re-Generate
+            # gives a visibly different preview while preserving day→movie mapping.
+            num_movies = len(movie_numbers)
+            effective_day = (day_offset + self._generate_count) % num_movies
+            selected_movie = movie_numbers[effective_day]
             day_videos = groups[selected_movie].copy()
             return day_videos
         else:
@@ -304,6 +311,11 @@ class ScheduleGenerator:
                 ordered.extend(groups[mnum])
         else:
             ordered = vids
+        # Bug 3 fix: rotate the cycle start so re-Generate produces a visibly
+        # different ordering. Pure rotation preserves part-order within each group.
+        if ordered:
+            rotation = self._generate_count % len(ordered)
+            ordered = ordered[rotation:] + ordered[:rotation]
         pos = start_pos
         vid_idx = 0
         while pos < end_pos:
@@ -346,6 +358,11 @@ class ScheduleGenerator:
                     ordered.extend(groups[mnum])
             else:
                 ordered = vids
+            # Bug 3 fix: rotate the cycle start so re-Generate produces a visibly
+            # different ordering. Pure rotation preserves part-order within each group.
+            if ordered:
+                rotation = self._generate_count % len(ordered)
+                ordered = ordered[rotation:] + ordered[:rotation]
             current_second = 0
             video_index = 0
             while current_second < remaining_seconds:
@@ -557,6 +574,10 @@ class ScheduleGenerator:
                 vid_idx += 1
 
     def apply_custom_tags(self, use_cache: bool = True, num_days: int = 1) -> List[ScheduleEntry]:
+        # Bug 3 fix: bump rotation counter so re-Generate produces a different preview
+        # in movie_sequence mode. We bump it even on cache hits, so the user gets
+        # a fresh cycle start each click.
+        self._generate_count += 1
         cached = self.tag_manager.get_cached_random_entries()
         strategy = CustomTagMergeStrategy(self)
         if use_cache and cached is not None:
@@ -567,6 +588,8 @@ class ScheduleGenerator:
 
     def apply_approximate(self, num_days: int = 1, mode: str = "find_replace") -> List[ScheduleEntry]:
         """Dispatch to the appropriate approximate scheduling strategy."""
+        # Bug 3 fix: same rotation behavior in approximate mode.
+        self._generate_count += 1
         logger.info(f"[APPROX] Using mode: {mode}")
         if mode == "linear":
             return LinearApproximateStrategy(self).generate(num_days)
