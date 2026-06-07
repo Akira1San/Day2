@@ -124,7 +124,7 @@ class DurationDebugDialog(QDialog):
 
             items_data = [
                 str(row + 1),
-                str(entry.day),
+                str((entry.start_seconds // 86400) + 1),
                 time_str,
                 entry.video_name,
                 f"{scheduled}s",
@@ -167,7 +167,7 @@ class DurationDebugDialog(QDialog):
             coll_str = f"{int(coll_dur)}s" if coll_dur is not None else "N/A"
             status_label = self.STATUS_LABELS.get(status, status)
             lines.append(
-                f"{row + 1}\t{entry.day}\t{time_str}\t{entry.video_name}\t{scheduled}s\t{coll_str}\t{status_label}"
+                f"{row + 1}\t{(entry.start_seconds // 86400) + 1}\t{time_str}\t{entry.video_name}\t{scheduled}s\t{coll_str}\t{status_label}"
             )
         QApplication.clipboard().setText("\n".join(lines))
 
