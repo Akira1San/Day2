@@ -35,6 +35,11 @@ def serialize_tag_to_string(tag) -> str:
         lines.append(f"series_end_behavior = {getattr(tag, 'series_end_behavior', 'stop')}")
         lines.append(f"series_repeat_season = {getattr(tag, 'series_repeat_season', 0)}")
         lines.append(f"series_random_season = {getattr(tag, 'series_random_season', 0)}")
+        # Bug 2: also save collection_path so the cold-load fallback in
+        # _process_series_tag can find the videos without a Save
+        # round-trip. (collection_profile is also saved below; one of
+        # the two is enough for the lazy-load to work.)
+        lines.append(f"collection_path = {getattr(tag, 'collection_path', '')}")
         lines.append(f"collection_profile = {getattr(tag, 'collection_profile', '')}")
         lines.append(f"blacklist_profile = {getattr(tag, 'blacklist_profile', '')}")
     

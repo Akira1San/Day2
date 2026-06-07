@@ -451,6 +451,125 @@ def test_bug2_cold_load_matches_warm_load():
             pass
 
 
+def test_bug2_saved_series_tag_uses_collection_profile():
+    """
+    Regression test for Bug 2 (re-discovered 2026-06-08): the user's
+    report after the initial Bug 2 fix landed:
+    'I save a tags for random and series, custom and so on. when I
+    load the tags and generate the bug shows up, but if I do a
+    click on the button random fill, select the collection, then
+    click on the series tag select the collection file. this makes
+    a new tags in the list and press generate button. all works
+    fine! so the bug is with the saved tags'
+
+    Root cause: `serialize_tag_to_string` for series tags did NOT
+    save `collection_path` (only `collection_profile`, a bare file
+    name in the collections dir). On reload, the in-memory Tag
+    had `collection_path=''` AND `collection_videos=[]` AND only
+    `collection_profile='collections_Sandokan_1976.json'`. The
+    cold-load fallback in `_process_series_tag` only checked
+    `collection_path`, so it never fired, and the placeholder
+    was emitted.
+
+    Fix: `_process_series_tag` now resolves the collection via a
+    new helper `_resolve_series_collection_path` that falls back
+    to `collection_profile → collections_dir/profile_name` and
+    also scans the collections dir for a matching JSON if neither
+    is set. `serialize_tag_to_string` also now saves
+    `collection_path` so new tags work after save/reload too.
+
+    On the unfixed code: this test FAILS — the entry is the
+    tag-name placeholder 'Sandokan 1976' (no episode).
+    On the fixed code: this test PASSES — the entry has the
+    episode file name.
+    """
+    print("\n" + "=" * 70)
+    print("BUG 2 (regression 2026-06-08): saved series tag uses collection_profile")
+    print("=" * 70)
+
+    # Find an existing Sandokan collection on disk. If not available,
+    # write a synthetic one to a temp dir and override the config
+    # paths to point there. (For this regression test, we use the
+    # real on-disk path that the user's saved tag references.)
+    from utils import get_config_paths, load_collection_videos_only
+    coll_dir, _ = get_config_paths()
+    coll_path = os.path.join(coll_dir, "collections_Sandokan_1976.json")
+    if not os.path.isfile(coll_path):
+        # Fallback: write a synthetic one in a temp dir and patch
+        # get_config_paths via monkey-patching the collections dir.
+        # The simplest way is to just write a copy to the actual
+        # collections dir; for the test we'll skip if even that
+        # fails (e.g. permissions).
+        coll_path = _write_sandokan_collection_file()
+        fallback_path = True
+    else:
+        fallback_path = False
+    try:
+        # Sanity check that the profile-based resolution would work.
+        loaded = load_collection_videos_only(coll_path)
+        assert loaded, f"Could not load videos from {coll_path}"
+
+        # Build a Tag that matches what serialize_tag_to_string would
+        # produce for a series tag (no collection_path, only
+        # collection_profile = bare file name).
+        tm = TagManager()
+        tm.add_tag(Tag(
+            name="Sandokan 1976",
+            tag_type="series",
+            start_time=QTime(20, 0),
+            end_time=QTime(20, 51),
+            is_series=True,
+            start_season=1,
+            start_episode=1,
+            play_mode="sequence",
+            video_count=1,
+            series_end_behavior="repeat",
+            series_repeat_season=1,
+            collection_profile="collections_Sandokan_1976.json",
+            # collection_path is intentionally NOT set (matches the
+            # old .ini file format where the field wasn't serialized)
+        ))
+
+        sg = ScheduleGenerator(tm)
+        entries = sg.apply_custom_tags(num_days=1)
+        _dump_schedule("Series tag with collection_profile only", entries)
+
+        series_entries = [e for e in entries
+                          if "Sandokan" in e.video_name]
+        print(f"\n  series entries: {len(series_entries)}")
+        for e in series_entries:
+            print(f"    '{e.video_name}'  (dur={e.end_seconds - e.start_seconds}s)")
+
+        assert len(series_entries) >= 1, (
+            f"BUG 2 (saved-tag): expected the collection_profile fallback "
+            f"to emit at least one entry, got {len(series_entries)}"
+        )
+        for e in series_entries:
+            is_placeholder = (e.video_name == "Sandokan 1976" and
+                              (e.end_seconds - e.start_seconds) == 51 * 60)
+            assert not is_placeholder, (
+                f"BUG 2 (saved-tag) REPRODUCED: entry is the tag-name "
+                f"placeholder ('{e.video_name}', "
+                f"dur={e.end_seconds - e.start_seconds}s) instead of an "
+                f"actual episode. The collection_profile→path "
+                f"fallback in _resolve_series_collection_path is not "
+                f"working."
+            )
+            assert ".mp4" in e.video_name, (
+                f"BUG 2 (saved-tag): expected an episode file name in "
+                f"'{e.video_name}', got only the tag name."
+            )
+        print("  PASS: saved series tag (collection_profile only) "
+              "resolves the collection and emits the episode file name. "
+              "No Save round-trip needed.")
+    finally:
+        if fallback_path:
+            try:
+                os.unlink(coll_path)
+            except OSError:
+                pass
+
+
 # ---------------------------------------------------------------------------
 # BUG 2a: series tag with video_count=1 produces 0 entries
 # ---------------------------------------------------------------------------
@@ -667,6 +786,7 @@ def main():
         test_bug2_series_tag_shows_only_tag_name_no_episodes,
         test_bug2_cold_load_series_tag_shows_only_tag_name,
         test_bug2_cold_load_matches_warm_load,
+        test_bug2_saved_series_tag_uses_collection_profile,
         test_bug2a_series_video_count_one_produces_no_entries,
         test_bug3_series_video_count_inconsistent_across_days,
         test_bug4_random_fill_entry_after_series_has_half_duration,

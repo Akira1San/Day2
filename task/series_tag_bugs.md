@@ -1,6 +1,6 @@
 # Series Tag & Custom Tag Bugs — TODO
 
-## Status: 🚧 PARTIALLY FIXED — 3 of 5 bugs fixed (Bug 2, 2026-06-07; Bug 2a + Bug 3, 2026-06-08); 2 still REPRODUCED, 1 needs tighter repro
+## Status: 🚧 PARTIALLY FIXED — 3 of 5 bugs fixed (Bug 2, 2026-06-07 + 2026-06-08 followup; Bug 2a + Bug 3, 2026-06-08); 2 still REPRODUCED, 1 needs tighter repro
 
 ## Test Run (2026-06-07) — `python3 test_series_tag_bugs.py`
 

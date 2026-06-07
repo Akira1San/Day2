@@ -6,6 +6,7 @@ approximate-mode dispatcher, and private scheduling algorithms.
 """
 
 from __future__ import annotations
+import os
 import random
 import logging
 from typing import List
@@ -48,6 +49,51 @@ class ScheduleGenerator:
     def _create_video_entry(self, pos: int, duration: int, name: str, tag_name: str = "") -> ScheduleEntry:
         video_name = f"{tag_name} - {name}" if tag_name else name
         return ScheduleEntry(1, pos, pos + duration, video_name)
+
+    def _resolve_series_collection_path(self, st) -> str:
+        """Resolve a series tag's collection to an absolute file path.
+
+        Tries, in order:
+          1. st.collection_path (full path set by the file picker)
+          2. st.collection_profile (a bare file name in the collections
+             directory; this is what's saved for series tags by
+             serialize_tag_to_string)
+          3. The first existing matching .json file in the collections
+             directory (handles the "old .ini" case where neither field
+             is set but the user expects a known collection to be used)
+
+        Returns the path string if a resolvable file exists, or '' if
+        no candidate is found.
+        """
+        # 1. Direct path
+        direct = getattr(st, 'collection_path', '') or ''
+        if direct and os.path.isfile(direct):
+            return direct
+
+        # 2. Profile name → collections_dir / profile_name
+        from utils import get_config_paths
+        coll_dir, _ = get_config_paths()
+        profile = getattr(st, 'collection_profile', '') or ''
+        if profile:
+            candidate = os.path.join(coll_dir, profile)
+            if os.path.isfile(candidate):
+                return candidate
+
+        # 3. Fallback: scan collections dir for any matching json
+        if profile and os.path.isdir(coll_dir):
+            base = os.path.splitext(profile)[0]
+            for ext in (".json",):
+                candidate = os.path.join(coll_dir, base + ext)
+                if os.path.isfile(candidate):
+                    return candidate
+            # Last resort: any collections_*.json that contains the
+            # base name (handles the 'collections_<name>.json' vs '<name>.json'
+            # naming variations the user may have on disk).
+            for entry in os.listdir(coll_dir):
+                if entry.endswith(".json") and base in entry:
+                    return os.path.join(coll_dir, entry)
+
+        return ''
 
     def _select_series_videos(self, tag_or_config, day_offset: int) -> List[dict]:
         """Select videos for a series tag (Tag object or config dict) for given day_offset.
@@ -443,19 +489,30 @@ class ScheduleGenerator:
         if start_sec >= end_sec:
             return
 
-        # Cold-load recovery (Bug 2): if collection_videos is empty but
-        # collection_path is set, lazy-load the videos from the path.
-        # This mirrors what serialization.py does on disk-load and
+        # Cold-load recovery (Bug 2): if collection_videos is empty, try
+        # to resolve the collection from:
+        #   1. collection_path (full path, set when the user picks the
+        #      file in the file picker; saved for random/custom tags but
+        #      NOT for series tags — see Bug 2 note below)
+        #   2. collection_profile (a file name in the collections
+        #      directory; this is what's saved for series tags)
+        # If either resolves to a real file, lazy-load the videos from
+        # it. This mirrors what serialization.py does on disk-load and
         # replaces the user workaround of opening the edit dialog and
         # clicking Save to populate the in-memory list.
-        if not st.collection_videos and getattr(st, 'collection_path', ''):
-            try:
-                from utils import load_collection_videos_only
-                loaded = load_collection_videos_only(st.collection_path)
-                if loaded:
-                    st.collection_videos = loaded
-            except Exception:
-                pass
+        if not st.collection_videos:
+            resolved_path = self._resolve_series_collection_path(st)
+            if resolved_path:
+                try:
+                    from utils import load_collection_videos_only
+                    loaded = load_collection_videos_only(resolved_path)
+                    if loaded:
+                        st.collection_videos = loaded
+                        # Also set collection_path so subsequent code
+                        # (and any debugging) sees the resolved path.
+                        st.collection_path = resolved_path
+                except Exception:
+                    pass
 
         if st.collection_videos:
             for s in range(start_sec, end_sec):
