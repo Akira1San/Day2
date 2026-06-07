@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import sys
+import os
 import json
 import configparser
 import logging
@@ -109,12 +110,12 @@ class MainWindow(QMainWindow):
 
         save_load_layout = QHBoxLayout()
         self.save_btn = QPushButton("Save All")
-        self.save_btn.setToolTip("Save all tags to tags.ini")
+        self.save_btn.setToolTip("Save all tags to an INI file (default: tags.ini)")
         self.save_btn.clicked.connect(self.save_tags)
         save_load_layout.addWidget(self.save_btn)
 
         self.load_btn = QPushButton("Load All")
-        self.load_btn.setToolTip("Load all tags from tags.ini")
+        self.load_btn.setToolTip("Load all tags from an INI file (default: tags.ini)")
         self.load_btn.clicked.connect(self.load_tags)
         save_load_layout.addWidget(self.load_btn)
 
@@ -441,16 +442,68 @@ class MainWindow(QMainWindow):
         dialog.exec()
 
     def save_tags(self):
-        self.tag_manager.save_tags("tags.ini")
-        self.statusBar().showMessage("Tags saved to tags.ini")
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "Save All Tags", "tags.ini",
+            "INI Files (*.ini);;All Files (*)",
+        )
+        if not file_path:
+            return
+        if os.path.exists(file_path):
+            reply = QMessageBox.question(
+                self, "Overwrite?",
+                f"{file_path} already exists. Overwrite it with the current tags?",
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+            )
+            if reply != QMessageBox.Yes:
+                return
+        try:
+            self.tag_manager.save_tags(file_path)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to save tags:\n{e}")
+            return
+        QMessageBox.information(
+            self, "Saved",
+            f"Tags saved to {file_path} ({len(self.tag_manager.tags)} tag(s)).",
+        )
+        self.statusBar().showMessage(f"Tags saved to {file_path}")
 
     def load_tags(self):
-        if self.tag_manager.load_tags("tags.ini"):
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Load All Tags", "tags.ini",
+            "INI Files (*.ini);;All Files (*)",
+        )
+        if not file_path:
+            return
+        if not os.path.exists(file_path):
+            QMessageBox.warning(self, "Not Found", f"No such file: {file_path}")
+            return
+        if self.tag_manager.tags:
+            reply = QMessageBox.question(
+                self, "Discard Current Tags?",
+                f"Loading from {file_path} will replace the {len(self.tag_manager.tags)} "
+                f"tag(s) currently in memory. Continue?",
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+            )
+            if reply != QMessageBox.Yes:
+                return
+        try:
+            loaded = self.tag_manager.load_tags(file_path)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to load tags:\n{e}")
+            return
+        if loaded:
             self.refresh_tags_list()
             self.refresh_preview()
-            self.statusBar().showMessage("Tags loaded from tags.ini")
+            QMessageBox.information(
+                self, "Loaded",
+                f"Loaded {len(self.tag_manager.tags)} tag(s) from {file_path}.",
+            )
+            self.statusBar().showMessage(f"Tags loaded from {file_path}")
         else:
-            self.statusBar().showMessage("No tags.ini found")
+            QMessageBox.information(
+                self, "Empty File",
+                f"{file_path} exists but contains no tags.",
+            )
 
     def open_config(self):
         dialog = ConfigDialog(self)
