@@ -443,6 +443,20 @@ class ScheduleGenerator:
         if start_sec >= end_sec:
             return
 
+        # Cold-load recovery (Bug 2): if collection_videos is empty but
+        # collection_path is set, lazy-load the videos from the path.
+        # This mirrors what serialization.py does on disk-load and
+        # replaces the user workaround of opening the edit dialog and
+        # clicking Save to populate the in-memory list.
+        if not st.collection_videos and getattr(st, 'collection_path', ''):
+            try:
+                from utils import load_collection_videos_only
+                loaded = load_collection_videos_only(st.collection_path)
+                if loaded:
+                    st.collection_videos = loaded
+            except Exception:
+                pass
+
         if st.collection_videos:
             for s in range(start_sec, end_sec):
                 occupied.add(s)
