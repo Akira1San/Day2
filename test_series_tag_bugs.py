@@ -686,6 +686,78 @@ def test_bug3_series_video_count_inconsistent_across_days():
     print("  PASS: every day has exactly 2 series entries")
 
 
+def test_bug2a3_partial_fit_extends_window():
+    """
+    Regression test for the refined Bug 2a/3 fix: the soft-hint
+    must activate not only when ZERO episodes fit, but also when
+    SOME episodes fit and the rest are silently skipped because
+    they would exceed the configured end_time.
+
+    Concrete scenario: window=66 min, video_count=2,
+    ep1=36m fits, ep2=30m (float duration makes total 4014s > 3960s).
+    Buggy behavior: only 1 episode placed, second silently skipped.
+    Fixed behavior: window extends so both fit.
+    """
+    print("\n" + "=" * 70)
+    print("BUG 2a/3 refined: partial fit (placed>=1 but <video_count) extends window")
+    print("=" * 70)
+
+    # Two videos where the second's float-precise total exceeds the 66-min window
+    # First is 2161.52s (36.0m), second is 1852.58s (30.9m); sum=4014.10s > 3960s
+    partial_episodes = [
+        {"path": "S01E01 - Ep01.mkv", "duration": 2161.52,
+         "_meta_season": 1, "_meta_episode": 1, "name": "Ep01.mkv"},
+        {"path": "S01E02 - Ep02.mkv", "duration": 1852.58,
+         "_meta_season": 1, "_meta_episode": 2, "name": "Ep02.mkv"},
+        # Second day: both fit within 66m window (28m + 37m = 65m)
+        {"path": "S01E03 - Ep03.mkv", "duration": 1682.52,
+         "_meta_season": 1, "_meta_episode": 3, "name": "Ep03.mkv"},
+        {"path": "S01E04 - Ep04.mkv", "duration": 2262.85,
+         "_meta_season": 1, "_meta_episode": 4, "name": "Ep04.mkv"},
+    ]
+
+    tm = TagManager()
+    tm.add_tag(_make_series_tag(
+        name="PartialFit",
+        start=QTime(13, 0), end=QTime(14, 6),  # 66 min window
+        episodes=partial_episodes,
+        video_count=2,
+        end_behavior="repeat",
+        repeat_season=1,
+    ))
+
+    sg = ScheduleGenerator(tm)
+    entries = sg.apply_custom_tags(num_days=2)
+    _dump_schedule("Partial-fit series (video_count=2, window=66m)", entries)
+
+    series_entries = [e for e in entries if "PartialFit" in e.video_name]
+    print(f"\n  series entries: {len(series_entries)}")
+    for e in series_entries:
+        d = (e.start_seconds // 86400) + 1
+        s_h = (e.start_seconds // 3600) % 24
+        s_m = (e.start_seconds % 3600) // 60
+        e_h = (e.end_seconds // 3600) % 24
+        e_m = (e.end_seconds % 3600) // 60
+        print(f"    D{d} {s_h:02d}:{s_m:02d}-{e_h:02d}:{e_m:02d}  {e.video_name}")
+
+    per_day = {}
+    for e in series_entries:
+        d = (e.start_seconds // 86400) + 1
+        per_day[d] = per_day.get(d, 0) + 1
+    print(f"  per-day series count: {per_day}")
+
+    for d in range(1, 3):
+        n = per_day.get(d, 0)
+        assert n == 2, (
+            f"BUG 2a/3 PARTIAL-FIT: day {d} has {n} series entries "
+            f"(expected exactly 2, since video_count=2 and at least 2 "
+            f"episodes exist). The window should auto-extend when the "
+            f"second episode doesn't fit."
+        )
+    print("  PASS: every day has exactly 2 series entries even when "
+          "the second episode doesn't fit in the initial window")
+
+
 # ---------------------------------------------------------------------------
 # BUG 4: first random-fill entry after a series tag has half its duration
 # ---------------------------------------------------------------------------
@@ -789,6 +861,7 @@ def main():
         test_bug2_saved_series_tag_uses_collection_profile,
         test_bug2a_series_video_count_one_produces_no_entries,
         test_bug3_series_video_count_inconsistent_across_days,
+        test_bug2a3_partial_fit_extends_window,
         test_bug4_random_fill_entry_after_series_has_half_duration,
         # Approximate ON + Find-Replace tests (apply_approximate)
         test_bug1_approximate_custom_tag_disappears_with_random_fill,

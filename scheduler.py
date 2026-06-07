@@ -523,36 +523,31 @@ class ScheduleGenerator:
             pos = start_sec
             placed = 0
             for v in videos_to_use:
-                if pos >= end_sec:
-                    break
                 video = v['video']
                 video_name = get_video_display_name(video)
                 duration = int(video.get('duration', 90))
                 if duration < 1:
                     duration = 90
                 if pos + duration > end_sec:
-                    continue
+                    # Soft-hint: extend the window just enough for this video
+                    extended_end = pos + duration
+                    for s in range(end_sec, extended_end):
+                        occupied.add(s)
+                    end_sec = extended_end
                 series_entries.append(self._create_video_entry(pos, duration, video_name, st.name))
                 pos += duration
                 placed += 1
 
-            # Bug 2a/3 fix: if NONE of the selected episodes fit in the
-            # configured window (e.g. the user set 20:00-20:51 = 51 min
-            # but every available episode is >= 53 min), the configured
-            # end_time was treated as a hard cap and the whole block was
-            # silently dropped. Treat end_time as a soft hint instead:
-            # if we placed zero episodes, extend the window to fit at
-            # least the first selected episode. The show's actual duration
-            # wins over the configured end_time, matching the task's
-            # recommendation: "treat end_time as a block boundary ... or
-            # auto-extend to the next scheduled tag."
+            # The soft-hint logic above now handles per-video overflow by
+            # extending the occupied window as needed. The old fallback for
+            # placed==0 is preserved only as a safety net for the edge case
+            # where a single video is longer than the entire initial window.
             if placed == 0 and videos_to_use:
                 first_video = videos_to_use[0]['video']
                 first_name = get_video_display_name(first_video)
                 first_duration = int(first_video.get('duration', 90))
                 if first_duration < 1:
                     first_duration = 90
-                # Extend the occupied range to cover the placed episode.
                 extended_end = start_sec + first_duration
                 for s in range(end_sec, extended_end):
                     occupied.add(s)
