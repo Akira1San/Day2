@@ -464,6 +464,7 @@ class ScheduleGenerator:
             videos_to_use = self._select_series_videos(st, day_offset)
 
             pos = start_sec
+            placed = 0
             for v in videos_to_use:
                 if pos >= end_sec:
                     break
@@ -476,6 +477,31 @@ class ScheduleGenerator:
                     continue
                 series_entries.append(self._create_video_entry(pos, duration, video_name, st.name))
                 pos += duration
+                placed += 1
+
+            # Bug 2a/3 fix: if NONE of the selected episodes fit in the
+            # configured window (e.g. the user set 20:00-20:51 = 51 min
+            # but every available episode is >= 53 min), the configured
+            # end_time was treated as a hard cap and the whole block was
+            # silently dropped. Treat end_time as a soft hint instead:
+            # if we placed zero episodes, extend the window to fit at
+            # least the first selected episode. The show's actual duration
+            # wins over the configured end_time, matching the task's
+            # recommendation: "treat end_time as a block boundary ... or
+            # auto-extend to the next scheduled tag."
+            if placed == 0 and videos_to_use:
+                first_video = videos_to_use[0]['video']
+                first_name = get_video_display_name(first_video)
+                first_duration = int(first_video.get('duration', 90))
+                if first_duration < 1:
+                    first_duration = 90
+                # Extend the occupied range to cover the placed episode.
+                extended_end = start_sec + first_duration
+                for s in range(end_sec, extended_end):
+                    occupied.add(s)
+                series_entries.append(
+                    self._create_video_entry(start_sec, first_duration, first_name, st.name)
+                )
         else:
             series_entries.append(ScheduleEntry(1, start_sec, end_sec, st.name))
             for s in range(start_sec, end_sec):

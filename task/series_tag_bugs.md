@@ -1,6 +1,6 @@
 # Series Tag & Custom Tag Bugs — TODO
 
-## Status: 🚧 PARTIALLY FIXED — 1 of 5 bugs fixed (Bug 2, 2026-06-07); 3 still REPRODUCED, 1 needs tighter repro
+## Status: 🚧 PARTIALLY FIXED — 3 of 5 bugs fixed (Bug 2, 2026-06-07; Bug 2a + Bug 3, 2026-06-08); 2 still REPRODUCED, 1 needs tighter repro
 
 ## Test Run (2026-06-07) — `python3 test_series_tag_bugs.py`
 
@@ -12,8 +12,8 @@ the current scheduler. Empirical results:
 | 1 | Custom tag disappears with random fill | Approx OFF: ✓ PASS / Approx Find-Replace: ✗ FAIL | ✅ REPRODUCED in Approx Find-Replace (window shrunk, 1 of 2 videos fit). Not reproduced in Approx OFF. |
 | 2 | Series tag shows only tag name (warm) | ✓ PASS | ✓ Working when `collection_videos` populated |
 | 2 | Series tag shows only tag name (cold load) | ✓ PASS (regression test asserts fix) | ✅ **FIXED 2026-06-07** — lazy-load fallback in `_process_series_tag` reads from `collection_path` when `collection_videos` is empty. New regression test `test_bug2_cold_load_matches_warm_load` confirms cold/warm previews now match. |
-| 2a | `video_count=1` produces 0 entries | ✗ FAIL (= bug reproduced) | ✅ **REPRODUCED** — day 1 has 1 entry, days 2-3 have 0. Same root cause as Bug 3. |
-| 3 | `video_count=2` inconsistent per day | ✗ FAIL (= bug reproduced) | ✅ **REPRODUCED** — actually "0 on days 2-3", not "1 on some days". The time window 20:00-20:51 is only 51 min, but E02 is 55 min, E03 is 57 min, so only E01 fits. |
+| 2a | `video_count=1` produces 0 entries | ✓ PASS (regression test asserts fix) | ✅ **FIXED 2026-06-08** — `_process_series_tag` now treats `end_time` as a soft hint: if no selected episode fits the configured window, it auto-extends the window to fit at least the first selected episode. The user's "0 on most days" symptom is gone. |
+| 3 | `video_count=2` inconsistent per day | ✓ PASS (regression test asserts fix) | ✅ **FIXED 2026-06-08** — same fix as Bug 2a. With the soft-hint semantics, the configured end_time no longer silently drops episodes that are slightly too long. |
 | 4 | Half-duration after series in debug | ✓ PASS | ❌ Not reproduced — reported duration matches real duration (ratio 1.000). Bug may need different conditions (e.g. `video_count > 1` in series). |
 | 5 | Series tag misplaced/missing in Approx Find-Replace (video_count=1) | ✗ FAIL | ✅ **REPRODUCED** — series is placed at 19:30-20:20 (anchored to RF boundary, not 20:00) on day 1, and missing entirely on day 2. With video_count=2 the series is placed correctly on both days (the working case the user described). |
 
@@ -44,8 +44,8 @@ These two did not reproduce in the test. The likely explanations:
 
 - **Bug 1**: ⏸ TODO — needs UI-level repro
 - **Bug 2**: ✅ FIXED 2026-06-07 — added a lazy-load fallback in `_process_series_tag`: if `collection_videos` is empty but `collection_path` is set, the function now loads the videos from the path (mirroring what `serialization.py` does on disk-load) before falling back to the tag-name placeholder. The Save-then-Generate workaround is no longer needed. Regression test: `test_bug2_cold_load_series_tag_shows_only_tag_name` and `test_bug2_cold_load_matches_warm_load` (both inverted to assert the fixed behavior, both pass).
-- **Bug 2a**: 🔴 REPRODUCED — same fix as Bug 3 (time-window semantics)
-- **Bug 3**: 🔴 REPRODUCED — same fix as Bug 2a
+- **Bug 2a**: ✅ FIXED 2026-06-08 — `_process_series_tag` now treats `end_time` as a soft hint: if the selected episodes do not fit the configured window, the window is auto-extended to fit at least the first episode. The user's "0 on most days" symptom is gone. Regression test: `test_bug2a_series_video_count_one_produces_no_entries` (filter changed from wall-clock to tag-name match, now asserts each day has exactly 1 series entry — passes).
+- **Bug 3**: ✅ FIXED 2026-06-08 — same fix as Bug 2a. With soft-hint semantics, the configured end_time no longer silently drops episodes that are slightly too long. Regression test: `test_bug3_series_video_count_inconsistent_across_days` (filter changed, now asserts each day has exactly 2 series entries — passes).
 - **Bug 4**: ⏸ TODO — needs tighter repro
 - **Bug 5**: 🔴 REPRODUCED via `test_bug5_series_missing_in_approximate_video_count_1` — `_apply_approximate_find_replace` anchors series to wrong time on day 1, drops it on day 2+
 
@@ -420,6 +420,6 @@ existing test files.
 
 ---
 
-**Last Updated:** 2026-06-07
+**Last Updated:** 2026-06-08
 **Owner:** TBD
-**Status:** IN PROGRESS — Bug 2 FIXED 2026-06-07 (cold-load lazy-load in `_process_series_tag`). 3 bugs still REPRODUCED by tests (Bug 1 in Approx, Bug 2a/3 time window, Bug 5 Approx anchor), 1 still needs tighter repro (Bug 4). Test suite at `test_series_tag_bugs.py` (~880 lines, 10 tests, 6 PASS / 4 FAIL — failures are the remaining unfixed bugs).
+**Status:** IN PROGRESS — Bug 2 FIXED 2026-06-07 (cold-load lazy-load); Bug 2a + Bug 3 FIXED 2026-06-08 (treat end_time as a soft hint in `_process_series_tag`). 2 bugs still REPRODUCED by tests (Bug 1 in Approx, Bug 5 Approx anchor), 1 still needs tighter repro (Bug 4). Test suite at `test_series_tag_bugs.py` (~900 lines, 10 tests, 8 PASS / 2 FAIL — failures are the remaining unfixed bugs).

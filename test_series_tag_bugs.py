@@ -480,12 +480,19 @@ def test_bug2a_series_video_count_one_produces_no_entries():
     entries = sg.apply_custom_tags(num_days=3)
     _dump_schedule("Series tag, video_count=1, 3 days", entries)
 
+    # Match by tag name (works for all days, since wall-clock filters
+    # like `20*3600 <= start < 21*3600` only match day 1's entries).
     series_entries = [e for e in entries
-                      if 20 * 3600 <= e.start_seconds < 21 * 3600]
-    print(f"\n  series-window entries (20:00-20:59) over 3 days: "
+                      if "Sandokan" in e.video_name]
+    print(f"\n  series entries (tag name match) over 3 days: "
           f"{len(series_entries)}")
     for e in series_entries:
-        print(f"    {e.video_name}")
+        d = (e.start_seconds // 86400) + 1
+        s_h = (e.start_seconds // 3600) % 24
+        s_m = (e.start_seconds % 3600) // 60
+        e_h = (e.end_seconds // 3600) % 24
+        e_m = (e.end_seconds % 3600) // 60
+        print(f"    D{d} {s_h:02d}:{s_m:02d}-{e_h:02d}:{e_m:02d}  {e.video_name}")
 
     # Per day: expect 1 series entry
     per_day = {1: 0, 2: 0, 3: 0}
@@ -494,9 +501,8 @@ def test_bug2a_series_video_count_one_produces_no_entries():
         per_day[d] = per_day.get(d, 0) + 1
     print(f"  per-day series count: {per_day}")
 
-    for d, n in per_day.items():
-        if d > 3:
-            continue
+    for d in range(1, 4):
+        n = per_day.get(d, 0)
         assert n == 1, (
             f"BUG 2a REPRODUCED: day {d} has {n} series entries "
             f"(expected exactly 1)."
@@ -532,12 +538,19 @@ def test_bug3_series_video_count_inconsistent_across_days():
     entries = sg.apply_custom_tags(num_days=3)
     _dump_schedule("Series tag, video_count=2, 3 days", entries)
 
+    # Match by tag name (works for all days, since wall-clock filters
+    # like `20*3600 <= start < 24*3600` only match day 1's entries).
     series_entries = [e for e in entries
-                      if 20 * 3600 <= e.start_seconds < 24 * 3600]
-    print(f"\n  series-window entries (20:00-23:59) over 3 days: "
+                      if "Sandokan" in e.video_name]
+    print(f"\n  series entries (tag name match) over 3 days: "
           f"{len(series_entries)}")
     for e in series_entries:
-        print(f"    {e.video_name}")
+        d = (e.start_seconds // 86400) + 1
+        s_h = (e.start_seconds // 3600) % 24
+        s_m = (e.start_seconds % 3600) // 60
+        e_h = (e.end_seconds // 3600) % 24
+        e_m = (e.end_seconds % 3600) // 60
+        print(f"    D{d} {s_h:02d}:{s_m:02d}-{e_h:02d}:{e_m:02d}  {e.video_name}")
 
     per_day = {}
     for e in series_entries:
