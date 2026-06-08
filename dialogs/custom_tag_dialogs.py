@@ -126,8 +126,7 @@ class TagDialog(CollectionDialogBase):
             self.video_count_spin.setValue(tag.video_count)
 
         if tag.collection_path:
-            # Load collection (this will reset blacklist to file-based blacklist)
-            self.load_collection(tag.collection_path, load_blacklist=True)
+            self.load_collection(tag.collection_path, load_blacklist=False)
             # Override added_videos with tag's saved collection_videos
             self.added_videos = tag.collection_videos.copy()
 
