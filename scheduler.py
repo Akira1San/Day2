@@ -304,7 +304,7 @@ class ScheduleGenerator:
 
             pos = start
             vid_idx = 0
-            while pos < end and vid_idx < video_count and vid_idx < len(ordered_videos):
+            while pos <= end and vid_idx < video_count and vid_idx < len(ordered_videos):
                 video = ordered_videos[vid_idx]
                 video_name = get_video_display_name(video)
                 duration = int(video.get('duration', 90))
@@ -443,6 +443,9 @@ class ScheduleGenerator:
         start_sec = qtime_to_seconds(ct.start_time)
         end_sec = qtime_to_seconds(ct.end_time)
 
+        if end_sec <= start_sec:
+            end_sec += 86400
+
         start_sec += start_offset
         end_sec += start_offset
 
@@ -461,7 +464,7 @@ class ScheduleGenerator:
                 random.shuffle(videos)
             pos = start_sec
             vid_idx = 0
-            while pos < end_sec and vid_idx < video_count and vid_idx < len(videos):
+            while pos <= end_sec and vid_idx < video_count and vid_idx < len(videos):
                 video = videos[vid_idx % len(videos)]
                 video_name = get_video_display_name(video)
                 duration = int(video.get('duration', 90))
@@ -480,6 +483,9 @@ class ScheduleGenerator:
     def _process_series_tag(self, st: Tag, series_entries: List[ScheduleEntry], occupied: set, day_offset: int = 0, start_offset: int = 0):
         start_sec = qtime_to_seconds(st.start_time)
         end_sec = qtime_to_seconds(st.end_time)
+
+        if end_sec <= start_sec:
+            end_sec += 86400
 
         start_sec += start_offset
         end_sec += start_offset
@@ -559,8 +565,14 @@ class ScheduleGenerator:
 
     def _process_multi_series_tag(self, mst, entries: List[ScheduleEntry], occupied: set, day_offset: int = 0, start_offset: int = 0) -> int:
         """Expand a MultiSeriesTag into individual episode entries, marking the whole block as occupied. Returns actual end position."""
-        start_sec = qtime_to_seconds(mst.start_time) + start_offset
-        end_sec = qtime_to_seconds(mst.end_time) + start_offset
+        start_sec = qtime_to_seconds(mst.start_time)
+        end_sec = qtime_to_seconds(mst.end_time)
+
+        if end_sec <= start_sec:
+            end_sec += 86400
+
+        start_sec += start_offset
+        end_sec += start_offset
 
         if start_sec >= end_sec:
             return start_sec
