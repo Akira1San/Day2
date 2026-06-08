@@ -6,14 +6,16 @@ import configparser
 import logging
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
+from datetime import datetime
 
-# Configure root logger to write to a rotating file
-log_path = Path("daypart_scheduler.log")
+log_dir = Path("logs")
+log_dir.mkdir(exist_ok=True)
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+log_path = log_dir / f"daypart_scheduler_{timestamp}.log"
 log_handler = RotatingFileHandler(log_path, maxBytes=5*1024*1024, backupCount=3, encoding='utf-8')
 log_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(name)s: %(message)s'))
 logging.getLogger().addHandler(log_handler)
 logging.getLogger().setLevel(logging.DEBUG)
-# Also echo DEBUG+ to stdout for live monitoring
 stdout_handler = logging.StreamHandler(sys.stdout)
 stdout_handler.setLevel(logging.DEBUG)
 stdout_handler.setFormatter(logging.Formatter('[%(levelname)s] %(name)s: %(message)s'))
