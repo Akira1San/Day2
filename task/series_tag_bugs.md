@@ -1,6 +1,6 @@
 # Series Tag & Custom Tag Bugs — TODO
 
-## Status: ✅ ALL FIXED — 5 of 5 bugs fixed. Only Bug 4 (half duration after series in debug) remains — never reproduced, needs tighter repro. Test suite at `test_series_tag_bugs.py` (12 tests, all 12 PASS).
+## Status: ✅ ALL FIXED — 5 of 5 original bugs fixed; 2 additional custom-tag bugs (cascade + placeholder) also fixed. Only Bug 4 (half duration after series in debug) remains — never reproduced, needs tighter repro. Test suite at `test_series_tag_bugs.py` (14 tests, all 14 PASS).
 
 ## Test Run (2026-06-08) — `python3 test_series_tag_bugs.py`
 
@@ -16,19 +16,25 @@ the current scheduler. Empirical results:
 | 3 | `video_count=2` inconsistent per day | ✓ PASS (regression test asserts fix) | ✅ **FIXED 2026-06-08** — same fix as Bug 2a. With the soft-hint semantics, the configured end_time no longer silently drops episodes that are slightly too long. |
 | 4 | Half-duration after series in debug | ✓ PASS | ❌ Not reproduced — reported duration matches real duration (ratio 1.000). Bug may need different conditions (e.g. `video_count > 1` in series). |
 | 5 | Series tag misplaced/missing in Approx Find-Replace (video_count=1) | ✓ PASS (regression test asserts fix) | ✅ **FIXED 2026-06-08** — `_apply_approximate_find_replace` had two bugs: (a) `next_custom_pos` cascaded across days, pushing series later each day; (b) same hard-cap bug as Bug 2a/3 silently dropped episodes. Both fixed. Series now appears correctly on every day in Approx Find-Replace mode, with or without random fill. |
+| 1b | Custom tag cascade in Approx Find-Replace (video_count=1, no random fill) | ✓ PASS (regression test asserts fix) | ✅ **FIXED 2026-06-08** — same cascade bug as Bug 5 but in the custom-tag path of `_apply_approximate_linear`. `next_custom_pos` was an absolute offset that pushed each subsequent day's custom tag later until it ran out of day. Fixed by normalizing to within-day offset. Also added `test_custom_tag_no_cascade_approx` regression test. |
+| 1c | Custom tag emits tag-name-only placeholder in Approx Find-Replace | ✓ PASS (regression test asserts fix) | ✅ **FIXED 2026-06-08** — when no collection_videos were available, `_apply_approximate_linear` fell through to the else-branch which emitted `ScheduleEntry(1, custom_start, custom_end, ct.name)` — a tag-name-only placeholder with no video. Now the same soft-hint path handles all cases. |
 
-### Key empirical finding for Bug 2a / Bug 3 / Bug 5
+### Key empirical finding for Bug 2a / Bug 3 / Bug 5 / Custom tag bugs
 
 The user's report of "some days 1, others 2" is a symptom of a deeper
-time-budget bug: three code paths (`_process_series_tag`,
-`_place_tag_videos`, `_apply_approximate_linear`) all had the same
-hard-cap logic: `if pos + duration > end_sec: continue` (or
-`break`). This silently skipped episodes that were slightly too
-long for the configured window. The fix treats `end_time` as a soft
-hint everywhere: the window is extended just enough to fit each
-selected episode, matching the task's recommendation: "treat
-end_time as a block boundary ... or auto-extend to the next
-scheduled tag."
+time-budget bug: **five code paths** had the same hard-cap logic:
+`if pos + duration > end_sec: continue` (or `break`). This silently
+skipped episodes that were slightly too long for the configured
+window. The fix treats `end_time` as a soft hint everywhere: the
+window is extended just enough to fit each selected episode,
+matching the task's recommendation: "treat end_time as a block
+boundary ... or auto-extend to the next scheduled tag."
+
+Additionally, `next_custom_pos` (absolute seconds) was cascading
+across days in `_apply_approximate_linear` and `_apply_approximate_find_replace`,
+pushing each subsequent day's custom/series tag later and later until
+it ran out of day. Fixed by normalizing to within-day offset before
+comparing with `original_start`.
 
 ### Key empirical finding for Bug 1 and Bug 4
 

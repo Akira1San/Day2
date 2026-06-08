@@ -848,6 +848,114 @@ def test_bug4_random_fill_entry_after_series_has_half_duration():
 
 
 # ---------------------------------------------------------------------------
+# Custom tag cascade and missing-days bugs (Approx ON + Find-Replace)
+# ---------------------------------------------------------------------------
+#
+# The user reported (2026-06-08): with a single custom tag and
+# Approx ON + Find-Replace, some days had no entries, and entries
+# that did appear were sometimes just the tag name (no video file
+# name). Root causes (all fixed):
+#   1. next_custom_pos cascaded across days as an absolute offset,
+#      pushing each subsequent day's start later and later.
+#   2. Hard-cap in _place_tag_videos and _apply_approximate_linear
+#      silently dropped videos that exceeded the window.
+#   3. The else-branch (no collection_videos) emitted tag-name-only
+#      placeholder entries instead of real videos.
+
+def test_custom_tag_video_count_one_every_day_approx():
+    """
+    Custom tag, video_count=1, Approx ON + Find-Replace, no random fill.
+    Expected: exactly 1 entry per day for all generated days.
+    """
+    print("\n" + "=" * 70)
+    print("Custom tag video_count=1, Approx Find-Replace, no RF")
+    print("=" * 70)
+
+    long_videos = [
+        {"path": f"/pool/Movie {i}.mp4", "duration": 103 * 60 + i * 17,
+         "name": f"Movie {i}.mp4"}
+        for i in range(8)
+    ]
+
+    tm = TagManager()
+    tm.add_tag(Tag(
+        name="CustomTest",
+        tag_type="custom",
+        start_time=QTime(18, 0),
+        end_time=QTime(20, 10),
+        collection_videos=long_videos,
+        video_count=1,
+        randomize_videos=True,
+    ))
+
+    sg = ScheduleGenerator(tm)
+    entries = sg.apply_approximate(num_days=7, mode="find_replace")
+
+    custom_entries = [e for e in entries if "CustomTest" in e.video_name]
+    _dump_schedule("Custom tag only, Approx Find-Replace (7 days)", entries)
+
+    per_day = {}
+    for e in custom_entries:
+        day = (e.start_seconds // 86400) + 1
+        per_day[day] = per_day.get(day, 0) + 1
+
+    print(f"\n  per-day custom count: {per_day}")
+    for d in range(1, 8):
+        n = per_day.get(d, 0)
+        assert n == 1, (
+            f"Custom tag cascade bug: day {d} has {n} entries "
+            f"(expected 1). next_custom_pos may be cascading across days."
+        )
+    # No tag-name-only placeholders
+    placeholders = [e for e in custom_entries if e.video_name == "CustomTest"]
+    assert not placeholders, (
+        f"Custom tag emitted {len(placeholders)} tag-name-only "
+        f"placeholder entries (no video file name)."
+    )
+    print("  PASS: exactly 1 custom entry per day, all with video file names")
+
+
+def test_custom_tag_no_cascade_approx():
+    """
+    Custom tag, video_count=1, Approx ON + Find-Replace.
+    Verifies that the start time does not cascade later each day.
+    """
+    print("\n" + "=" * 70)
+    print("Custom tag no cascade, Approx Find-Replace")
+    print("=" * 70)
+
+    videos = [
+        {"path": "/pool/Short A.mp4", "duration": 90 * 60, "name": "Short A.mp4"},
+        {"path": "/pool/Short B.mp4", "duration": 80 * 60, "name": "Short B.mp4"},
+    ]
+
+    tm = TagManager()
+    tm.add_tag(Tag(
+        name="NoCascade",
+        tag_type="custom",
+        start_time=QTime(1, 0),
+        end_time=QTime(2, 30),
+        collection_videos=videos,
+        video_count=1,
+    ))
+
+    sg = ScheduleGenerator(tm)
+    entries = sg.apply_approximate(num_days=5, mode="find_replace")
+
+    custom_entries = [e for e in entries if "NoCascade" in e.video_name]
+    start_times = [e.start_seconds % 86400 for e in custom_entries]
+
+    print(f"\n  start times (seconds within day): {start_times}")
+    # All entries should start at or very near 01:00 (3600s), not cascade
+    for st in start_times:
+        assert st <= 7200, (
+            f"Cascade bug: custom tag starts at {st}s ({st//3600}h) "
+            f"instead of near 01:00. next_custom_pos is pushing it later."
+        )
+    print("  PASS: custom tag start times do not cascade across days")
+
+
+# ---------------------------------------------------------------------------
 # Runner
 # ---------------------------------------------------------------------------
 
@@ -865,6 +973,8 @@ def main():
         test_bug4_random_fill_entry_after_series_has_half_duration,
         # Approximate ON + Find-Replace tests (apply_approximate)
         test_bug1_approximate_custom_tag_disappears_with_random_fill,
+        test_custom_tag_video_count_one_every_day_approx,
+        test_custom_tag_no_cascade_approx,
         test_bug5_series_missing_in_approximate_video_count_1,
         test_bug5_series_visible_in_approximate_video_count_2,
     ]
