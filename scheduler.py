@@ -468,8 +468,7 @@ class ScheduleGenerator:
                 if duration < 1:
                     duration = 90
                 if pos + duration > end_sec:
-                    vid_idx += 1
-                    continue
+                    end_sec = pos + duration
                 custom_entries.append(self._create_video_entry(pos, duration, video_name, ct.name))
                 pos += duration
                 vid_idx += 1
