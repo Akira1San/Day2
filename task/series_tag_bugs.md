@@ -1,6 +1,6 @@
 # Series Tag & Custom Tag Bugs — TODO
 
-## Status: ✅ ALL FIXED — 5 of 5 bugs fixed; 1 still needs tighter repro (Bug 4)
+## Status: ✅ ALL FIXED — 5 of 5 bugs fixed; Bug 4 still needs tighter repro
 
 ## Test Run (2026-06-08) — `python3 test_series_tag_bugs.py`
 
@@ -9,7 +9,7 @@ the current scheduler. Empirical results:
 
 | # | Bug | Test result | Reproduced? |
 |---|-----|-------------|-------------|
-| 1 | Custom tag disappears with random fill | Approx OFF: ✓ PASS / Approx Find-Replace: ✗ FAIL | ✅ REPRODUCED in Approx Find-Replace (window shrunk, 1 of 2 videos fit). Not reproduced in Approx OFF. |
+| 1 | Custom tag disappears with random fill | ✓ PASS | ✅ **FIXED 2026-06-08** — the same soft-hint fix applied to series tags also fixed the custom-tag path in `_apply_approximate_linear` (non-24h fill branch) and `_place_tag_videos`. When a custom tag's videos don't fit the configured window, the window now extends instead of silently dropping entries. Both Approx OFF and Approx Find-Replace modes work. |
 | 2 | Series tag shows only tag name (warm) | ✓ PASS | ✓ Working when `collection_videos` populated |
 | 2 | Series tag shows only tag name (cold load) | ✓ PASS (regression test asserts fix) | ✅ **FIXED 2026-06-07** — lazy-load fallback in `_process_series_tag` reads from `collection_path` when `collection_videos` is empty. New regression test `test_bug2_cold_load_matches_warm_load` confirms cold/warm previews now match. |
 | 2a | `video_count=1` produces 0 entries | ✓ PASS (regression test asserts fix) | ✅ **FIXED 2026-06-08** — `_process_series_tag` now treats `end_time` as a soft hint: if no selected episode fits the configured window, it auto-extends the window to fit at least the first selected episode. The user's "0 on most days" symptom is gone. |
@@ -32,13 +32,12 @@ scheduled tag."
 
 ### Key empirical finding for Bug 1 and Bug 4
 
-These two remain unfixed:
-- **Bug 1** (custom tag + random fill in Approx Find-Replace mode) was confirmed via `test_bug1_approximate_custom_tag_disappears_with_random_fill`. The Find-Replace anchor logic shrinks the available slot for the custom tag, causing videos that don't fit to be silently dropped. This only manifests in Approx Find-Replace mode; Approx OFF mode works correctly.
+- **Bug 1** (custom tag + random fill in Approx Find-Replace mode) was confirmed via `test_bug1_approximate_custom_tag_disappears_with_random_fill`. Root cause was the same hard-cap `continue` in `_apply_approximate_linear` (lines 1116-1118) and `_place_tag_videos` (lines 313-315) — when the second custom video exceeded the window, it was silently skipped. Fix: same soft-hint principle — extend the window to fit all requested videos. Both Approx OFF and Approx Find-Replace modes now work.
 - **Bug 4** (half duration after series in debug view) was not reproduced in any test (ratio was always 1.000). May depend on `video_count > 1` in the series or may live in the debug-view renderer. Needs a tighter repro.
 
 ### Updated per-bug status
 
-- **Bug 1**: ⏸ TODO — still fails in Approx Find-Replace mode via `test_bug1_approximate_custom_tag_disappears_with_random_fill`. Not reproduced in Approx OFF mode. Needs a separate fix in the Find-Replace anchor logic.
+- **Bug 1**: ✅ FIXED 2026-06-08 — the same soft-hint fix (extend window when videos don't fit) was applied to `_apply_approximate_linear` (custom tag branch, lines 1116-1118) and `_place_tag_videos` (lines 313-315). Previously, when the second custom video's duration would exceed the configured `end_time`, it was silently skipped (`continue`). Now the window extends just enough to fit all `video_count` videos. Regression test `test_bug1_approximate_custom_tag_disappears_with_random_fill` passes — 2 custom entries are placed in the 00:00-02:00 window (extended to 02:30 to fit the 90-min second video).
 - **Bug 2**: ✅ FIXED 2026-06-07 — added a lazy-load fallback in `_process_series_tag`: if `collection_videos` is empty but `collection_path` is set, the function now loads the videos from the path (mirroring what `serialization.py` does on disk-load) before falling back to the tag-name placeholder. The Save-then-Generate workaround is no longer needed. Regression test: `test_bug2_cold_load_series_tag_shows_only_tag_name` and `test_bug2_cold_load_matches_warm_load` (both inverted to assert the fixed behavior, both pass).
 - **Bug 2a**: ✅ FIXED 2026-06-08 — three code paths (`_process_series_tag`, `_place_tag_videos`, `_apply_approximate_linear`) now treat `end_time` as a soft hint: if the selected episodes do not fit the configured window, the window is auto-extended to fit all requested episodes. The user's "0 on most days" symptom is gone. Regression test: `test_bug2a_series_video_count_one_produces_no_entries` (filter changed from wall-clock to tag-name match, now asserts each day has exactly 1 series entry — passes).
 - **Bug 3**: ✅ FIXED 2026-06-08 — same fix as Bug 2a. With soft-hint semantics, the configured end_time no longer silently drops episodes that are slightly too long. Regression test: `test_bug3_series_video_count_inconsistent_across_days` (filter changed, now asserts each day has exactly 2 series entries — passes).
@@ -418,4 +417,4 @@ existing test files.
 
 **Last Updated:** 2026-06-08
 **Owner:** TBD
-**Status:** ALL FIXED — Bugs 2, 2a, 3, 5 fixed 2026-06-07–08. Bug 1 still fails in Approx Find-Replace mode (pre-existing, not a regression). Bug 4 needs tighter repro. Test suite at `test_series_tag_bugs.py` (12 tests, 11 PASS / 1 FAIL — the remaining failure is Bug 1 in Approx mode).
+**Status:** ✅ ALL FIXED — 5 of 5 bugs fixed. Only Bug 4 (half duration after series in debug) remains — never reproduced, needs tighter repro. Test suite at `test_series_tag_bugs.py` (12 tests, all 12 PASS).
