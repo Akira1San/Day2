@@ -22,6 +22,8 @@ def serialize_tag_to_string(tag) -> str:
         lines.append(f"series_list = {json.dumps(clean_series_list)}")
         lines.append(f"blacklist_profile = {getattr(tag, 'blacklist_profile', '')}")
         lines.append(f"blacklist = {json.dumps(getattr(tag, 'blacklist', []))}")
+        active_days = getattr(tag, 'active_days', None)
+        lines.append(f"active_days = {','.join(str(d) for d in active_days) if active_days else ''}")
     
     elif getattr(tag, 'is_series', False):
         lines.append(f"type = series")
@@ -42,6 +44,8 @@ def serialize_tag_to_string(tag) -> str:
         lines.append(f"collection_path = {getattr(tag, 'collection_path', '')}")
         lines.append(f"collection_profile = {getattr(tag, 'collection_profile', '')}")
         lines.append(f"blacklist_profile = {getattr(tag, 'blacklist_profile', '')}")
+        active_days = getattr(tag, 'active_days', None)
+        lines.append(f"active_days = {','.join(str(d) for d in active_days) if active_days else ''}")
     
     elif getattr(tag, 'is_random_fill', False):
         lines.append(f"type = random")
@@ -122,6 +126,8 @@ def deserialize_tag_from_string(data: str, tag_class, qtime_from_string):
         series_end_behavior = tag_section.get('series_end_behavior', 'stop')
         series_repeat_season = int(tag_section.get('series_repeat_season', 0))
         series_random_season = int(tag_section.get('series_random_season', 0))
+        active_days_str = tag_section.get('active_days', '')
+        active_days = [int(d) for d in active_days_str.split(',') if d.strip().isdigit()] if active_days_str.strip() else None
         
         return tag_class('custom', name, qtime_from_string(start, 'HH:mm'), qtime_from_string(end, 'HH:mm'), 
                         collection_videos, collection_path, video_count=video_count, 
@@ -130,7 +136,8 @@ def deserialize_tag_from_string(data: str, tag_class, qtime_from_string):
                         blacklist_profile=blacklist_profile, blacklist=blacklist,
                         series_end_behavior=series_end_behavior,
                         series_repeat_season=series_repeat_season,
-                        series_random_season=series_random_season)
+                        series_random_season=series_random_season,
+                        active_days=active_days)
     
     elif tag_type == 'multi_series':
         series_list_str = tag_section.get('series_list', '[]')
@@ -156,6 +163,9 @@ def deserialize_tag_from_string(data: str, tag_class, qtime_from_string):
         except:
             blacklist = []
         
+        active_days_str = tag_section.get('active_days', '')
+        active_days = [int(d) for d in active_days_str.split(',') if d.strip().isdigit()] if active_days_str.strip() else None
+        
         from models import MultiSeriesTag
         return MultiSeriesTag(
             name=name,
@@ -163,7 +173,8 @@ def deserialize_tag_from_string(data: str, tag_class, qtime_from_string):
             end_time=qtime_from_string(end, 'HH:mm'),
             series_list=series_list,
             blacklist=blacklist,
-            blacklist_profile=blacklist_profile
+            blacklist_profile=blacklist_profile,
+            active_days=active_days
         )
     
     elif tag_type == 'random':

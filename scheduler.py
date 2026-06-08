@@ -96,6 +96,14 @@ class ScheduleGenerator:
 
         return ''
 
+    @staticmethod
+    def _is_tag_active_on_day(tag, day_offset: int) -> bool:
+        active_days = getattr(tag, 'active_days', None)
+        if not active_days:
+            return True
+        weekday = (day_offset % 7) + 1
+        return weekday in active_days
+
     def _select_series_videos(self, tag_or_config, day_offset: int) -> List[dict]:
         """Select videos for a series tag (Tag object or config dict) for given day_offset.
         Supports end-behavior: stop (default), repeat, random.
@@ -859,6 +867,9 @@ class ScheduleGenerator:
 
             day_customs = []
             for ct in all_custom_sorted:
+                if getattr(ct, 'is_series', False) or getattr(ct, 'is_multi_series', False):
+                    if not self._is_tag_active_on_day(ct, day_offset):
+                        continue
                 orig_start, orig_end = normalize_tag_time_range(ct)
                 custom_start = orig_start + day_start
                 custom_end = orig_end + day_start
@@ -1185,6 +1196,8 @@ class ScheduleGenerator:
         for day_offset in range(num_days):
             day_offset_seconds = day_offset * 24 * 3600
             for st in series_sorted:
+                if not self._is_tag_active_on_day(st, day_offset):
+                    continue
                 original_start, original_end = normalize_tag_time_range(st)
 
                 # next_custom_pos is in absolute seconds; normalize to
@@ -1228,6 +1241,8 @@ class ScheduleGenerator:
         for day_offset in range(num_days):
             day_offset_seconds = day_offset * 24 * 3600
             for mst in multi_sorted:
+                if not self._is_tag_active_on_day(mst, day_offset):
+                    continue
                 original_start, original_end = normalize_tag_time_range(mst)
 
                 mst_start = max(original_start, next_custom_pos) + day_offset_seconds

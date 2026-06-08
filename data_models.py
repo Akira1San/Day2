@@ -39,9 +39,10 @@ class Tag:
                   fill_24h: bool = False,
                   collection_profile: str = "",
                   blacklist_profile: str = "",
-                  series_end_behavior: str = "stop",
-                  series_repeat_season: int = 0,
-                  series_random_season: int = 0):
+                   series_end_behavior: str = "stop",
+                   series_repeat_season: int = 0,
+                   series_random_season: int = 0,
+                   active_days: Optional[List[int]] = None):
         self.tag_type = tag_type
         self.name = name
         self.start_time = start_time or QTime(0, 0)
@@ -63,6 +64,7 @@ class Tag:
         self.series_end_behavior = series_end_behavior
         self.series_repeat_season = series_repeat_season
         self.series_random_season = series_random_season
+        self.active_days = active_days
         
         # Apply blacklist filtering if both collection_videos and blacklist are present
         if self.collection_videos and self.blacklist:
@@ -149,14 +151,16 @@ class MultiSeriesTag(Tag):
                  start_time: Optional[QTime] = None,
                  end_time: Optional[QTime] = None,
                  blacklist: List[dict] = None,
-                 blacklist_profile: str = ""):
+                 blacklist_profile: str = "",
+                 active_days: Optional[List[int]] = None):
         super().__init__(
             tag_type="multi_series",
             name=name,
             start_time=start_time or QTime(0, 0),
             end_time=end_time or QTime(0, 0),
             blacklist=blacklist or [],
-            blacklist_profile=blacklist_profile
+            blacklist_profile=blacklist_profile,
+            active_days=active_days
         )
         self.series_list = series_list or []
         self.is_multi_series = True

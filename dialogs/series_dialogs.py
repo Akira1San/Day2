@@ -3,7 +3,8 @@ from pathlib import Path
 from typing import List, Optional
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QComboBox,
-    QSpinBox, QPushButton, QListWidget, QListWidgetItem, QMessageBox, QFileDialog
+    QSpinBox, QPushButton, QListWidget, QListWidgetItem, QMessageBox, QFileDialog,
+    QCheckBox
 )
 from PySide6.QtCore import QTime
 
@@ -126,6 +127,24 @@ class SeriesDialog(BaseTagDialog, SeriesProfileMixin):
         series_layout.addStretch()
         layout.addLayout(series_layout)
 
+        # Active days
+        days_layout = QHBoxLayout()
+        days_layout.addWidget(QLabel("Active Days:"))
+        day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        self.day_checkboxes = []
+        for day_name in day_names:
+            cb = QCheckBox(day_name)
+            cb.setChecked(True)
+            cb.stateChanged.connect(self._update_all_days_checkbox)
+            days_layout.addWidget(cb)
+            self.day_checkboxes.append(cb)
+        self.all_days_cb = QCheckBox("All")
+        self.all_days_cb.setChecked(True)
+        self.all_days_cb.stateChanged.connect(self._on_all_days_toggled)
+        days_layout.addWidget(self.all_days_cb)
+        days_layout.addStretch()
+        layout.addLayout(days_layout)
+
         # Auto calc button
         calc_layout = QHBoxLayout()
         self.auto_calc_btn = QPushButton("Auto Calc End Time")
@@ -152,6 +171,19 @@ class SeriesDialog(BaseTagDialog, SeriesProfileMixin):
     def _update_end_behavior_ui(self, behavior: str):
         self.repeat_season_spin.setVisible(behavior == "repeat")
         self.random_season_spin.setVisible(behavior == "random")
+
+    def _on_all_days_toggled(self, checked: bool):
+        enabled = not checked
+        for cb in self.day_checkboxes:
+            cb.setChecked(checked)
+            cb.setEnabled(enabled)
+
+    def _update_all_days_checkbox(self):
+        all_checked = all(cb.isChecked() for cb in self.day_checkboxes)
+        if all_checked:
+            self.all_days_cb.setChecked(True)
+            for cb in self.day_checkboxes:
+                cb.setEnabled(False)
 
     def _populate_from_tag(self, tag: Tag):
         """Fill fields from existing Tag."""
@@ -195,6 +227,21 @@ class SeriesDialog(BaseTagDialog, SeriesProfileMixin):
         self.repeat_season_spin.setValue(repeat_season)
         random_season = getattr(tag, 'series_random_season', 0)
         self.random_season_spin.setValue(random_season)
+
+        active_days = getattr(tag, 'active_days', None)
+        if active_days is not None:
+            self.all_days_cb.setChecked(False)
+            for cb in self.day_checkboxes:
+                cb.setEnabled(True)
+                cb.setChecked(False)
+            for d in active_days:
+                if 1 <= d <= 7:
+                    self.day_checkboxes[d - 1].setChecked(True)
+        else:
+            self.all_days_cb.setChecked(True)
+            for cb in self.day_checkboxes:
+                cb.setChecked(True)
+                cb.setEnabled(False)
 
     def browse_collection(self):
         """Override to load selected collection."""
@@ -258,6 +305,11 @@ class SeriesDialog(BaseTagDialog, SeriesProfileMixin):
         blacklist_profile = self.blacklist_profile_combo.currentText()
         if blacklist_profile == "-- None --":
             blacklist_profile = ""
+        if self.all_days_cb.isChecked():
+            active_days = None
+        else:
+            active_days = [i + 1 for i, cb in enumerate(self.day_checkboxes) if cb.isChecked()]
+
         return Tag(
             tag_type="custom",
             name=name,
@@ -275,7 +327,8 @@ class SeriesDialog(BaseTagDialog, SeriesProfileMixin):
             blacklist_profile=blacklist_profile,
             series_end_behavior=self.end_behavior_combo.currentText(),
             series_repeat_season=self.repeat_season_spin.value(),
-            series_random_season=self.random_season_spin.value()
+            series_random_season=self.random_season_spin.value(),
+            active_days=active_days
         )
 
 
@@ -297,6 +350,7 @@ class SeriesConfigDialog(QDialog):
             self.end_behavior_val = config.get('series_end_behavior', 'stop')
             self.repeat_season_val = config.get('series_repeat_season', 0)
             self.random_season_val = config.get('series_random_season', 0)
+            self.active_days_val = config.get('active_days', None)
         else:
             self.collection_path_text = ''
             self.start_season_val = 0
@@ -306,10 +360,12 @@ class SeriesConfigDialog(QDialog):
             self.end_behavior_val = 'stop'
             self.repeat_season_val = 0
             self.random_season_val = 0
+            self.active_days_val = None
         self.setup_ui()
         if self.collection_path_text:
             self.collection_path.setText(self.collection_path_text)
             self.videos_label.setText(f"Videos: {len(self.collection_videos)}")
+        self._restore_active_days()
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
@@ -384,6 +440,24 @@ class SeriesConfigDialog(QDialog):
 
         layout.addLayout(vc_layout)
 
+        # Active days
+        days_layout = QHBoxLayout()
+        days_layout.addWidget(QLabel("Active Days:"))
+        day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        self.day_checkboxes = []
+        for day_name in day_names:
+            cb = QCheckBox(day_name)
+            cb.setChecked(True)
+            cb.stateChanged.connect(self._update_all_days_checkbox)
+            days_layout.addWidget(cb)
+            self.day_checkboxes.append(cb)
+        self.all_days_cb = QCheckBox("All")
+        self.all_days_cb.setChecked(True)
+        self.all_days_cb.stateChanged.connect(self._on_all_days_toggled)
+        days_layout.addWidget(self.all_days_cb)
+        days_layout.addStretch()
+        layout.addLayout(days_layout)
+
         # Buttons
         btn_layout = QHBoxLayout()
         ok_btn = QPushButton("OK")
@@ -398,6 +472,34 @@ class SeriesConfigDialog(QDialog):
         self.repeat_season_spin.setVisible(behavior == "repeat")
         self.random_season_spin.setVisible(behavior == "random")
 
+    def _on_all_days_toggled(self, checked: bool):
+        enabled = not checked
+        for cb in self.day_checkboxes:
+            cb.setChecked(checked)
+            cb.setEnabled(enabled)
+
+    def _update_all_days_checkbox(self):
+        all_checked = all(cb.isChecked() for cb in self.day_checkboxes)
+        if all_checked:
+            self.all_days_cb.setChecked(True)
+            for cb in self.day_checkboxes:
+                cb.setEnabled(False)
+
+    def _restore_active_days(self):
+        if self.active_days_val is not None:
+            self.all_days_cb.setChecked(False)
+            for cb in self.day_checkboxes:
+                cb.setEnabled(True)
+                cb.setChecked(False)
+            for d in self.active_days_val:
+                if 1 <= d <= 7:
+                    self.day_checkboxes[d - 1].setChecked(True)
+        else:
+            self.all_days_cb.setChecked(True)
+            for cb in self.day_checkboxes:
+                cb.setChecked(True)
+                cb.setEnabled(False)
+
     def browse_collection(self):
         file_path, _ = QFileDialog.getOpenFileName(
             self, "Select Collection File", "", "JSON Files (*.json);;All Files (*)"
@@ -408,6 +510,10 @@ class SeriesConfigDialog(QDialog):
             self.videos_label.setText(f"Videos: {len(self.collection_videos)}")
 
     def get_config(self):
+        if self.all_days_cb.isChecked():
+            active_days = None
+        else:
+            active_days = [i + 1 for i, cb in enumerate(self.day_checkboxes) if cb.isChecked()]
         return {
             'collection_videos': self.collection_videos,
             'collection_path': self.collection_path.text(),
@@ -418,6 +524,7 @@ class SeriesConfigDialog(QDialog):
             'series_end_behavior': self.end_behavior_combo.currentText(),
             'series_repeat_season': self.repeat_season_spin.value(),
             'series_random_season': self.random_season_spin.value(),
+            'active_days': active_days,
             'name': Path(self.collection_path.text()).stem if self.collection_path.text() else 'Series'
         }
 

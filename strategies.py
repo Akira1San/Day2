@@ -63,9 +63,13 @@ class CustomTagMergeStrategy:
                 self.sg._process_custom_tag(ct, custom_entries, occupied, day_offset_seconds)
 
             for st in series_tags:
+                if not self.sg._is_tag_active_on_day(st, day_offset):
+                    continue
                 self.sg._process_series_tag(st, series_entries, occupied, day_offset, day_offset_seconds)
 
             for mst in multi_series_tags:
+                if not self.sg._is_tag_active_on_day(mst, day_offset):
+                    continue
                 self.sg._process_multi_series_tag(mst, multi_series_entries, occupied, day_offset, day_offset_seconds)
 
         rf_sorted = sorted(random_fill_tags, key=lambda t: qtime_to_seconds(t.start_time))
@@ -264,6 +268,8 @@ class EarlyFillApproximateStrategy:
             day_tags = []
             for tag_list in (custom_tags, series_tags, multi_series_tags):
                 for t in tag_list:
+                    if tag_list is not custom_tags and not self.sg._is_tag_active_on_day(t, day_offset):
+                        continue
                     orig_start, orig_end = normalize_tag_time_range(t)
                     abs_start = orig_start + day_start
                     abs_end = orig_end + day_start
@@ -346,6 +352,8 @@ class LateFillApproximateStrategy:
             day_tags = []
             for tag_list in (custom_tags, series_tags, multi_series_tags):
                 for t in tag_list:
+                    if tag_list is not custom_tags and not self.sg._is_tag_active_on_day(t, day_offset):
+                        continue
                     orig_start, orig_end = normalize_tag_time_range(t)
                     abs_start = orig_start + day_start
                     abs_end = orig_end + day_start
@@ -438,6 +446,8 @@ class PriorityApproximateStrategy:
             day_tags = []
             for tag_list in (custom_tags, series_tags, multi_series_tags):
                 for t in tag_list:
+                    if tag_list is not custom_tags and not self.sg._is_tag_active_on_day(t, day_offset):
+                        continue
                     orig_start, orig_end = normalize_tag_time_range(t)
                     abs_start = orig_start + day_start
                     abs_end = orig_end + day_start
@@ -593,9 +603,13 @@ class LinearSpanningApproximateStrategy:
                 os, oe = normalize_tag_time_range(t)
                 custom_inst.append((t, os + day_start, oe + day_start, oe - os))
             for t in series_tags:
+                if not self.sg._is_tag_active_on_day(t, day_offset):
+                    continue
                 os, oe = normalize_tag_time_range(t)
                 series_inst.append((t, os + day_start, oe + day_start, oe - os))
             for t in multi_series_tags:
+                if not self.sg._is_tag_active_on_day(t, day_offset):
+                    continue
                 os, oe = normalize_tag_time_range(t)
                 multi_inst.append((t, os + day_start, oe + day_start, oe - os))
 
@@ -663,9 +677,13 @@ class ExhaustiveApproximateStrategy:
                 os, oe = normalize_tag_time_range(t)
                 instances.append((t, os + day_start, oe + day_start, oe - os))
             for t in series_tags:
+                if not self.sg._is_tag_active_on_day(t, day_offset):
+                    continue
                 os, oe = normalize_tag_time_range(t)
                 instances.append((t, os + day_start, oe + day_start, oe - os))
             for t in multi_series_tags:
+                if not self.sg._is_tag_active_on_day(t, day_offset):
+                    continue
                 os, oe = normalize_tag_time_range(t)
                 instances.append((t, os + day_start, oe + day_start, oe - os))
 
