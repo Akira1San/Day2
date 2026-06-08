@@ -68,6 +68,8 @@ def serialize_tag_to_string(tag) -> str:
         lines.append(f"collection_path = {getattr(tag, 'collection_path', '')}")
         lines.append(f"collection_profile = {getattr(tag, 'collection_profile', '')}")
         lines.append(f"blacklist_profile = {getattr(tag, 'blacklist_profile', '')}")
+        active_days = getattr(tag, 'active_days', None)
+        lines.append(f"active_days = {','.join(str(d) for d in active_days) if active_days else ''}")
     
     return '\n'.join(lines)
 
@@ -206,10 +208,13 @@ def deserialize_tag_from_string(data: str, tag_class, qtime_from_string):
             if blacklist_file.exists():
                 blacklist = load_blacklist_json(str(blacklist_file))
         
+        active_days_str = tag_section.get('active_days', '')
+        active_days = [int(d) for d in active_days_str.split(',') if d.strip().isdigit()] if active_days_str.strip() else None
+        
         return tag_class('custom', name, qtime_from_string(start, 'HH:mm'), qtime_from_string(end, 'HH:mm'),
                         collection_videos, collection_path, is_random_videos, video_count,
                         collection_profile=collection_profile, blacklist_profile=blacklist_profile,
-                        blacklist=blacklist)
+                        blacklist=blacklist, active_days=active_days)
 
 
 def deserialize_tag_legacy(data: str, tag_class, qtime_from_string):

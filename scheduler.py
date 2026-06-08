@@ -868,9 +868,8 @@ class ScheduleGenerator:
 
             day_customs = []
             for ct in all_custom_sorted:
-                if getattr(ct, 'is_series', False) or getattr(ct, 'is_multi_series', False):
-                    if not self._is_tag_active_on_day(ct, day_offset):
-                        continue
+                if not self._is_tag_active_on_day(ct, day_offset):
+                    continue
                 orig_start, orig_end = normalize_tag_time_range(ct)
                 custom_start = orig_start + day_start
                 custom_end = orig_end + day_start
@@ -1113,6 +1112,8 @@ class ScheduleGenerator:
             for day_offset in range(num_days):
                 day_offset_seconds = day_offset * 24 * 3600
                 for ct in custom_sorted:
+                    if not self._is_tag_active_on_day(ct, day_offset):
+                        continue
                     original_start, original_end = normalize_tag_time_range(ct)
 
                     next_custom_within_day = next_custom_pos - day_offset_seconds
@@ -1160,6 +1161,8 @@ class ScheduleGenerator:
             for day_offset in range(num_days):
                 day_offset_seconds = day_offset * 24 * 3600
                 for ct in custom_sorted:
+                    if not self._is_tag_active_on_day(ct, day_offset):
+                        continue
                     original_start, original_end = normalize_tag_time_range(ct)
 
                     custom_start = original_start + day_offset_seconds

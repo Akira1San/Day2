@@ -100,6 +100,24 @@ class TagDialog(CollectionDialogBase):
         self._setup_time_inputs(time_layout)
         layout.addLayout(time_layout)
 
+        # Active days
+        days_layout = QHBoxLayout()
+        days_layout.addWidget(QLabel("Active Days:"))
+        day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        self.day_checkboxes = []
+        for day_name in day_names:
+            cb = QCheckBox(day_name)
+            cb.setChecked(True)
+            cb.stateChanged.connect(self._update_all_days_checkbox)
+            days_layout.addWidget(cb)
+            self.day_checkboxes.append(cb)
+        self.all_days_cb = QCheckBox("All")
+        self.all_days_cb.setChecked(True)
+        self.all_days_cb.stateChanged.connect(self._on_all_days_toggled)
+        days_layout.addWidget(self.all_days_cb)
+        days_layout.addStretch()
+        layout.addLayout(days_layout)
+
         # Save/Cancel buttons
         btn_layout = QHBoxLayout()
         btn_layout.addWidget(self.save_btn)
@@ -146,6 +164,21 @@ class TagDialog(CollectionDialogBase):
         self.refresh_added_list()
         self._recalc_end_time()
 
+        active_days = getattr(tag, 'active_days', None)
+        if active_days is not None:
+            self.all_days_cb.setChecked(False)
+            for cb in self.day_checkboxes:
+                cb.setEnabled(True)
+                cb.setChecked(False)
+            for d in active_days:
+                if 1 <= d <= 7:
+                    self.day_checkboxes[d - 1].setChecked(True)
+        else:
+            self.all_days_cb.setChecked(True)
+            for cb in self.day_checkboxes:
+                cb.setChecked(True)
+                cb.setEnabled(False)
+
     def _on_video_selected(self, video: dict):
         """Display basic info for the selected video."""
         info = (
@@ -167,6 +200,19 @@ class TagDialog(CollectionDialogBase):
         end_mins = (start_mins + int(total_duration // 60)) % (24 * 60)
         self.end_time_edit.setTime(QTime(end_mins // 60, end_mins % 60))
 
+    def _on_all_days_toggled(self, checked: bool):
+        enabled = not checked
+        for cb in self.day_checkboxes:
+            cb.setChecked(checked)
+            cb.setEnabled(enabled)
+
+    def _update_all_days_checkbox(self):
+        all_checked = all(cb.isChecked() for cb in self.day_checkboxes)
+        if all_checked:
+            self.all_days_cb.setChecked(True)
+            for cb in self.day_checkboxes:
+                cb.setEnabled(False)
+
     def refresh_added_list(self):
         super().refresh_added_list()
         self._recalc_end_time()
@@ -180,6 +226,11 @@ class TagDialog(CollectionDialogBase):
         if blacklist_profile == "-- None --":
             blacklist_profile = ""
 
+        if self.all_days_cb.isChecked():
+            active_days = None
+        else:
+            active_days = [i + 1 for i, cb in enumerate(self.day_checkboxes) if cb.isChecked()]
+
         return Tag(
             tag_type="custom",
             name=self.name_input.text() or "Custom Video",
@@ -190,6 +241,7 @@ class TagDialog(CollectionDialogBase):
             randomize_videos=True,
             video_count=self.video_count_spin.value(),
             blacklist=self.blacklist.copy(),
+            active_days=active_days,
             collection_profile=collection_profile,
             blacklist_profile=blacklist_profile
         )
