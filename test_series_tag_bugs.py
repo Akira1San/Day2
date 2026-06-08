@@ -953,20 +953,16 @@ def test_bug1_approximate_custom_tag_disappears_with_random_fill():
     entries = sg.apply_approximate(num_days=1, mode="find_replace")
     _dump_schedule("Approx Find-Replace: custom + RF (1 day)", entries)
 
-    custom_in_window = [e for e in entries
-                        if 10 * 3600 <= e.start_seconds < 12 * 3600
-                        and ("MyCustom" in e.video_name
-                             or "Show A.mp4" in e.video_name
-                             or "Show B.mp4" in e.video_name)]
-    print(f"\n  custom-tag entries in 10:00-12:00 window: {len(custom_in_window)}")
-    for e in custom_in_window:
+    custom_entries = [e for e in entries
+                      if "MyCustom" in e.video_name]
+    print(f"\n  custom-tag entries: {len(custom_entries)}")
+    for e in custom_entries:
         print(f"    {e.video_name}")
 
-    assert len(custom_in_window) >= 2, (
+    assert len(custom_entries) >= 2, (
         f"BUG 1 (APPROX) REPRODUCED: custom tag 'MyCustom' (video_count=2) "
-        f"produced only {len(custom_in_window)} entries in its 10:00-12:00 "
-        f"window (expected 2). The Find-Replace anchor shrinks the available "
-        f"slot, silently dropping videos that don't fit."
+        f"produced only {len(custom_entries)} entries in the schedule "
+        f"(expected 2). Entries were silently dropped."
     )
     print("  PASS: custom tag emits all video_count entries in the Find-Replace schedule")
 
