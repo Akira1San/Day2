@@ -24,10 +24,73 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QListWidget, QListWidgetItem, QPushButton, QDialog, QLineEdit,
     QLabel, QTimeEdit, QMessageBox, QScrollArea, QCheckBox, QRadioButton, QButtonGroup,
-    QFileDialog, QSpinBox, QComboBox
+    QFileDialog, QSpinBox, QComboBox, QStyledItemDelegate, QStyleOptionViewItem, QStyle
 )
-from PySide6.QtCore import Qt, QTime
-from PySide6.QtGui import QClipboard, QColor, QFont
+from PySide6.QtCore import Qt, QTime, QRect, QSize
+from PySide6.QtGui import QClipboard, QColor, QFont, QTextDocument, QPalette
+
+import logging
+preview_log = logging.getLogger("preview")
+preview_log.setLevel(logging.DEBUG)
+
+
+class TagNameColorDelegate(QStyledItemDelegate):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+    def _available_width(self, option):
+        width = option.rect.width()
+        return width if width > 0 else 240
+
+    def paint(self, painter, option, index):
+        text = index.data(Qt.DisplayRole) or ""
+        entry = index.data(Qt.UserRole)
+        color = None
+        tag_name = None
+        if hasattr(entry, "tag_color"):
+            color = entry.tag_color
+        if hasattr(entry, "video_name"):
+            video_name = entry.video_name or ""
+            if " - " in video_name:
+                tag_name = video_name.split(" - ", 1)[0]
+
+        preview_log.debug(f"[DELEGATE] paint text={text!r} tag_name={tag_name!r} color={color.name() if color else None}")
+
+        painter.save()
+        try:
+            doc = QTextDocument()
+            plain = text.replace("\n", "<br>")
+            if color and tag_name:
+                escaped_tag = (
+                    tag_name.replace("&", "&amp;")
+                    .replace("<", "&lt;")
+                    .replace(">", "&gt;")
+                )
+                colored = f'<span style="color:{color.name()}">{escaped_tag}</span>'
+                plain = plain.replace(escaped_tag, colored, 1)
+            doc.setHtml(f"<html><body>{plain}</body></html>")
+            doc.setTextWidth(self._available_width(option))
+
+            if option.state & QStyle.State_Selected:
+                painter.fillRect(option.rect, option.palette.highlight().color())
+
+            doc.drawContents(painter, option.rect)
+        except Exception as exc:
+            preview_log.exception(f"[DELEGATE] paint failed: {exc}")
+            painter.fillRect(option.rect, QColor("#330000"))
+            painter.setPen(QColor("#ff4444"))
+            painter.drawText(option.rect, 0, f"ERR: {exc}")
+        finally:
+            painter.restore()
+
+    def sizeHint(self, option, index):
+        doc = QTextDocument()
+        text = index.data(Qt.DisplayRole) or ""
+        doc.setHtml(f"<html><body>{text.replace(chr(10), '<br>')}</body></html>")
+        doc.setTextWidth(self._available_width(option))
+        hint = QSize(int(doc.idealWidth()), int(doc.size().height()))
+        preview_log.debug(f"[DELEGATE] sizeHint text={text!r} hint={hint.width()}x{hint.height()} avail={self._available_width(option)}")
+        return hint
 
 from utils import (
     load_collection_json, load_blacklist_json,
@@ -148,6 +211,8 @@ class MainWindow(QMainWindow):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         self.preview_list = QListWidget()
+        self.preview_list.setItemDelegate(TagNameColorDelegate(self.preview_list))
+        self.preview_list.setUniformItemSizes(False)
         scroll.setWidget(self.preview_list)
         preview_layout.addWidget(scroll)
 
@@ -287,6 +352,9 @@ class MainWindow(QMainWindow):
         self.tags_list.clear()
         for tag in self.tag_manager.tags:
             item = QListWidgetItem(tag.to_display_string())
+            color = tag.tag_color
+            if color:
+                item.setForeground(color)
             self.tags_list.addItem(item)
 
     def refresh_preview(self):
@@ -297,10 +365,13 @@ class MainWindow(QMainWindow):
             entries = self.schedule_generator.apply_approximate(mode=mode)
         else:
             entries = self.schedule_generator.apply_custom_tags()
+        preview_log.info(f"[REFRESH] entries={len(entries)} approximate={self.approximate_enabled} mode={mode}")
         for entry in entries:
-            self.preview_list.addItem(entry.to_display_string())
+            item = QListWidgetItem(entry.to_display_string())
+            item.setData(Qt.UserRole, entry)
+            self.preview_list.addItem(item)
         self.schedule_entries = entries
-        # Store for potential save reuse
+        preview_log.info(f"[REFRESH] list_count={self.preview_list.count()}")
         self.last_generated_schedule = {
             'entries': entries,
             'num_days': 1,
@@ -335,7 +406,7 @@ class MainWindow(QMainWindow):
         else:
             mode = self.approx_mode_combo.currentText().lower().replace("-", "_").replace(" ", "_")
             entries = self.schedule_generator.apply_approximate(num_days=7, mode=mode)
-        # Store for save reuse and debug
+        preview_log.info(f"[WEEKLY] entries={len(entries)}")
         self.schedule_entries = entries
         self.last_generated_schedule = {
             'entries': entries,
@@ -344,6 +415,7 @@ class MainWindow(QMainWindow):
             'mode': mode
         }
 
+        added = 0
         for day_offset in range(7):
             current_date = start_date + __import__('datetime').timedelta(days=day_offset)
             day_name = days[current_date.weekday()]
@@ -366,11 +438,14 @@ class MainWindow(QMainWindow):
                     end_h = (entry.end_seconds // 3600) % 24
                     end_m = (entry.end_seconds % 3600) // 60
                     if entry.start_seconds == day_start_seconds:
-                        self.preview_list.addItem(f"Day {day_offset + 1}\n{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {entry.video_name}")
+                        text = f"Day {day_offset + 1}\n{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {entry.video_name}"
                     else:
-                        self.preview_list.addItem(f"{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {entry.video_name}")
-
-    def generate_monthly_preview(self):
+                        text = f"{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {entry.video_name}"
+                    item = QListWidgetItem(text)
+                    item.setData(Qt.UserRole, entry)
+                    self.preview_list.addItem(item)
+                    added += 1
+        preview_log.info(f"[WEEKLY] added_items={added} list_count={self.preview_list.count()}")
         self.preview_list.clear()
         self.preview_title.setText("Calendar Schedule Preview (30 Days)")
 
@@ -417,9 +492,12 @@ class MainWindow(QMainWindow):
                     end_h = (entry.end_seconds // 3600) % 24
                     end_m = (entry.end_seconds % 3600) // 60
                     if entry.start_seconds == day_start_seconds:
-                        self.preview_list.addItem(f"Day {day_offset + 1}\n{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {entry.video_name}")
+                        text = f"Day {day_offset + 1}\n{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {entry.video_name}"
                     else:
-                        self.preview_list.addItem(f"{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {entry.video_name}")
+                        text = f"{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {entry.video_name}"
+                    item = QListWidgetItem(text)
+                    item.setData(Qt.UserRole, entry)
+                    self.preview_list.addItem(item)
 
     def debug_durations(self):
         entries = self.schedule_entries
@@ -610,14 +688,19 @@ class MainWindow(QMainWindow):
             self.refresh_preview()
 
     def copy_preview(self):
-        if self.weekly_radio.isChecked() or self.monthly_radio.isChecked():
-            items = [self.preview_list.item(i).text() for i in range(self.preview_list.count())]
-            text = "\n".join(items)
-        else:
-            text = "\n".join(entry.to_copy_string() for entry in self.schedule_entries)
+        items = []
+        for i in range(self.preview_list.count()):
+            item = self.preview_list.item(i)
+            entry = item.data(Qt.UserRole)
+            if hasattr(entry, "to_copy_string"):
+                items.append(entry.to_copy_string())
+            else:
+                items.append(item.text())
+        text = "\n".join(items)
+        preview_log.info(f"[COPY] preview_count={self.preview_list.count()} schedule_entries={len(self.schedule_entries)} text_len={len(text)} preview={text[:500]!r}")
         clipboard = QApplication.instance().clipboard()
         clipboard.setText(text)
-        QMessageBox.information(self, "Copied", "Schedule copied to clipboard!")
+        QMessageBox.information(self, "Copied", f"Schedule copied to clipboard ({len(items)} items)!")
 
     def load_schedule_profiles(self):
         profiles = get_schedule_profiles()

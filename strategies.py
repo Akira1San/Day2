@@ -143,11 +143,11 @@ class CustomTagMergeStrategy:
                     if pos + duration > end:
                         vid_idx += 1
                         continue
-                    final.append(ScheduleEntry(1, pos, pos + duration, video_name))
+                    final.append(ScheduleEntry(1, pos, pos + duration, video_name, "custom"))
                     pos += duration
                     vid_idx += 1
             else:
-                final.append(ScheduleEntry(1, start, end, ct.name))
+                final.append(ScheduleEntry(1, start, end, ct.name, "custom"))
 
             while rand_idx < len(random_entries) and random_entries[rand_idx].start_seconds < end:
                 rand_idx += 1
@@ -485,7 +485,7 @@ class PriorityApproximateStrategy:
                                 day_unused.remove(best_rand)
                             current_pos = best_rand.end_seconds
                         elif current_pos < best_rand.end_seconds:
-                            final.append(ScheduleEntry(1, current_pos, best_rand.end_seconds, best_rand.video_name))
+                            final.append(ScheduleEntry(1, current_pos, best_rand.end_seconds, best_rand.video_name, "random_fill"))
                             used_random.add(best_idx)
                             if best_rand in day_unused:
                                 day_unused.remove(best_rand)

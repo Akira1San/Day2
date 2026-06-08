@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 from typing import List, Optional
 from PySide6.QtCore import QTime
+from PySide6.QtGui import QColor
 
 from utils import (
     get_video_display_name,
@@ -129,6 +130,16 @@ class Tag:
         if self.randomize_videos:
             return f"[C] {self.name} ({self.start_time.toString('HH:mm')}-{self.end_time.toString('HH:mm')}) x{self.video_count}"
         return f"[C] {self.name} ({self.start_time.toString('HH:mm')}-{self.end_time.toString('HH:mm')})"
+
+    @property
+    def tag_color(self) -> Optional[QColor]:
+        if self.tag_type == "random" or self.is_random_fill:
+            return None
+        if self.is_series or getattr(self, 'is_multi_series', False):
+            return QColor("#7c3aed")
+        if self.randomize_videos or self.tag_type == "custom":
+            return QColor("#059669")
+        return None
 
 
 class MultiSeriesTag(Tag):
@@ -312,11 +323,12 @@ class MultiSeriesTag(Tag):
 
 
 class ScheduleEntry:
-    def __init__(self, day: int, start_seconds: int, end_seconds: int, video_name: str):
+    def __init__(self, day: int, start_seconds: int, end_seconds: int, video_name: str, tag_type: str = ""):
         self.day = day
         self.start_seconds = start_seconds
         self.end_seconds = end_seconds
         self.video_name = video_name
+        self.tag_type = tag_type
 
     @property
     def start_minutes(self) -> int:
@@ -345,6 +357,24 @@ class ScheduleEntry:
         else:
             return f"Day {start_day} {start_h:02d}:{start_m:02d} - Day {end_day} {end_h:02d}:{end_m:02d} - {self.video_name}"
 
+    @property
+    def tag_color(self) -> Optional[QColor]:
+        if self.tag_type:
+            if self.tag_type in ("series", "multi_series"):
+                return QColor("#7c3aed")
+            if self.tag_type == "custom":
+                return QColor("#059669")
+            if self.tag_type in ("random", "random_fill"):
+                return None
+        video_name = self.video_name or ""
+        prefix = video_name.split(" - ", 1)[0] if " - " in video_name else video_name
+        tag_prefix = prefix.strip().upper()
+        if tag_prefix in ("[S]", "[M]"):
+            return QColor("#7c3aed")
+        if tag_prefix == "[C]":
+            return QColor("#059669")
+        return None
+
     def to_copy_string(self) -> str:
         start_day = (self.start_seconds // (24 * 3600)) + 1
         end_day = (self.end_seconds // (24 * 3600)) + 1
@@ -355,6 +385,19 @@ class ScheduleEntry:
         if start_day == end_day:
             return f"Day {start_day} {start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {self.video_name}"
         return f"Day {start_day} {start_h:02d}:{start_m:02d} - Day {end_day} {end_h:02d}:{end_m:02d} - {self.video_name}"
+
+    def color_tag_name_in_text(self, text: str) -> str:
+        color = self.tag_color
+        if not color:
+            return text
+        video_name = self.video_name or ""
+        if " - " in video_name:
+            tag_name, rest = video_name.split(" - ", 1)
+            colored_tag = f'<span style="color:{color.name()}">{tag_name}</span>'
+            colored_video = f"{colored_tag} - {rest}" if rest else colored_tag
+        else:
+            colored_video = f'<span style="color:{color.name()}">{video_name}</span>'
+        return text.replace(video_name, colored_video, 1)
 
 
 class TagManager:

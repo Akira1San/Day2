@@ -46,9 +46,9 @@ class ScheduleGenerator:
         # Reset only by explicit re-initialization; not bumped by per-tag/cached calls.
         self._generate_count = 0
 
-    def _create_video_entry(self, pos: int, duration: int, name: str, tag_name: str = "") -> ScheduleEntry:
+    def _create_video_entry(self, pos: int, duration: int, name: str, tag_name: str = "", tag_type: str = "") -> ScheduleEntry:
         video_name = f"{tag_name} - {name}" if tag_name else name
-        return ScheduleEntry(1, pos, pos + duration, video_name)
+        return ScheduleEntry(1, pos, pos + duration, video_name, tag_type)
 
     def _resolve_series_collection_path(self, st) -> str:
         """Resolve a series tag's collection to an absolute file path.
@@ -262,7 +262,7 @@ class ScheduleGenerator:
                 if not collection_videos:
                     if pos >= end:
                         break
-                    final.append(self._create_video_entry(pos, 3600, series_name, ct.name))
+                    final.append(self._create_video_entry(pos, 3600, series_name, ct.name, "multi_series"))
                     pos += 3600
                     continue
 
@@ -280,7 +280,7 @@ class ScheduleGenerator:
                     # Skip if video doesn't fit in remaining slot space
                     if pos + duration > end:
                         continue
-                    final.append(self._create_video_entry(pos, duration, video_name, series_name))
+                    final.append(self._create_video_entry(pos, duration, video_name, series_name, "multi_series"))
                     pos += duration
             return pos
 
@@ -312,12 +312,12 @@ class ScheduleGenerator:
                     duration = 90
                 if pos + duration > end:
                     end = pos + duration
-                final.append(self._create_video_entry(pos, duration, video_name, ct.name))
+                final.append(self._create_video_entry(pos, duration, video_name, ct.name, "custom"))
                 pos += duration
                 vid_idx += 1
             return pos
         else:
-            final.append(ScheduleEntry(1, start, end, ct.name))
+            final.append(ScheduleEntry(1, start, end, ct.name, ct.tag_type))
             return end
 
     def _build_random_entries(self, videos: List[dict], start_pos: int, end_pos: int, tag_name: str = "") -> List[ScheduleEntry]:
@@ -469,11 +469,11 @@ class ScheduleGenerator:
                     duration = 90
                 if pos + duration > end_sec:
                     end_sec = pos + duration
-                custom_entries.append(self._create_video_entry(pos, duration, video_name, ct.name))
+                custom_entries.append(self._create_video_entry(pos, duration, video_name, ct.name, "custom"))
                 pos += duration
                 vid_idx += 1
         else:
-            custom_entries.append(ScheduleEntry(1, start_sec, end_sec, ct.name))
+            custom_entries.append(ScheduleEntry(1, start_sec, end_sec, ct.name, "custom"))
             for s in range(start_sec, end_sec):
                 occupied.add(s)
 
@@ -532,7 +532,7 @@ class ScheduleGenerator:
                     for s in range(end_sec, extended_end):
                         occupied.add(s)
                     end_sec = extended_end
-                series_entries.append(self._create_video_entry(pos, duration, video_name, st.name))
+                series_entries.append(self._create_video_entry(pos, duration, video_name, st.name, "series"))
                 pos += duration
                 placed += 1
 
@@ -550,10 +550,10 @@ class ScheduleGenerator:
                 for s in range(end_sec, extended_end):
                     occupied.add(s)
                 series_entries.append(
-                    self._create_video_entry(start_sec, first_duration, first_name, st.name)
+                    self._create_video_entry(start_sec, first_duration, first_name, st.name, "series")
                 )
         else:
-            series_entries.append(ScheduleEntry(1, start_sec, end_sec, st.name))
+            series_entries.append(ScheduleEntry(1, start_sec, end_sec, st.name, "series"))
             for s in range(start_sec, end_sec):
                 occupied.add(s)
 
@@ -613,7 +613,7 @@ class ScheduleGenerator:
                         if skips_since_progress >= len(rf_videos):
                             break
                         continue
-                    fill_entries.append(self._create_video_entry(pos, duration, video_name, rf.name))
+                    fill_entries.append(self._create_video_entry(pos, duration, video_name, rf.name, "random_fill"))
                     pos += duration
                     skips_since_progress = 0
                     vid_idx += 1
@@ -659,7 +659,7 @@ class ScheduleGenerator:
                 duration = int(video.get('duration', 90))
                 if duration < 1:
                     duration = 90
-                fill_entries.append(self._create_video_entry(pos, duration, video_name, rf.name))
+                fill_entries.append(self._create_video_entry(pos, duration, video_name, rf.name, "random_fill"))
                 pos += duration
                 vid_idx += 1
 
@@ -1114,7 +1114,7 @@ class ScheduleGenerator:
                                 duration = 90
                             if pos + duration > custom_end:
                                 custom_end = pos + duration
-                            final.append(self._create_video_entry(pos, duration, video_name, ct.name))
+                            final.append(self._create_video_entry(pos, duration, video_name, ct.name, "custom"))
                             actual_end = pos + duration
                             pos += duration
                             vid_idx += 1
@@ -1162,7 +1162,7 @@ class ScheduleGenerator:
                             duration = 90
                         if pos + duration > custom_end:
                             custom_end = pos + duration
-                        final.append(self._create_video_entry(pos, duration, video_name, ct.name))
+                        final.append(self._create_video_entry(pos, duration, video_name, ct.name, "custom"))
                         actual_end = pos + duration
                         pos += duration
                         vid_idx += 1
@@ -1203,7 +1203,7 @@ class ScheduleGenerator:
                             duration = 90
                         if pos + duration > series_end:
                             series_end = pos + duration
-                        final.append(self._create_video_entry(pos, duration, video_name, st.name))
+                        final.append(self._create_video_entry(pos, duration, video_name, st.name, "series"))
                         actual_end = pos + duration
                         pos += duration
                     current_pos = actual_end
@@ -1211,7 +1211,7 @@ class ScheduleGenerator:
                     if has_24h_fill:
                         actual_placed_ranges.append((series_start, series_end))
                 else:
-                    final.append(ScheduleEntry(1, series_start, series_end, st.name))
+                    final.append(ScheduleEntry(1, series_start, series_end, st.name, "series"))
                     actual_placed_ranges.append((series_start, series_end))
                     actual_end = series_end
                     current_pos = actual_end
