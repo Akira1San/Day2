@@ -3,14 +3,14 @@ import logging
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from PySide6.QtWidgets import QWidget, QLabel, QHBoxLayout, QVBoxLayout, QComboBox, QLineEdit, QPushButton, QMessageBox, QListWidgetItem
-from PySide6.QtCore import Qt, QTime
+from PySide6.QtCore import Qt
 
 from .base import BaseTagDialog
 from .profile_mixin import SeriesProfileMixin
 from .widgets.video_list import create_video_section, create_blacklist_section
 from utils import (
     load_collection_json, load_blacklist_json,
-    qtime_to_minutes, get_video_display_name, format_duration,
+    get_video_display_name, format_duration,
     filter_videos_by_blacklist, get_randomfill_config
 )
 
@@ -35,7 +35,6 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
     collection_section: Any  # VideoSection
     added_section: Any     # VideoSection
     blacklist_section: Any # BlacklistSection
-    auto_calc_btn: QPushButton
     save_btn: QPushButton
     cancel_btn: QPushButton
 
@@ -108,10 +107,6 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
         self.added_count_label = self.added_section.count_label
         self.blacklist_list = self.blacklist_section.blacklist_list
         self.blacklist_count_label = self.blacklist_section.count_label
-
-        # Auto calc button
-        self.auto_calc_btn = QPushButton("Auto Calc End Time")
-        self.auto_calc_btn.clicked.connect(self.auto_calc_end_time)
 
         # Save/Cancel buttons
         self.save_btn = QPushButton("Save")
@@ -303,17 +298,6 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
             QMessageBox.information(self, "Saved", f"Blacklist saved to {blacklist_path}")
         except Exception as e:
             QMessageBox.warning(self, "Error", f"Failed to save blacklist: {e}")
-
-    # --- Auto calc ---
-    def auto_calc_end_time(self):
-        if not self.added_videos:
-            QMessageBox.warning(self, "No Videos", "Please add at least one video to the Added Videos list.")
-            return
-        total_duration = sum(v.get('duration', 0) for v in self.added_videos)
-        total_mins = int(total_duration // 60)
-        start_mins = qtime_to_minutes(self.start_time_edit.time())
-        end_mins = (start_mins + total_mins) % (24 * 60)
-        self.end_time_edit.setTime(QTime(end_mins // 60, end_mins % 60))
 
     # --- Abstract method ---
     def get_tag(self):

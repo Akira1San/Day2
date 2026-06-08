@@ -28,13 +28,16 @@ class TagDialog(CollectionDialogBase):
         self.setModal(True)
 
         # Custom widgets
-        self.randomize_videos_check = QCheckBox("Randomize Videos")
         self.video_count_spin = QSpinBox()
         self.video_count_spin.setMinimum(1)
         self.video_count_spin.setValue(1)
 
         # Build UI using common components
         self.build_ui()
+
+        self.end_time_edit.setReadOnly(True)
+        self.video_count_spin.valueChanged.connect(self._recalc_end_time)
+        self.start_time_edit.timeChanged.connect(self._recalc_end_time)
 
         # Populate profile combo boxes
         self.load_available_profiles()
@@ -85,19 +88,12 @@ class TagDialog(CollectionDialogBase):
         self.video_info.setWordWrap(True)
         layout.addWidget(self.video_info)
 
-        # Randomize options
-        rand_layout = QHBoxLayout()
-        rand_layout.addWidget(self.randomize_videos_check)
-        rand_layout.addWidget(QLabel("Video Count:"))
-        rand_layout.addWidget(self.video_count_spin)
-        rand_layout.addStretch()
-        layout.addLayout(rand_layout)
-
-        # Auto calc button
-        calc_layout = QHBoxLayout()
-        calc_layout.addWidget(self.auto_calc_btn)
-        calc_layout.addStretch()
-        layout.addLayout(calc_layout)
+        # Video count
+        count_layout = QHBoxLayout()
+        count_layout.addWidget(QLabel("Video Count:"))
+        count_layout.addWidget(self.video_count_spin)
+        count_layout.addStretch()
+        layout.addLayout(count_layout)
 
         # Time inputs
         time_layout = QHBoxLayout()
@@ -120,8 +116,6 @@ class TagDialog(CollectionDialogBase):
         if hasattr(tag, 'blacklist') and tag.blacklist:
             self.blacklist = tag.blacklist.copy()
 
-        if hasattr(tag, 'randomize_videos') and tag.randomize_videos:
-            self.randomize_videos_check.setChecked(True)
         if hasattr(tag, 'video_count'):
             self.video_count_spin.setValue(tag.video_count)
 
@@ -150,6 +144,7 @@ class TagDialog(CollectionDialogBase):
         # Ensure added videos respect current blacklist
         self.added_videos = filter_videos_by_blacklist(self.added_videos, self.blacklist)
         self.refresh_added_list()
+        self._recalc_end_time()
 
     def _on_video_selected(self, video: dict):
         """Display basic info for the selected video."""
@@ -160,29 +155,21 @@ class TagDialog(CollectionDialogBase):
         )
         self.video_info.setText(info)
 
-    def auto_calc_end_time(self):
-        """Calculate end time based on selection or video count."""
+    def _recalc_end_time(self):
         if not self.added_videos:
-            QMessageBox.warning(self, "No Videos", "Please add at least one video to the Added Videos list.")
             return
-
-        if not self.randomize_videos_check.isChecked():
-            selected = self.added_list.currentRow()
-            if selected < 0:
-                QMessageBox.warning(self, "No Selection", "Please select a video from the Added list.")
-                return
-            duration = self.added_videos[selected].get('duration', 0)
-        else:
-            count = self.video_count_spin.value()
-            total_duration = sum(
-                self.added_videos[i].get('duration', 0)
-                for i in range(min(count, len(self.added_videos)))
-            )
-            duration = total_duration
-
+        count = self.video_count_spin.value()
+        total_duration = sum(
+            self.added_videos[i].get('duration', 0)
+            for i in range(min(count, len(self.added_videos)))
+        )
         start_mins = qtime_to_minutes(self.start_time_edit.time())
-        end_mins = (start_mins + int(duration // 60)) % (24 * 60)
+        end_mins = (start_mins + int(total_duration // 60)) % (24 * 60)
         self.end_time_edit.setTime(QTime(end_mins // 60, end_mins % 60))
+
+    def refresh_added_list(self):
+        super().refresh_added_list()
+        self._recalc_end_time()
 
     def get_tag(self) -> Tag:
         """Construct Tag object from current dialog state."""
@@ -200,7 +187,7 @@ class TagDialog(CollectionDialogBase):
             end_time=self.end_time_edit.time(),
             collection_videos=self.added_videos.copy(),
             collection_path=self.collection_path.text(),
-            randomize_videos=self.randomize_videos_check.isChecked(),
+            randomize_videos=True,
             video_count=self.video_count_spin.value(),
             blacklist=self.blacklist.copy(),
             collection_profile=collection_profile,
@@ -236,6 +223,9 @@ class RandomFillDialog(CollectionDialogBase):
 
         # Build UI (arranges common widgets plus custom info panel)
         self.build_ui()
+
+        self.end_time_edit.setReadOnly(True)
+        self.start_time_edit.timeChanged.connect(self._recalc_end_time)
 
         # Load profiles
         self.load_available_profiles()
@@ -292,10 +282,9 @@ class RandomFillDialog(CollectionDialogBase):
         video_layout.addWidget(self.blacklist_section.widget)
         right_layout.addWidget(video_container)
 
-        # Time inputs with auto calc
+        # Time inputs
         time_layout = QHBoxLayout()
         self._setup_time_inputs(time_layout)
-        time_layout.addWidget(self.auto_calc_btn)
         right_layout.addLayout(time_layout)
 
         # Fill 24h checkbox
@@ -345,6 +334,7 @@ class RandomFillDialog(CollectionDialogBase):
         # Ensure added videos are filtered by current blacklist
         self.added_videos = filter_videos_by_blacklist(self.added_videos, self.blacklist)
         self.refresh_added_list()
+        self._recalc_end_time()
 
     def _should_auto_add(self) -> bool:
         """Auto-add non-blacklisted videos when loading collection, based on config."""
@@ -396,15 +386,17 @@ class RandomFillDialog(CollectionDialogBase):
             cover_path = coll_info.get('cover', '')
             self.info_panel.set_cover_image(cover_path)
 
-    def auto_calc_end_time(self):
-        """Sum durations of all added videos and set end time."""
+    def _recalc_end_time(self):
         if not self.added_videos:
-            QMessageBox.warning(self, "No Videos", "Please add at least one video.")
             return
         total_duration = sum(v.get('duration', 0) for v in self.added_videos)
         start_mins = qtime_to_minutes(self.start_time_edit.time())
         end_mins = (start_mins + int(total_duration // 60)) % (24 * 60)
         self.end_time_edit.setTime(QTime(end_mins // 60, end_mins % 60))
+
+    def refresh_added_list(self):
+        super().refresh_added_list()
+        self._recalc_end_time()
 
     def get_tag(self) -> Optional[Tag]:
         """Construct Tag from dialog state. Returns None if validation fails."""
