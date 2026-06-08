@@ -1,0 +1,441 @@
+import json
+import logging
+from pathlib import Path
+from typing import Optional
+from PySide6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QSpinBox,
+    QMessageBox, QListWidgetItem
+)
+from PySide6.QtCore import Qt, QTime
+
+from .collection_base import CollectionDialogBase
+from .widgets.info_panel import CollectionInfoPanel, VideoInfoDisplay
+from models import Tag
+from utils import (
+    filter_videos_by_blacklist, get_video_display_name, format_duration,
+    qtime_to_minutes, get_config_paths, get_covers_path, get_randomfill_config
+)
+
+logger = logging.getLogger(__name__)
+
+
+class TagDialog(CollectionDialogBase):
+    """Dialog for creating/editing custom tags."""
+
+    def __init__(self, parent=None, tag: Optional[Tag] = None):
+        super().__init__(parent, tag)
+        self.setWindowTitle("Edit Tag" if tag else "Add Custom Tag")
+        self.setModal(True)
+
+        # Custom widgets
+        self.randomize_videos_check = QCheckBox("Randomize Videos")
+        self.video_count_spin = QSpinBox()
+        self.video_count_spin.setMinimum(1)
+        self.video_count_spin.setValue(1)
+
+        # Build UI using common components
+        self.build_ui()
+
+        # Populate profile combo boxes
+        self.load_available_profiles()
+
+        # If editing an existing tag, populate fields
+        if tag:
+            self._populate_from_tag(tag)
+
+    def build_ui(self):
+        layout = QVBoxLayout(self)
+
+        # Name row
+        name_layout = QHBoxLayout()
+        name_layout.addWidget(QLabel("Name:"))
+        name_layout.addWidget(self.name_input)
+        name_layout.addStretch()
+        layout.addLayout(name_layout)
+
+        # Profile selection row
+        profile_widget = QWidget()
+        profile_layout = QHBoxLayout(profile_widget)
+        profile_layout.addWidget(QLabel("Collection Profile:"))
+        profile_layout.addWidget(self.collection_profile_combo)
+        profile_layout.addWidget(QLabel("Blacklist Profile:"))
+        profile_layout.addWidget(self.blacklist_profile_combo)
+        profile_layout.addStretch()
+        layout.addWidget(profile_widget)
+
+        # Collection browse row
+        coll_widget = QWidget()
+        coll_layout = QHBoxLayout(coll_widget)
+        coll_layout.addWidget(QLabel("Collection:"))
+        coll_layout.addWidget(self.collection_path)
+        coll_layout.addWidget(self.browse_button)
+        coll_layout.addStretch()
+        layout.addWidget(coll_widget)
+
+        # Video sections (collection, added, blacklist)
+        video_container = QWidget()
+        video_layout = QHBoxLayout(video_container)
+        video_layout.addWidget(self.collection_section.widget)
+        video_layout.addWidget(self.added_section.widget)
+        video_layout.addWidget(self.blacklist_section.widget)
+        layout.addWidget(video_container)
+
+        # Video info display
+        self.video_info = QLabel("Select a video to see details")
+        self.video_info.setWordWrap(True)
+        layout.addWidget(self.video_info)
+
+        # Randomize options
+        rand_layout = QHBoxLayout()
+        rand_layout.addWidget(self.randomize_videos_check)
+        rand_layout.addWidget(QLabel("Video Count:"))
+        rand_layout.addWidget(self.video_count_spin)
+        rand_layout.addStretch()
+        layout.addLayout(rand_layout)
+
+        # Auto calc button
+        calc_layout = QHBoxLayout()
+        calc_layout.addWidget(self.auto_calc_btn)
+        calc_layout.addStretch()
+        layout.addLayout(calc_layout)
+
+        # Time inputs
+        time_layout = QHBoxLayout()
+        self._setup_time_inputs(time_layout)
+        layout.addLayout(time_layout)
+
+        # Save/Cancel buttons
+        btn_layout = QHBoxLayout()
+        btn_layout.addWidget(self.save_btn)
+        btn_layout.addWidget(self.cancel_btn)
+        layout.addLayout(btn_layout)
+
+    def _populate_from_tag(self, tag: Tag):
+        """Fill UI fields from an existing Tag."""
+        self.name_input.setText(tag.name)
+        self.start_time_edit.setTime(tag.start_time)
+        self.end_time_edit.setTime(tag.end_time)
+
+        # Set blacklist from tag (may be overwritten by load_collection below)
+        if hasattr(tag, 'blacklist') and tag.blacklist:
+            self.blacklist = tag.blacklist.copy()
+
+        if hasattr(tag, 'randomize_videos') and tag.randomize_videos:
+            self.randomize_videos_check.setChecked(True)
+        if hasattr(tag, 'video_count'):
+            self.video_count_spin.setValue(tag.video_count)
+
+        if tag.collection_path:
+            # Load collection (this will reset blacklist to file-based blacklist)
+            self.load_collection(tag.collection_path, load_blacklist=True)
+            # Override added_videos with tag's saved collection_videos
+            self.added_videos = tag.collection_videos.copy()
+
+        # Set profile combo boxes (triggers may load additional data)
+        collection_profile = getattr(tag, 'collection_profile', '')
+        if collection_profile:
+            idx = self.collection_profile_combo.findText(collection_profile)
+            if idx >= 0:
+                self.collection_profile_combo.setCurrentIndex(idx)
+        else:
+            self.collection_profile_combo.setCurrentIndex(0)
+
+        blacklist_profile = getattr(tag, 'blacklist_profile', '')
+        if blacklist_profile:
+            idx = self.blacklist_profile_combo.findText(blacklist_profile)
+            if idx >= 0:
+                self.blacklist_profile_combo.setCurrentIndex(idx)
+        else:
+            self.blacklist_profile_combo.setCurrentIndex(0)
+
+        # Ensure added videos respect current blacklist
+        self.added_videos = filter_videos_by_blacklist(self.added_videos, self.blacklist)
+        self.refresh_added_list()
+
+    def _on_video_selected(self, video: dict):
+        """Display basic info for the selected video."""
+        info = (
+            f"Name: {video.get('name', '-')}\n"
+            f"Path: {video.get('path', '-')}\n"
+            f"Duration: {int(video.get('duration', 0))}s"
+        )
+        self.video_info.setText(info)
+
+    def auto_calc_end_time(self):
+        """Calculate end time based on selection or video count."""
+        if not self.added_videos:
+            QMessageBox.warning(self, "No Videos", "Please add at least one video to the Added Videos list.")
+            return
+
+        if not self.randomize_videos_check.isChecked():
+            selected = self.added_list.currentRow()
+            if selected < 0:
+                QMessageBox.warning(self, "No Selection", "Please select a video from the Added list.")
+                return
+            duration = self.added_videos[selected].get('duration', 0)
+        else:
+            count = self.video_count_spin.value()
+            total_duration = sum(
+                self.added_videos[i].get('duration', 0)
+                for i in range(min(count, len(self.added_videos)))
+            )
+            duration = total_duration
+
+        start_mins = qtime_to_minutes(self.start_time_edit.time())
+        end_mins = (start_mins + int(duration // 60)) % (24 * 60)
+        self.end_time_edit.setTime(QTime(end_mins // 60, end_mins % 60))
+
+    def get_tag(self) -> Tag:
+        """Construct Tag object from current dialog state."""
+        collection_profile = self.collection_profile_combo.currentText()
+        if collection_profile == "-- None --":
+            collection_profile = ""
+        blacklist_profile = self.blacklist_profile_combo.currentText()
+        if blacklist_profile == "-- None --":
+            blacklist_profile = ""
+
+        return Tag(
+            tag_type="custom",
+            name=self.name_input.text() or "Custom Video",
+            start_time=self.start_time_edit.time(),
+            end_time=self.end_time_edit.time(),
+            collection_videos=self.added_videos.copy(),
+            collection_path=self.collection_path.text(),
+            randomize_videos=self.randomize_videos_check.isChecked(),
+            video_count=self.video_count_spin.value(),
+            blacklist=self.blacklist.copy(),
+            collection_profile=collection_profile,
+            blacklist_profile=blacklist_profile
+        )
+
+    # TagDialog uses base class save_blacklist_file (QMessageBox.information)
+
+
+class RandomFillDialog(CollectionDialogBase):
+    """Dialog for creating/editing random fill tags."""
+
+    def __init__(self, parent=None, tag: Optional[Tag] = None):
+        super().__init__(parent, tag)
+        self.tag = tag
+        self.setWindowTitle("Add Random Fill Tag" if not tag else "Edit Random Fill Tag")
+        self.setModal(True)
+
+        # Determine covers root directory
+        try:
+            collection_path, _ = get_config_paths()
+            covers_cfg = get_covers_path()
+            if covers_cfg:
+                self.covers_root = Path(covers_cfg)
+            else:
+                self.covers_root = Path(collection_path).parent.parent
+        except Exception:
+            self.covers_root = Path('.')
+
+        # Custom widgets
+        self.info_panel = CollectionInfoPanel(parent=self, covers_root=self.covers_root)
+        self.video_info = VideoInfoDisplay()
+
+        # Build UI (arranges common widgets plus custom info panel)
+        self.build_ui()
+
+        # Load profiles
+        self.load_available_profiles()
+
+        # Populate from tag if editing
+        if tag:
+            self._populate_from_tag(tag)
+
+    def build_ui(self):
+        main_layout = QHBoxLayout(self)
+
+        # Left panel: collection info and video info
+        left = QWidget()
+        left_layout = QVBoxLayout(left)
+        left_layout.addWidget(self.info_panel)
+        left_layout.addWidget(self.video_info)
+        main_layout.addWidget(left)
+
+        # Right panel: common UI and random fill controls
+        right = QWidget()
+        right_layout = QVBoxLayout(right)
+
+        # Name row
+        name_layout = QHBoxLayout()
+        name_layout.addWidget(QLabel("Name:"))
+        name_layout.addWidget(self.name_input)
+        name_layout.addStretch()
+        right_layout.addLayout(name_layout)
+
+        # Profiles row
+        profile_widget = QWidget()
+        profile_layout = QHBoxLayout(profile_widget)
+        profile_layout.addWidget(QLabel("Collection Profile:"))
+        profile_layout.addWidget(self.collection_profile_combo)
+        profile_layout.addWidget(QLabel("Blacklist Profile:"))
+        profile_layout.addWidget(self.blacklist_profile_combo)
+        profile_layout.addStretch()
+        right_layout.addWidget(profile_widget)
+
+        # Collection browse row
+        coll_widget = QWidget()
+        coll_layout = QHBoxLayout(coll_widget)
+        coll_layout.addWidget(QLabel("Collection:"))
+        coll_layout.addWidget(self.collection_path)
+        coll_layout.addWidget(self.browse_button)
+        coll_layout.addStretch()
+        right_layout.addWidget(coll_widget)
+
+        # Video sections container
+        video_container = QWidget()
+        video_layout = QHBoxLayout(video_container)
+        video_layout.addWidget(self.collection_section.widget)
+        video_layout.addWidget(self.added_section.widget)
+        video_layout.addWidget(self.blacklist_section.widget)
+        right_layout.addWidget(video_container)
+
+        # Time inputs with auto calc
+        time_layout = QHBoxLayout()
+        self._setup_time_inputs(time_layout)
+        time_layout.addWidget(self.auto_calc_btn)
+        right_layout.addLayout(time_layout)
+
+        # Fill 24h checkbox
+        self.fill_24h_check = QCheckBox("Fill 24 Hours (loop videos to fill full day)")
+        self.fill_24h_check.setChecked(True)
+        right_layout.addWidget(self.fill_24h_check)
+
+        # Save/Cancel buttons
+        btn_layout = QHBoxLayout()
+        btn_layout.addWidget(self.save_btn)
+        btn_layout.addWidget(self.cancel_btn)
+        right_layout.addLayout(btn_layout)
+
+        main_layout.addWidget(right)
+
+    def _populate_from_tag(self, tag: Tag):
+        """Fill UI fields from an existing Tag."""
+        self.name_input.setText(tag.name)
+        self.start_time_edit.setTime(tag.start_time)
+        self.end_time_edit.setTime(tag.end_time)
+
+        if hasattr(tag, 'blacklist') and tag.blacklist:
+            self.blacklist = tag.blacklist.copy()
+
+        fill_24h = getattr(tag, 'fill_24h', False)
+        self.fill_24h_check.setChecked(fill_24h)
+
+        if tag.collection_path:
+            # Load collection without auto-loading blacklist to preserve tag's blacklist initially
+            self.load_collection(tag.collection_path, load_blacklist=False)
+            self.added_videos = tag.collection_videos.copy()
+
+        collection_profile = getattr(tag, 'collection_profile', '')
+        if collection_profile:
+            self.collection_profile_combo.blockSignals(True)
+            idx = self.collection_profile_combo.findText(collection_profile)
+            if idx >= 0:
+                self.collection_profile_combo.setCurrentIndex(idx)
+            self.collection_profile_combo.blockSignals(False)
+
+        blacklist_profile = getattr(tag, 'blacklist_profile', '')
+        if blacklist_profile:
+            idx = self.blacklist_profile_combo.findText(blacklist_profile)
+            if idx >= 0:
+                self.blacklist_profile_combo.setCurrentIndex(idx)
+
+        # Ensure added videos are filtered by current blacklist
+        self.added_videos = filter_videos_by_blacklist(self.added_videos, self.blacklist)
+        self.refresh_added_list()
+
+    def _should_auto_add(self) -> bool:
+        """Auto-add non-blacklisted videos when loading collection, based on config."""
+        return get_randomfill_config()
+
+    def _on_collection_loaded(self):
+        """Update info panel after collection is loaded."""
+        default_info = next(iter(self.collection_info_dict.values())) if self.collection_info_dict else {}
+        self.info_panel.set_collection_info(default_info)
+        self.info_panel.set_cover_image(default_info.get('cover'))
+
+    def _on_video_selected(self, video: dict):
+        """Handle selection in collection list: update video info and cover."""
+        self.video_info.set_video_info(video)
+        coll_id = video.get('collection_id', '')
+        coll_info = self.collection_info_dict.get(coll_id, {})
+        cover_path = coll_info.get('cover', '')
+        self.info_panel.set_cover_image(cover_path)
+
+    def on_added_video_selected(self, item):
+        """Handle selection in added videos list."""
+        path = item.data(Qt.UserRole)
+        video = next((v for v in self.added_videos if v.get('path') == path), None)
+        if video:
+            self.video_info.set_video_info(video)
+            coll_id = video.get('collection_id', '')
+            if not coll_id:
+                for v in self.collection_videos:
+                    if v.get('path', '') == path:
+                        coll_id = v.get('collection_id', '')
+                        break
+            coll_info = self.collection_info_dict.get(coll_id, {})
+            cover_path = coll_info.get('cover', '')
+            self.info_panel.set_cover_image(cover_path)
+
+    def on_blacklist_video_selected(self, item):
+        """Handle selection in blacklist."""
+        path = item.data(Qt.UserRole)
+        video = next((v for v in self.blacklist if v.get('path') == path), None)
+        if video:
+            self.video_info.set_video_info(video)
+            coll_id = video.get('collection_id', '')
+            if not coll_id:
+                for v in self.collection_videos:
+                    if v.get('path', '') == path:
+                        coll_id = v.get('collection_id', '')
+                        break
+            coll_info = self.collection_info_dict.get(coll_id, {})
+            cover_path = coll_info.get('cover', '')
+            self.info_panel.set_cover_image(cover_path)
+
+    def auto_calc_end_time(self):
+        """Sum durations of all added videos and set end time."""
+        if not self.added_videos:
+            QMessageBox.warning(self, "No Videos", "Please add at least one video.")
+            return
+        total_duration = sum(v.get('duration', 0) for v in self.added_videos)
+        start_mins = qtime_to_minutes(self.start_time_edit.time())
+        end_mins = (start_mins + int(total_duration // 60)) % (24 * 60)
+        self.end_time_edit.setTime(QTime(end_mins // 60, end_mins % 60))
+
+    def get_tag(self) -> Optional[Tag]:
+        """Construct Tag from dialog state. Returns None if validation fails."""
+        if not self.added_videos:
+            QMessageBox.warning(self, "No Videos", "Please add at least one video.")
+            return None
+
+        fill_24h = self.fill_24h_check.isChecked()
+        if fill_24h:
+            self.start_time_edit.setTime(QTime(0, 0))
+            self.end_time_edit.setTime(QTime(23, 59))
+
+        collection_profile = self.collection_profile_combo.currentText()
+        if collection_profile == "-- None --":
+            collection_profile = ""
+        blacklist_profile = self.blacklist_profile_combo.currentText()
+        if blacklist_profile == "-- None --":
+            blacklist_profile = ""
+
+        return Tag(
+            tag_type="random",
+            name=self.name_input.text() or "Random Fill",
+            start_time=self.start_time_edit.time(),
+            end_time=self.end_time_edit.time(),
+            collection_videos=self.added_videos.copy(),
+            collection_path=self.collection_path.text(),
+            blacklist=self.blacklist.copy(),
+            blacklist_path=self.blacklist_path,
+            is_random_fill=True,
+            fill_24h=fill_24h,
+            collection_profile=collection_profile,
+            blacklist_profile=blacklist_profile
+        )

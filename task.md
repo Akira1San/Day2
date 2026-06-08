@@ -18,7 +18,7 @@
   - **File:** `models.py`
   - **Method:** `_apply_approximate_find_replace()` (surrounding logic, not the video placement block)
   - **Problem:** When Approximate is ON, random fill videos before a custom/series tag get truncated. A random video that should span e.g. `12:30–13:00` gets cut to `12:55–13:00` (5 min).
-  - **Evidence:** `test_approximate.py` reproduces this.
+  - **Evidence:** `Test/test_approximate.py` reproduces this.
   - **Root cause hypothesis:** The random-entry selection / partial-append logic around the custom tag placement (lines handling `best_rand`, `current_pos`, remaining portions) has an off-by-one or boundary condition when `current_pos` falls inside a random entry.
   - **Fix approach:** Trace `current_pos` through the `best_rand` selection branch. The truncation likely happens in the partial-append block that adds `ScheduleEntry(current_pos, rand_e.end_minutes, ...)`.
 

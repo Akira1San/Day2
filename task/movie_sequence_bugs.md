@@ -87,7 +87,7 @@ groups). Day→movie mapping semantics are preserved (each day still
 shows exactly one movie's parts). The change is purely a rotation of
 where the cycle starts.
 
-**Validation — `test_generate_rotates_starting_movie` (new test):**
+**Validation — `Test/test_generate_rotates_starting_movie` (new test):**
 - Click 1, day 0: Movie 1 ✓
 - Click 2, day 0: Movie 2 ✓
 - Click 3, day 0: Movie 3 ✓
@@ -95,13 +95,13 @@ where the cycle starts.
 - `_generate_count` bumps 0 → 1 → 2 on successive `apply_custom_tags()` calls ✓
 - `apply_custom_tags()` produces different first-video on consecutive clicks ✓
 - All 5 pre-existing tests still pass ✓
-- `test_no_approximate_continuous.py` — all 4 regression tests still pass ✓
+- `Test/test_no_approximate_continuous.py` — all 4 regression tests still pass ✓
 
 **Files modified:**
 - `scheduler.py` — ~12 lines added: counter init, two `+=1` increments,
   one rotation in `_get_videos_for_day`, two rotations in
   `_build_random_entries` / `generate_random_fill` movie_sequence branches.
-- `test_movie_sequence.py` — added `test_generate_rotates_starting_movie` (~80 lines).
+- `Test/test_movie_sequence.py` — added `Test/test_generate_rotates_starting_movie` (~80 lines).
 
 **Status:** ✅ Fixed (2026-06-06 by adding rotation counter)
 
@@ -180,8 +180,8 @@ flat list. Two paths produce different ordering for the same data.
 - `strategies.py` — approximate-mode strategies
 - `daypart_scheduler.py` — UI, video_order_combo wiring
 - `utils.py` — `extract_movie_sequence_key`, `group_videos_by_movie`
-- `test_movie_sequence.py` — existing tests
-- `test_no_approximate_continuous.py` — continuous-schedule regression
+- `Test/test_movie_sequence.py` — existing tests
+- `Test/test_no_approximate_continuous.py` — continuous-schedule regression
 
 ---
 

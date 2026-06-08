@@ -1,22 +1,22 @@
 # Series Tag & Custom Tag Bugs — TODO
 
-## Status: ✅ ALL FIXED — 5 of 5 original bugs fixed; 2 additional custom-tag bugs (cascade + placeholder) also fixed. Only Bug 4 (half duration after series in debug) remains — never reproduced, needs tighter repro. Test suite at `test_series_tag_bugs.py` (14 tests, all 14 PASS).
+## Status: ✅ ALL FIXED — 5 of 5 original bugs fixed; 2 additional custom-tag bugs (cascade + placeholder) also fixed. Only Bug 4 (half duration after series in debug) remains — never reproduced, needs tighter repro. Test suite at `Test/test_series_tag_bugs.py` (14 tests, all 14 PASS).
 
 ## Test Run (2026-06-08) — `python3 test_series_tag_bugs.py`
 
-The test file `test_series_tag_bugs.py` was created and run against
+The test file `Test/test_series_tag_bugs.py` was created and run against
 the current scheduler. Empirical results:
 
 | # | Bug | Test result | Reproduced? |
 |---|-----|-------------|-------------|
 | 1 | Custom tag disappears with random fill | ✓ PASS | ✅ **FIXED 2026-06-08** — the same soft-hint fix applied to series tags also fixed the custom-tag path in `_apply_approximate_linear` (non-24h fill branch) and `_place_tag_videos`. When a custom tag's videos don't fit the configured window, the window now extends instead of silently dropping entries. Both Approx OFF and Approx Find-Replace modes work. |
 | 2 | Series tag shows only tag name (warm) | ✓ PASS | ✓ Working when `collection_videos` populated |
-| 2 | Series tag shows only tag name (cold load) | ✓ PASS (regression test asserts fix) | ✅ **FIXED 2026-06-07** — lazy-load fallback in `_process_series_tag` reads from `collection_path` when `collection_videos` is empty. New regression test `test_bug2_cold_load_matches_warm_load` confirms cold/warm previews now match. |
+| 2 | Series tag shows only tag name (cold load) | ✓ PASS (regression test asserts fix) | ✅ **FIXED 2026-06-07** — lazy-load fallback in `_process_series_tag` reads from `collection_path` when `collection_videos` is empty. New regression test `Test/test_bug2_cold_load_matches_warm_load` confirms cold/warm previews now match. |
 | 2a | `video_count=1` produces 0 entries | ✓ PASS (regression test asserts fix) | ✅ **FIXED 2026-06-08** — `_process_series_tag` now treats `end_time` as a soft hint: if no selected episode fits the configured window, it auto-extends the window to fit at least the first selected episode. The user's "0 on most days" symptom is gone. |
 | 3 | `video_count=2` inconsistent per day | ✓ PASS (regression test asserts fix) | ✅ **FIXED 2026-06-08** — same fix as Bug 2a. With the soft-hint semantics, the configured end_time no longer silently drops episodes that are slightly too long. |
 | 4 | Half-duration after series in debug | ✓ PASS | ❌ Not reproduced — reported duration matches real duration (ratio 1.000). Bug may need different conditions (e.g. `video_count > 1` in series). |
 | 5 | Series tag misplaced/missing in Approx Find-Replace (video_count=1) | ✓ PASS (regression test asserts fix) | ✅ **FIXED 2026-06-08** — `_apply_approximate_find_replace` had two bugs: (a) `next_custom_pos` cascaded across days, pushing series later each day; (b) same hard-cap bug as Bug 2a/3 silently dropped episodes. Both fixed. Series now appears correctly on every day in Approx Find-Replace mode, with or without random fill. |
-| 1b | Custom tag cascade in Approx Find-Replace (video_count=1, no random fill) | ✓ PASS (regression test asserts fix) | ✅ **FIXED 2026-06-08** — same cascade bug as Bug 5 but in the custom-tag path of `_apply_approximate_linear`. `next_custom_pos` was an absolute offset that pushed each subsequent day's custom tag later until it ran out of day. Fixed by normalizing to within-day offset. Also added `test_custom_tag_no_cascade_approx` regression test. |
+| 1b | Custom tag cascade in Approx Find-Replace (video_count=1, no random fill) | ✓ PASS (regression test asserts fix) | ✅ **FIXED 2026-06-08** — same cascade bug as Bug 5 but in the custom-tag path of `_apply_approximate_linear`. `next_custom_pos` was an absolute offset that pushed each subsequent day's custom tag later until it ran out of day. Fixed by normalizing to within-day offset. Also added `Test/test_custom_tag_no_cascade_approx` regression test. |
 | 1c | Custom tag emits tag-name-only placeholder in Approx Find-Replace | ✓ PASS (regression test asserts fix) | ✅ **FIXED 2026-06-08** — when no collection_videos were available, `_apply_approximate_linear` fell through to the else-branch which emitted `ScheduleEntry(1, custom_start, custom_end, ct.name)` — a tag-name-only placeholder with no video. Now the same soft-hint path handles all cases. |
 
 ### Key empirical finding for Bug 2a / Bug 3 / Bug 5 / Custom tag bugs
@@ -38,17 +38,17 @@ comparing with `original_start`.
 
 ### Key empirical finding for Bug 1 and Bug 4
 
-- **Bug 1** (custom tag + random fill in Approx Find-Replace mode) was confirmed via `test_bug1_approximate_custom_tag_disappears_with_random_fill`. Root cause was the same hard-cap `continue` in `_apply_approximate_linear` (lines 1116-1118) and `_place_tag_videos` (lines 313-315) — when the second custom video exceeded the window, it was silently skipped. Fix: same soft-hint principle — extend the window to fit all requested videos. Both Approx OFF and Approx Find-Replace modes now work.
+- **Bug 1** (custom tag + random fill in Approx Find-Replace mode) was confirmed via `Test/test_bug1_approximate_custom_tag_disappears_with_random_fill`. Root cause was the same hard-cap `continue` in `_apply_approximate_linear` (lines 1116-1118) and `_place_tag_videos` (lines 313-315) — when the second custom video exceeded the window, it was silently skipped. Fix: same soft-hint principle — extend the window to fit all requested videos. Both Approx OFF and Approx Find-Replace modes now work.
 - **Bug 4** (half duration after series in debug view) was not reproduced in any test (ratio was always 1.000). May depend on `video_count > 1` in the series or may live in the debug-view renderer. Needs a tighter repro.
 
 ### Updated per-bug status
 
-- **Bug 1**: ✅ FIXED 2026-06-08 — the same soft-hint fix (extend window when videos don't fit) was applied to `_apply_approximate_linear` (custom tag branch, lines 1116-1118) and `_place_tag_videos` (lines 313-315). Previously, when the second custom video's duration would exceed the configured `end_time`, it was silently skipped (`continue`). Now the window extends just enough to fit all `video_count` videos. Regression test `test_bug1_approximate_custom_tag_disappears_with_random_fill` passes — 2 custom entries are placed in the 00:00-02:00 window (extended to 02:30 to fit the 90-min second video).
-- **Bug 2**: ✅ FIXED 2026-06-07 — added a lazy-load fallback in `_process_series_tag`: if `collection_videos` is empty but `collection_path` is set, the function now loads the videos from the path (mirroring what `serialization.py` does on disk-load) before falling back to the tag-name placeholder. The Save-then-Generate workaround is no longer needed. Regression test: `test_bug2_cold_load_series_tag_shows_only_tag_name` and `test_bug2_cold_load_matches_warm_load` (both inverted to assert the fixed behavior, both pass).
-- **Bug 2a**: ✅ FIXED 2026-06-08 — three code paths (`_process_series_tag`, `_place_tag_videos`, `_apply_approximate_linear`) now treat `end_time` as a soft hint: if the selected episodes do not fit the configured window, the window is auto-extended to fit all requested episodes. The user's "0 on most days" symptom is gone. Regression test: `test_bug2a_series_video_count_one_produces_no_entries` (filter changed from wall-clock to tag-name match, now asserts each day has exactly 1 series entry — passes).
-- **Bug 3**: ✅ FIXED 2026-06-08 — same fix as Bug 2a. With soft-hint semantics, the configured end_time no longer silently drops episodes that are slightly too long. Regression test: `test_bug3_series_video_count_inconsistent_across_days` (filter changed, now asserts each day has exactly 2 series entries — passes).
+- **Bug 1**: ✅ FIXED 2026-06-08 — the same soft-hint fix (extend window when videos don't fit) was applied to `_apply_approximate_linear` (custom tag branch, lines 1116-1118) and `_place_tag_videos` (lines 313-315). Previously, when the second custom video's duration would exceed the configured `end_time`, it was silently skipped (`continue`). Now the window extends just enough to fit all `video_count` videos. Regression test `Test/test_bug1_approximate_custom_tag_disappears_with_random_fill` passes — 2 custom entries are placed in the 00:00-02:00 window (extended to 02:30 to fit the 90-min second video).
+- **Bug 2**: ✅ FIXED 2026-06-07 — added a lazy-load fallback in `_process_series_tag`: if `collection_videos` is empty but `collection_path` is set, the function now loads the videos from the path (mirroring what `serialization.py` does on disk-load) before falling back to the tag-name placeholder. The Save-then-Generate workaround is no longer needed. Regression test: `Test/test_bug2_cold_load_series_tag_shows_only_tag_name` and `Test/test_bug2_cold_load_matches_warm_load` (both inverted to assert the fixed behavior, both pass).
+- **Bug 2a**: ✅ FIXED 2026-06-08 — three code paths (`_process_series_tag`, `_place_tag_videos`, `_apply_approximate_linear`) now treat `end_time` as a soft hint: if the selected episodes do not fit the configured window, the window is auto-extended to fit all requested episodes. The user's "0 on most days" symptom is gone. Regression test: `Test/test_bug2a_series_video_count_one_produces_no_entries` (filter changed from wall-clock to tag-name match, now asserts each day has exactly 1 series entry — passes).
+- **Bug 3**: ✅ FIXED 2026-06-08 — same fix as Bug 2a. With soft-hint semantics, the configured end_time no longer silently drops episodes that are slightly too long. Regression test: `Test/test_bug3_series_video_count_inconsistent_across_days` (filter changed, now asserts each day has exactly 2 series entries — passes).
 - **Bug 4**: ⏸ TODO — needs tighter repro. Not reproduced in current tests.
-- **Bug 5**: ✅ FIXED 2026-06-08 — two root causes fixed in `_apply_approximate_linear` (the path used when no random fill is present): (a) `next_custom_pos` was an absolute offset that cascaded across days, pushing each day's series later until it ran out of day; now normalized to within-day offset before comparing. (b) same hard-cap skip bug as Bug 2a/3, now also uses soft-hint. Regression test: `test_bug5_series_missing_in_approximate_video_count_1` now passes — series appears on every day with the correct episode count. Also added `test_bug2a3_partial_fit_extends_window` to cover the partial-fit edge case (first episode fits, second is silently skipped by float-precise durations).
+- **Bug 5**: ✅ FIXED 2026-06-08 — two root causes fixed in `_apply_approximate_linear` (the path used when no random fill is present): (a) `next_custom_pos` was an absolute offset that cascaded across days, pushing each day's series later until it ran out of day; now normalized to within-day offset before comparing. (b) same hard-cap skip bug as Bug 2a/3, now also uses soft-hint. Regression test: `Test/test_bug5_series_missing_in_approximate_video_count_1` now passes — series appears on every day with the correct episode count. Also added `Test/test_bug2a3_partial_fit_extends_window` to cover the partial-fit edge case (first episode fits, second is silently skipped by float-precise durations).
 
 ## Context
 
@@ -97,7 +97,7 @@ is being filtered out after random fill processing.
   registered correctly
 - `data_models.py` — `Tag` model, custom-tag vs random-fill flags
 
-**Status:** 🔴 REPRODUCED in Approx Find-Replace mode via `test_bug1_approximate_custom_tag_disappears_with_random_fill`. Custom tag window is anchored to a random-fill end boundary, which shrinks the available slot; videos that don't fit are silently dropped (e.g. `video_count=2` with 60+90 min videos in a 2-hour window → only 1 fits). Not reproduced in Approx OFF mode. The user confirmed this in Approx mode.
+**Status:** 🔴 REPRODUCED in Approx Find-Replace mode via `Test/test_bug1_approximate_custom_tag_disappears_with_random_fill`. Custom tag window is anchored to a random-fill end boundary, which shrinks the available slot; videos that don't fit are silently dropped (e.g. `video_count=2` with 60+90 min videos in a 2-hour window → only 1 fits). Not reproduced in Approx OFF mode. The user confirmed this in Approx mode.
 
 ---
 
@@ -160,7 +160,7 @@ missing state into the model.
 - `data_models.py` — `Tag` model, series fields
 - `utils.py` — `extract_series_info`, episode list builder
 
-**Status:** 🔴 REPRODUCED via `test_bug2_cold_load_series_tag_shows_only_tag_name` — placeholder fallback in `_process_series_tag` emits tag-name-only entries when `collection_videos` is empty. The user's Save-then-Generate workaround populates this list.
+**Status:** 🔴 REPRODUCED via `Test/test_bug2_cold_load_series_tag_shows_only_tag_name` — placeholder fallback in `_process_series_tag` emits tag-name-only entries when `collection_videos` is empty. The user's Save-then-Generate workaround populates this list.
 
 ---
 
@@ -266,7 +266,7 @@ preview.
 appear in the preview on each day at (or near) the configured
 `start_time`, regardless of `video_count`.
 
-**Empirical finding (from `test_bug5_series_missing_in_approximate_video_count_1`):**
+**Empirical finding (from `Test/test_bug5_series_missing_in_approximate_video_count_1`):**
 With `video_count=1`, `num_days=2`, the scheduler produces:
 ```
 === Day 1 ===
@@ -309,7 +309,7 @@ find a good anchor, and the per-day state is more forgiving.
   found) — series tags with `video_count=1` may be silently
   dropped in the fallback
 
-**Status:** 🔴 REPRODUCED via `test_bug5_series_missing_in_approximate_video_count_1`.
+**Status:** 🔴 REPRODUCED via `Test/test_bug5_series_missing_in_approximate_video_count_1`.
 
 ---
 
@@ -319,54 +319,54 @@ find a good anchor, and the per-day state is more forgiving.
 ## Required: New Test for Series Tag Bugs
 
 The user has explicitly requested a NEW test (a regression test
-file in the style of `test_movie_sequence.py` /
-`test_no_approximate_continuous.py`) that exercises the series-tag
+file in the style of `Test/test_movie_sequence.py` /
+`Test/test_no_approximate_continuous.py`) that exercises the series-tag
 preview path so we can confirm the bugs above are fixed and prevent
 regressions.
 
-**Suggested file name:** `test_series_tag_bugs.py`
+**Suggested file name:** `Test/test_series_tag_bugs.py`
 
 **Tests to include (one per bug, plus a "happy path" sanity check):**
 
-1. `test_custom_tag_and_random_fill_both_appear_in_preview` — Bug 1
+1. `Test/test_custom_tag_and_random_fill_both_appear_in_preview` — Bug 1
    - Add a random fill tag + a custom tag to the same generator
    - Call `apply_custom_tags()` / generate path
    - Assert both tags produced at least one entry in the result
 
-2. `test_series_tag_preview_shows_episode_filenames` — Bug 2 main
+2. `Test/test_series_tag_preview_shows_episode_filenames` — Bug 2 main
    - Configure a series tag with multiple episodes
    - Call preview generation
    - Assert each line includes the episode filename (e.g.
      `Sandokan E01.mp4`), not just the tag name
 
-3. `test_series_tag_video_count_one_still_shows_entries` — Bug 2a
+3. `Test/test_series_tag_video_count_one_still_shows_entries` — Bug 2a
    - Configure a series tag with `video_count = 1`
    - Call preview generation
    - Assert each day has exactly 1 entry (not 0)
 
-4. `test_series_tag_video_count_consistent_across_days` — Bug 3
+4. `Test/test_series_tag_video_count_consistent_across_days` — Bug 3
    - Configure a series tag with `video_count = 2`
    - Generate a multi-day schedule
    - Assert every day has exactly 2 series-tag entries
      (or exactly the configured count, never fewer)
 
-5. `test_series_tag_save_then_generate_no_longer_needed` — Bug 2
+5. `Test/test_series_tag_save_then_generate_no_longer_needed` — Bug 2
    regression guard
    - Load a series tag from disk (cold load, no prior save)
    - Call preview generation
    - Assert result matches the post-save version (i.e. the
      workaround should be a no-op)
 
-6. `test_series_tag_episode_list_populated_on_initial_load` —
+6. `Test/test_series_tag_episode_list_populated_on_initial_load` —
    helper-level test
    - Construct a series tag from a config file
    - Assert internal `episodes` / `ordered_videos` list is
      non-empty before any save round-trip
 
-7. `test_random_fill_entry_after_series_has_full_duration` — Bug 4
-8. `test_bug1_approximate_custom_tag_disappears_with_random_fill` — Bug 1 in Approx mode
-9. `test_bug5_series_missing_in_approximate_video_count_1` — Bug 5
-10. `test_bug5_series_visible_in_approximate_video_count_2` — Bug 5 working case
+7. `Test/test_random_fill_entry_after_series_has_full_duration` — Bug 4
+8. `Test/test_bug1_approximate_custom_tag_disappears_with_random_fill` — Bug 1 in Approx mode
+9. `Test/test_bug5_series_missing_in_approximate_video_count_1` — Bug 5
+10. `Test/test_bug5_series_visible_in_approximate_video_count_2` — Bug 5 working case
    - Configure a random fill tag AND a series tag
    - Generate the preview
    - Identify the first random fill entry that comes AFTER the
@@ -389,7 +389,7 @@ existing test files.
 
 1. Pick ONE bug.
 2. Read the relevant code paths fully.
-3. Add a failing test in `test_series_tag_bugs.py` (or existing
+3. Add a failing test in `Test/test_series_tag_bugs.py` (or existing
    test file) that reproduces the bug.
 4. Implement the fix.
 5. Re-run ALL existing tests:
@@ -423,4 +423,4 @@ existing test files.
 
 **Last Updated:** 2026-06-08
 **Owner:** TBD
-**Status:** ✅ ALL FIXED — 5 of 5 bugs fixed. Only Bug 4 (half duration after series in debug) remains — never reproduced, needs tighter repro. Test suite at `test_series_tag_bugs.py` (12 tests, all 12 PASS).
+**Status:** ✅ ALL FIXED — 5 of 5 bugs fixed. Only Bug 4 (half duration after series in debug) remains — never reproduced, needs tighter repro. Test suite at `Test/test_series_tag_bugs.py` (12 tests, all 12 PASS).
