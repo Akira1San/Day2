@@ -97,6 +97,21 @@ class SeriesDialog(BaseTagDialog, SeriesProfileMixin):
         self.video_count_spin.setValue(1)
         series_layout.addWidget(self.video_count_spin)
 
+        # Active days alongside video count
+        series_layout.addWidget(QLabel("Active Days:"))
+        day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        self.day_checkboxes = []
+        for day_name in day_names:
+            cb = QCheckBox(day_name)
+            cb.setChecked(True)
+            cb.stateChanged.connect(self._update_all_days_checkbox)
+            series_layout.addWidget(cb)
+            self.day_checkboxes.append(cb)
+        self.all_days_cb = QCheckBox("All")
+        self.all_days_cb.setChecked(True)
+        self.all_days_cb.stateChanged.connect(self._on_all_days_toggled)
+        series_layout.addWidget(self.all_days_cb)
+
         series_layout.addWidget(QLabel("Play Mode:"))
         self.play_mode_combo = QComboBox()
         self.play_mode_combo.addItems(["sequence", "season_sequence", "random"])
@@ -126,24 +141,6 @@ class SeriesDialog(BaseTagDialog, SeriesProfileMixin):
 
         series_layout.addStretch()
         layout.addLayout(series_layout)
-
-        # Active days
-        days_layout = QHBoxLayout()
-        days_layout.addWidget(QLabel("Active Days:"))
-        day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-        self.day_checkboxes = []
-        for day_name in day_names:
-            cb = QCheckBox(day_name)
-            cb.setChecked(True)
-            cb.stateChanged.connect(self._update_all_days_checkbox)
-            days_layout.addWidget(cb)
-            self.day_checkboxes.append(cb)
-        self.all_days_cb = QCheckBox("All")
-        self.all_days_cb.setChecked(True)
-        self.all_days_cb.stateChanged.connect(self._on_all_days_toggled)
-        days_layout.addWidget(self.all_days_cb)
-        days_layout.addStretch()
-        layout.addLayout(days_layout)
 
         # Auto calc button
         calc_layout = QHBoxLayout()
@@ -409,6 +406,21 @@ class SeriesConfigDialog(QDialog):
         self.count_spin.setValue(self.video_count_val)
         vc_layout.addWidget(self.count_spin)
 
+        # Active days alongside video count
+        vc_layout.addWidget(QLabel("Active Days:"))
+        day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        self.day_checkboxes = []
+        for day_name in day_names:
+            cb = QCheckBox(day_name)
+            cb.setChecked(True)
+            cb.stateChanged.connect(self._update_all_days_checkbox)
+            vc_layout.addWidget(cb)
+            self.day_checkboxes.append(cb)
+        self.all_days_cb = QCheckBox("All")
+        self.all_days_cb.setChecked(True)
+        self.all_days_cb.stateChanged.connect(self._on_all_days_toggled)
+        vc_layout.addWidget(self.all_days_cb)
+
         vc_layout.addWidget(QLabel("Play Mode:"))
         self.play_mode_combo = QComboBox()
         self.play_mode_combo.addItems(["sequence", "season_sequence", "random"])
@@ -439,24 +451,6 @@ class SeriesConfigDialog(QDialog):
         vc_layout.addWidget(self.random_season_spin)
 
         layout.addLayout(vc_layout)
-
-        # Active days
-        days_layout = QHBoxLayout()
-        days_layout.addWidget(QLabel("Active Days:"))
-        day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-        self.day_checkboxes = []
-        for day_name in day_names:
-            cb = QCheckBox(day_name)
-            cb.setChecked(True)
-            cb.stateChanged.connect(self._update_all_days_checkbox)
-            days_layout.addWidget(cb)
-            self.day_checkboxes.append(cb)
-        self.all_days_cb = QCheckBox("All")
-        self.all_days_cb.setChecked(True)
-        self.all_days_cb.stateChanged.connect(self._on_all_days_toggled)
-        days_layout.addWidget(self.all_days_cb)
-        days_layout.addStretch()
-        layout.addLayout(days_layout)
 
         # Buttons
         btn_layout = QHBoxLayout()

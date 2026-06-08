@@ -88,10 +88,23 @@ class TagDialog(CollectionDialogBase):
         self.video_info.setWordWrap(True)
         layout.addWidget(self.video_info)
 
-        # Video count
+        # Video count + Active days
         count_layout = QHBoxLayout()
         count_layout.addWidget(QLabel("Video Count:"))
         count_layout.addWidget(self.video_count_spin)
+        count_layout.addWidget(QLabel("Active Days:"))
+        day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        self.day_checkboxes = []
+        for day_name in day_names:
+            cb = QCheckBox(day_name)
+            cb.setChecked(True)
+            cb.stateChanged.connect(self._update_all_days_checkbox)
+            count_layout.addWidget(cb)
+            self.day_checkboxes.append(cb)
+        self.all_days_cb = QCheckBox("All")
+        self.all_days_cb.setChecked(True)
+        self.all_days_cb.stateChanged.connect(self._on_all_days_toggled)
+        count_layout.addWidget(self.all_days_cb)
         count_layout.addStretch()
         layout.addLayout(count_layout)
 
@@ -99,24 +112,6 @@ class TagDialog(CollectionDialogBase):
         time_layout = QHBoxLayout()
         self._setup_time_inputs(time_layout)
         layout.addLayout(time_layout)
-
-        # Active days
-        days_layout = QHBoxLayout()
-        days_layout.addWidget(QLabel("Active Days:"))
-        day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-        self.day_checkboxes = []
-        for day_name in day_names:
-            cb = QCheckBox(day_name)
-            cb.setChecked(True)
-            cb.stateChanged.connect(self._update_all_days_checkbox)
-            days_layout.addWidget(cb)
-            self.day_checkboxes.append(cb)
-        self.all_days_cb = QCheckBox("All")
-        self.all_days_cb.setChecked(True)
-        self.all_days_cb.stateChanged.connect(self._on_all_days_toggled)
-        days_layout.addWidget(self.all_days_cb)
-        days_layout.addStretch()
-        layout.addLayout(days_layout)
 
         # Save/Cancel buttons
         btn_layout = QHBoxLayout()
