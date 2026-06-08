@@ -46,6 +46,8 @@ class ScheduleGenerator:
         # so re-Generate produces visibly different previews in movie_sequence mode.
         # Reset only by explicit re-initialization; not bumped by per-tag/cached calls.
         self._generate_count = 0
+        from datetime import date
+        self.schedule_start_weekday = date.today().weekday()  # 0=Monday, 6=Sunday
 
     def _create_video_entry(self, pos: int, duration: int, name: str, tag_name: str = "", tag_type: str = "") -> ScheduleEntry:
         video_name = f"{tag_name} - {name}" if tag_name else name
@@ -96,13 +98,12 @@ class ScheduleGenerator:
 
         return ''
 
-    @staticmethod
-    def _is_tag_active_on_day(tag, day_offset: int) -> bool:
+    def _is_tag_active_on_day(self, tag, day_offset: int) -> bool:
         active_days = getattr(tag, 'active_days', None)
         if not active_days:
             return True
-        weekday = (day_offset % 7) + 1
-        return weekday in active_days
+        real_weekday = (self.schedule_start_weekday + day_offset) % 7  # 0=Monday
+        return (real_weekday + 1) in active_days  # convert to 1-based (1=Monday)
 
     def _select_series_videos(self, tag_or_config, day_offset: int) -> List[dict]:
         """Select videos for a series tag (Tag object or config dict) for given day_offset.

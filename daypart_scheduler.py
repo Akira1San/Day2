@@ -400,6 +400,7 @@ class MainWindow(QMainWindow):
 
         self.tag_manager.clear_cache()
         self.schedule_generator.video_order_mode = self.video_order_combo.currentText().lower().replace(" ", "_")
+        self.schedule_generator.schedule_start_weekday = start_date.weekday()
         mode = None
         if not self.approximate_enabled:
             entries = self.schedule_generator.apply_custom_tags(num_days=7)
@@ -454,6 +455,7 @@ class MainWindow(QMainWindow):
 
         self.tag_manager.clear_cache()
         self.schedule_generator.video_order_mode = self.video_order_combo.currentText().lower().replace(" ", "_")
+        self.schedule_generator.schedule_start_weekday = start_date.weekday()
         mode = None
         if not self.approximate_enabled:
             entries = self.schedule_generator.apply_custom_tags(num_days=30)
