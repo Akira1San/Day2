@@ -510,10 +510,24 @@ class MainWindow(QMainWindow):
         from utils import get_config_paths, load_collection_videos_only
         collection_path, _ = get_config_paths()
         all_videos = []
+
+        seen_paths = set()
+        def _load_from(file_path):
+            fp = str(file_path)
+            if fp in seen_paths:
+                return
+            seen_paths.add(fp)
+            all_videos.extend(load_collection_videos_only(fp))
+
         coll_dir = Path(collection_path)
         if coll_dir.exists():
             for json_file in sorted(coll_dir.glob("*.json")):
-                all_videos.extend(load_collection_videos_only(str(json_file)))
+                _load_from(json_file)
+
+        for tag in self.tag_manager.tags:
+            tag_path = getattr(tag, 'collection_path', '') or ''
+            if tag_path:
+                _load_from(tag_path)
 
         dialog = DurationDebugDialog(self, entries, all_videos)
         dialog.exec()
