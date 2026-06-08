@@ -1183,10 +1183,13 @@ class ScheduleGenerator:
                 if original_start >= original_end:
                     continue
 
-                series_start = max(original_start, next_custom_pos) + day_offset_seconds
+                # next_custom_pos is in absolute seconds; normalize to
+                # within-day offset so a previous day's extended end time
+                # doesn't cascade into the next day's start time.
+                next_custom_within_day = next_custom_pos - day_offset_seconds
+                series_start = max(original_start, next_custom_within_day) + day_offset_seconds
                 series_end = series_start + (original_end - original_start)
 
-                videos_to_use = []
                 if st.collection_videos:
                     for s in range(series_start, series_end):
                         occupied.add(s)
@@ -1196,15 +1199,13 @@ class ScheduleGenerator:
                     pos = series_start
                     actual_end = series_start
                     for v in videos_to_use:
-                        if pos >= series_end:
-                            break
                         video = v['video']
                         video_name = get_video_display_name(video)
                         duration = int(video.get('duration', 90))
                         if duration < 1:
                             duration = 90
                         if pos + duration > series_end:
-                            continue
+                            series_end = pos + duration
                         final.append(self._create_video_entry(pos, duration, video_name, st.name))
                         actual_end = pos + duration
                         pos += duration
