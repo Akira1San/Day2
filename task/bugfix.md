@@ -1,7 +1,7 @@
 # Bugfix: Ghost Preview List (Items Invisible but Selectable)
 
 ## Status
-In progress — debug instrumentation added, root cause not yet confirmed.
+**Resolved** — two root causes identified and fixed.
 
 ## Symptom
 After loading tags and pressing **Generate** for a single-day schedule preview, the preview list appears visually empty. The items are still present in the model: they can be selected, and **Copy Preview Schedule** returns valid schedule text from the list.
@@ -48,37 +48,30 @@ This means the bug is in the **view/paint path**, not in schedule generation.
 - `TagNameColorDelegate.sizeHint()` logs computed hints.
 - `copy_preview()` logs the raw text it reads from the list.
 
-## Likely Causes to Investigate Next
+## Root Causes (both fixed at `daypart_scheduler.py`)
 
-1. **`paint()` is not being called at all**
-   - The view may believe items have zero height/width and skip painting.
-   - Verify in the log whether `[DELEGATE] paint` ever appears.
+### 1. Text drawn at wrong position (primary)
+- `doc.drawContents(painter, option.rect)` uses `option.rect` **only as a clip rect**, not a position.
+- The painter is in viewport coordinates (NOT pre-translated to the item's position).
+- Text is always drawn at viewport origin `(0,0)`, regardless of which item is being painted.
+- **Item 1** (`rect.y`=0): text at y=0 may partially show.
+- **Item 2+** (`rect.y`>0): clip rect starts below the text → **entire text clipped out**.
+- **Fix:** Added `painter.translate(option.rect.topLeft())` before `drawContents`, with `QRectF(0, 0, option.rect.width(), option.rect.height())` as clip rect.
 
-2. **Painting happens but is clipped or drawn off-screen**
-   - `option.rect` may be positioned outside the visible viewport.
-   - Check `option.rect` coordinates in `paint()` logging.
+### 2. No default text color in QTextDocument (secondary)
+- `QTextDocument` uses `QPalette::Text` (usually black `#000000`) for unstyled HTML text.
+- Application stylesheet sets `QListWidget` background to `#2a2a3e` (dark).
+- Black-on-dark text is invisible (~1.3:1 contrast).
+- The `QWidget { color: #f8f8f2 }` stylesheet does **not** propagate into `QTextDocument`.
+- **Fix:** Added `<body style="color:#f8f8f2">` to the HTML to set the default text color to theme foreground.
 
-3. **`QTextDocument` drawing fails silently inside the viewport**
-   - `doc.drawContents(painter, option.rect)` may not align with widget coordinates.
-   - Test with plain `painter.drawText(...)` fallback first.
+## Changes Made
 
-4. **Item delegate or model mismatch**
-   - Confirm the delegate is still installed after `clear()` / repopulate.
-   - Verify no other code resets the delegate.
-
-5. **Style/theme interference**
-   - The dark theme stylesheet may set text color to the background color, making text invisible.
-   - Check whether item text color matches background in the stylesheet.
-
-## Next Debug Steps
-
-1. Re-run the app, open the log, and confirm whether `[DELEGATE] paint` appears.
-2. If `paint` is missing: add logging to `QListWidget.viewport().update()` and `QListView.paintEvent` to trace repaint events.
-3. If `paint` runs but still invisible:
-   - Temporarily replace `doc.drawContents(...)` with `painter.drawText(option.rect, 0, text)` to rule out `QTextDocument` issues.
-   - Log `option.rect` coordinates and the viewport geometry.
-4. Check the stylesheet for `QListWidget::item` color rules that could make text invisible on the dark background.
-5. Inspect whether the preview list or scroll area is being obscured by another widget or layout issue.
+| File | Line | Change |
+|---|---|---|
+| `daypart_scheduler.py` | 73 | Wrap HTML body in `style="color:#f8f8f2"` for default text color |
+| `daypart_scheduler.py` | 79-82 | Translate painter to `option.rect.topLeft()` before `drawContents` |
+| `daypart_scheduler.py` | 59 | Added `rect={option.rect}` to paint debug log |
 
 ## Housekeeping Task (Separate)
 - The log file has grown too large.

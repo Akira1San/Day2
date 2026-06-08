@@ -28,7 +28,7 @@ from PySide6.QtWidgets import (
     QLabel, QTimeEdit, QMessageBox, QScrollArea, QCheckBox, QRadioButton, QButtonGroup,
     QFileDialog, QSpinBox, QComboBox, QStyledItemDelegate, QStyleOptionViewItem, QStyle
 )
-from PySide6.QtCore import Qt, QTime, QRect, QSize
+from PySide6.QtCore import Qt, QTime, QRect, QRectF, QSize
 from PySide6.QtGui import QClipboard, QColor, QFont, QTextDocument, QPalette
 
 import logging
@@ -56,7 +56,7 @@ class TagNameColorDelegate(QStyledItemDelegate):
             if " - " in video_name:
                 tag_name = video_name.split(" - ", 1)[0]
 
-        preview_log.debug(f"[DELEGATE] paint text={text!r} tag_name={tag_name!r} color={color.name() if color else None}")
+        preview_log.debug(f"[DELEGATE] paint text={text!r} tag_name={tag_name!r} color={color.name() if color else None} rect={option.rect}")
 
         painter.save()
         try:
@@ -70,13 +70,16 @@ class TagNameColorDelegate(QStyledItemDelegate):
                 )
                 colored = f'<span style="color:{color.name()}">{escaped_tag}</span>'
                 plain = plain.replace(escaped_tag, colored, 1)
-            doc.setHtml(f"<html><body>{plain}</body></html>")
+            doc.setHtml(f'<html><body style="color:#f8f8f2">{plain}</body></html>')
             doc.setTextWidth(self._available_width(option))
 
             if option.state & QStyle.State_Selected:
                 painter.fillRect(option.rect, option.palette.highlight().color())
 
-            doc.drawContents(painter, option.rect)
+            painter.save()
+            painter.translate(option.rect.topLeft())
+            doc.drawContents(painter, QRectF(0, 0, option.rect.width(), option.rect.height()))
+            painter.restore()
         except Exception as exc:
             preview_log.exception(f"[DELEGATE] paint failed: {exc}")
             painter.fillRect(option.rect, QColor("#330000"))

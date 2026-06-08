@@ -3,3 +3,5 @@ __pycache__/
 tags.ini
 test.ini
 venv/
+logs/
+*.log
