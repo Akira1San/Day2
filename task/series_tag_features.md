@@ -52,7 +52,7 @@ QHBoxLayout
 
 ---
 
-## 2. Days Selection (Per-Tag Day Filter)
+## 2. Days Selection (Per-Tag Day Filter) ✔
 
 ### Overview
 Add a day-of-week selector to series tags so users can restrict which days a series tag should play. Default is all days. E.g., select Saturday+Sunday for weekend morning cartoons.
