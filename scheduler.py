@@ -1093,37 +1093,39 @@ class ScheduleGenerator:
                     original_start = qtime_to_seconds(ct.start_time)
                     original_end = qtime_to_seconds(ct.end_time)
 
-                    custom_start = max(original_start, next_custom_pos) + day_offset_seconds
-                    custom_end = custom_start + (original_end - original_start)
+                # next_custom_pos is in absolute seconds; normalize to
+                # within-day offset so a previous day's extended end time
+                # doesn't cascade into the next day's start time.
+                next_custom_within_day = next_custom_pos - day_offset_seconds
+                custom_start = max(original_start, next_custom_within_day) + day_offset_seconds
+                custom_end = custom_start + (original_end - original_start)
 
-                    if ct.collection_videos:
-                        for s in range(custom_start, custom_end):
-                            occupied.add(s)
-                        video_count = getattr(ct, 'video_count', 1)
-                        # Use day-aware video selection
-                        videos = self._get_videos_for_day(ct.collection_videos, day_offset)
-                        if getattr(ct, 'randomize_videos', False):
-                            random.shuffle(videos)
-                        pos = custom_start
-                        vid_idx = 0
-                        actual_end = custom_start
-                        while pos < custom_end and vid_idx < video_count and vid_idx < len(videos):
-                            video = videos[vid_idx % len(videos)]
-                            video_name = get_video_display_name(video)
-                            duration = int(video.get('duration', 90))
-                            if duration < 1:
-                                duration = 90
-                            if pos + duration > custom_end:
-                                vid_idx += 1
-                                continue
-                            final.append(self._create_video_entry(pos, duration, video_name, ct.name))
-                            actual_end = pos + duration
-                            pos += duration
-                            vid_idx += 1
-                        current_pos = actual_end
-                        next_custom_pos = actual_end
-                        if has_24h_fill:
-                            actual_placed_ranges.append((custom_start, custom_end))
+                if ct.collection_videos:
+                    for s in range(custom_start, custom_end):
+                        occupied.add(s)
+                    video_count = getattr(ct, 'video_count', 1)
+                    videos = self._get_videos_for_day(ct.collection_videos, day_offset)
+                    if getattr(ct, 'randomize_videos', False):
+                        random.shuffle(videos)
+                    pos = custom_start
+                    vid_idx = 0
+                    actual_end = custom_start
+                    while pos < custom_end and vid_idx < video_count and vid_idx < len(videos):
+                        video = videos[vid_idx % len(videos)]
+                        video_name = get_video_display_name(video)
+                        duration = int(video.get('duration', 90))
+                        if duration < 1:
+                            duration = 90
+                        if pos + duration > custom_end:
+                            custom_end = pos + duration
+                        final.append(self._create_video_entry(pos, duration, video_name, ct.name))
+                        actual_end = pos + duration
+                        pos += duration
+                        vid_idx += 1
+                    current_pos = actual_end
+                    next_custom_pos = actual_end
+                    if has_24h_fill:
+                        actual_placed_ranges.append((custom_start, custom_end))
                     else:
                         if custom_start < current_pos:
                             custom_start = current_pos
@@ -1156,20 +1158,19 @@ class ScheduleGenerator:
                         pos = custom_start
                         vid_idx = 0
                         actual_end = custom_start
-                        while pos < custom_end and vid_idx < video_count and vid_idx < len(videos):
-                            video = videos[vid_idx % len(videos)]
-                            video_name = get_video_display_name(video)
-                            duration = int(video.get('duration', 90))
-                            if duration < 1:
-                                duration = 90
-                            if pos + duration > custom_end:
-                                vid_idx += 1
-                                continue
-                            final.append(self._create_video_entry(pos, duration, video_name, ct.name))
-                            actual_end = pos + duration
-                            pos += duration
-                            vid_idx += 1
-                            actual_placed_ranges.append((custom_start, custom_end))
+                    while pos < custom_end and vid_idx < video_count and vid_idx < len(videos):
+                        video = videos[vid_idx % len(videos)]
+                        video_name = get_video_display_name(video)
+                        duration = int(video.get('duration', 90))
+                        if duration < 1:
+                            duration = 90
+                        if pos + duration > custom_end:
+                            custom_end = pos + duration
+                        final.append(self._create_video_entry(pos, duration, video_name, ct.name))
+                        actual_end = pos + duration
+                        pos += duration
+                        vid_idx += 1
+                        actual_placed_ranges.append((custom_start, custom_end))
                     else:
                         final.append(ScheduleEntry(1, custom_start, custom_end, ct.name))
                         actual_placed_ranges.append((custom_start, custom_end))

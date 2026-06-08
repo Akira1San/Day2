@@ -1,6 +1,6 @@
 # Series Tag & Custom Tag Bugs — TODO
 
-## Status: ✅ ALL FIXED — 5 of 5 bugs fixed; Bug 4 still needs tighter repro
+## Status: ✅ ALL FIXED — 5 of 5 bugs fixed. Only Bug 4 (half duration after series in debug) remains — never reproduced, needs tighter repro. Test suite at `test_series_tag_bugs.py` (12 tests, all 12 PASS).
 
 ## Test Run (2026-06-08) — `python3 test_series_tag_bugs.py`
 
