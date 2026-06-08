@@ -56,8 +56,6 @@ class TagNameColorDelegate(QStyledItemDelegate):
             if " - " in video_name:
                 tag_name = video_name.split(" - ", 1)[0]
 
-        preview_log.debug(f"[DELEGATE] paint text={text!r} tag_name={tag_name!r} color={color.name() if color else None} rect={option.rect}")
-
         painter.save()
         try:
             doc = QTextDocument()
@@ -94,7 +92,6 @@ class TagNameColorDelegate(QStyledItemDelegate):
         doc.setHtml(f"<html><body>{text.replace(chr(10), '<br>')}</body></html>")
         doc.setTextWidth(self._available_width(option))
         hint = QSize(int(doc.idealWidth()), int(doc.size().height()))
-        preview_log.debug(f"[DELEGATE] sizeHint text={text!r} hint={hint.width()}x{hint.height()} avail={self._available_width(option)}")
         return hint
 
 from utils import (
@@ -370,13 +367,11 @@ class MainWindow(QMainWindow):
             entries = self.schedule_generator.apply_approximate(mode=mode)
         else:
             entries = self.schedule_generator.apply_custom_tags()
-        preview_log.info(f"[REFRESH] entries={len(entries)} approximate={self.approximate_enabled} mode={mode}")
         for entry in entries:
             item = QListWidgetItem(entry.to_display_string())
             item.setData(Qt.UserRole, entry)
             self.preview_list.addItem(item)
         self.schedule_entries = entries
-        preview_log.info(f"[REFRESH] list_count={self.preview_list.count()}")
         self.last_generated_schedule = {
             'entries': entries,
             'num_days': 1,
@@ -411,7 +406,6 @@ class MainWindow(QMainWindow):
         else:
             mode = self.approx_mode_combo.currentText().lower().replace("-", "_").replace(" ", "_")
             entries = self.schedule_generator.apply_approximate(num_days=7, mode=mode)
-        preview_log.info(f"[WEEKLY] entries={len(entries)}")
         self.schedule_entries = entries
         self.last_generated_schedule = {
             'entries': entries,
@@ -450,7 +444,6 @@ class MainWindow(QMainWindow):
                     item.setData(Qt.UserRole, entry)
                     self.preview_list.addItem(item)
                     added += 1
-        preview_log.info(f"[WEEKLY] added_items={added} list_count={self.preview_list.count()}")
         self.preview_list.clear()
         self.preview_title.setText("Calendar Schedule Preview (30 Days)")
 
@@ -702,7 +695,6 @@ class MainWindow(QMainWindow):
             else:
                 items.append(item.text())
         text = "\n".join(items)
-        preview_log.info(f"[COPY] preview_count={self.preview_list.count()} schedule_entries={len(self.schedule_entries)} text_len={len(text)} preview={text[:500]!r}")
         clipboard = QApplication.instance().clipboard()
         clipboard.setText(text)
         QMessageBox.information(self, "Copied", f"Schedule copied to clipboard ({len(items)} items)!")
