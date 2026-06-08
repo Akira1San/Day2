@@ -19,6 +19,7 @@ from utils import (
     parse_series_episode,
     group_videos_by_movie,
     extract_movie_sequence_key,
+    normalize_tag_time_range,
 )
 from data_models import Tag, MultiSeriesTag, ScheduleEntry, TagManager
 from strategies import (
@@ -858,8 +859,7 @@ class ScheduleGenerator:
 
             day_customs = []
             for ct in all_custom_sorted:
-                orig_start = qtime_to_seconds(ct.start_time)
-                orig_end = qtime_to_seconds(ct.end_time)
+                orig_start, orig_end = normalize_tag_time_range(ct)
                 custom_start = orig_start + day_start
                 custom_end = orig_end + day_start
                 day_customs.append((ct, orig_start, orig_end, custom_start, custom_end))
@@ -1061,11 +1061,11 @@ class ScheduleGenerator:
 
         scheduled_ranges = []
         for ct in custom_sorted:
-            scheduled_ranges.append((qtime_to_seconds(ct.start_time), qtime_to_seconds(ct.end_time)))
+            scheduled_ranges.append(normalize_tag_time_range(ct))
         for st in series_sorted:
-            scheduled_ranges.append((qtime_to_seconds(st.start_time), qtime_to_seconds(st.end_time)))
+            scheduled_ranges.append(normalize_tag_time_range(st))
         for mst in multi_sorted:
-            scheduled_ranges.append((qtime_to_seconds(mst.start_time), qtime_to_seconds(mst.end_time)))
+            scheduled_ranges.append(normalize_tag_time_range(mst))
 
         for rf in random_fill_tags:
             rf_fill_24h = getattr(rf, 'fill_24h', False)
@@ -1101,8 +1101,7 @@ class ScheduleGenerator:
             for day_offset in range(num_days):
                 day_offset_seconds = day_offset * 24 * 3600
                 for ct in custom_sorted:
-                    original_start = qtime_to_seconds(ct.start_time)
-                    original_end = qtime_to_seconds(ct.end_time)
+                    original_start, original_end = normalize_tag_time_range(ct)
 
                     next_custom_within_day = next_custom_pos - day_offset_seconds
                     custom_start = max(original_start, next_custom_within_day) + day_offset_seconds
@@ -1118,7 +1117,7 @@ class ScheduleGenerator:
                         pos = custom_start
                         vid_idx = 0
                         actual_end = custom_start
-                        while pos < custom_end and vid_idx < video_count and vid_idx < len(videos):
+                        while pos <= custom_end and vid_idx < video_count and vid_idx < len(videos):
                             video = videos[vid_idx % len(videos)]
                             video_name = get_video_display_name(video)
                             duration = int(video.get('duration', 90))
@@ -1149,8 +1148,7 @@ class ScheduleGenerator:
             for day_offset in range(num_days):
                 day_offset_seconds = day_offset * 24 * 3600
                 for ct in custom_sorted:
-                    original_start = qtime_to_seconds(ct.start_time)
-                    original_end = qtime_to_seconds(ct.end_time)
+                    original_start, original_end = normalize_tag_time_range(ct)
 
                     custom_start = original_start + day_offset_seconds
                     custom_end = original_end + day_offset_seconds
@@ -1166,7 +1164,7 @@ class ScheduleGenerator:
                         pos = custom_start
                         vid_idx = 0
                         actual_end = custom_start
-                    while pos < custom_end and vid_idx < video_count and vid_idx < len(videos):
+                    while pos <= custom_end and vid_idx < video_count and vid_idx < len(videos):
                         video = videos[vid_idx % len(videos)]
                         video_name = get_video_display_name(video)
                         duration = int(video.get('duration', 90))
@@ -1187,10 +1185,7 @@ class ScheduleGenerator:
         for day_offset in range(num_days):
             day_offset_seconds = day_offset * 24 * 3600
             for st in series_sorted:
-                original_start = qtime_to_seconds(st.start_time)
-                original_end = qtime_to_seconds(st.end_time)
-                if original_start >= original_end:
-                    continue
+                original_start, original_end = normalize_tag_time_range(st)
 
                 # next_custom_pos is in absolute seconds; normalize to
                 # within-day offset so a previous day's extended end time
@@ -1233,10 +1228,7 @@ class ScheduleGenerator:
         for day_offset in range(num_days):
             day_offset_seconds = day_offset * 24 * 3600
             for mst in multi_sorted:
-                original_start = qtime_to_seconds(mst.start_time)
-                original_end = qtime_to_seconds(mst.end_time)
-                if original_start >= original_end:
-                    continue
+                original_start, original_end = normalize_tag_time_range(mst)
 
                 mst_start = max(original_start, next_custom_pos) + day_offset_seconds
                 mst_end = mst_start + (original_end - original_start)

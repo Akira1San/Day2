@@ -16,6 +16,7 @@ from utils import (
     qtime_to_seconds,
     get_video_display_name,
     parse_videos_for_series,
+    normalize_tag_time_range,
 )
 from data_models import ScheduleEntry
 
@@ -115,8 +116,7 @@ class CustomTagMergeStrategy:
         custom_sorted = sorted(custom_tags, key=lambda t: qtime_to_seconds(t.start_time))
 
         for ct in custom_sorted:
-            start = qtime_to_seconds(ct.start_time)
-            end = qtime_to_seconds(ct.end_time)
+            start, end = normalize_tag_time_range(ct)
             if start >= end or start >= 24 * 3600:
                 continue
 
@@ -264,8 +264,7 @@ class EarlyFillApproximateStrategy:
             day_tags = []
             for tag_list in (custom_tags, series_tags, multi_series_tags):
                 for t in tag_list:
-                    orig_start = qtime_to_seconds(t.start_time)
-                    orig_end = qtime_to_seconds(t.end_time)
+                    orig_start, orig_end = normalize_tag_time_range(t)
                     abs_start = orig_start + day_start
                     abs_end = orig_end + day_start
                     duration = orig_end - orig_start
@@ -347,8 +346,7 @@ class LateFillApproximateStrategy:
             day_tags = []
             for tag_list in (custom_tags, series_tags, multi_series_tags):
                 for t in tag_list:
-                    orig_start = qtime_to_seconds(t.start_time)
-                    orig_end = qtime_to_seconds(t.end_time)
+                    orig_start, orig_end = normalize_tag_time_range(t)
                     abs_start = orig_start + day_start
                     abs_end = orig_end + day_start
                     duration = orig_end - orig_start
@@ -440,8 +438,7 @@ class PriorityApproximateStrategy:
             day_tags = []
             for tag_list in (custom_tags, series_tags, multi_series_tags):
                 for t in tag_list:
-                    orig_start = qtime_to_seconds(t.start_time)
-                    orig_end = qtime_to_seconds(t.end_time)
+                    orig_start, orig_end = normalize_tag_time_range(t)
                     abs_start = orig_start + day_start
                     abs_end = orig_end + day_start
                     duration = orig_end - orig_start
@@ -593,16 +590,13 @@ class LinearSpanningApproximateStrategy:
         for day_offset in range(num_days):
             day_start = day_offset * 86400
             for t in custom_tags:
-                os = qtime_to_seconds(t.start_time)
-                oe = qtime_to_seconds(t.end_time)
+                os, oe = normalize_tag_time_range(t)
                 custom_inst.append((t, os + day_start, oe + day_start, oe - os))
             for t in series_tags:
-                os = qtime_to_seconds(t.start_time)
-                oe = qtime_to_seconds(t.end_time)
+                os, oe = normalize_tag_time_range(t)
                 series_inst.append((t, os + day_start, oe + day_start, oe - os))
             for t in multi_series_tags:
-                os = qtime_to_seconds(t.start_time)
-                oe = qtime_to_seconds(t.end_time)
+                os, oe = normalize_tag_time_range(t)
                 multi_inst.append((t, os + day_start, oe + day_start, oe - os))
 
         custom_inst.sort(key=lambda x: x[1])
@@ -666,16 +660,13 @@ class ExhaustiveApproximateStrategy:
         for day_offset in range(num_days):
             day_start = day_offset * 86400
             for t in custom_tags:
-                os = qtime_to_seconds(t.start_time)
-                oe = qtime_to_seconds(t.end_time)
+                os, oe = normalize_tag_time_range(t)
                 instances.append((t, os + day_start, oe + day_start, oe - os))
             for t in series_tags:
-                os = qtime_to_seconds(t.start_time)
-                oe = qtime_to_seconds(t.end_time)
+                os, oe = normalize_tag_time_range(t)
                 instances.append((t, os + day_start, oe + day_start, oe - os))
             for t in multi_series_tags:
-                os = qtime_to_seconds(t.start_time)
-                oe = qtime_to_seconds(t.end_time)
+                os, oe = normalize_tag_time_range(t)
                 instances.append((t, os + day_start, oe + day_start, oe - os))
 
         best_order = None

@@ -398,3 +398,16 @@ def group_videos_by_movie(videos: List[Dict]) -> Dict[int, List[Dict]]:
         items = sorted(groups[movie_num], key=lambda x: x[0])
         result[movie_num] = [v for _, v in items]
     return result
+
+
+def normalize_tag_time_range(tag) -> Tuple[int, int]:
+    """Get (start_seconds, end_seconds) from a tag, normalizing midnight wrap.
+
+    When a tag's end_time is before its start_time (e.g. 18:00-00:19),
+    adds 86400 to end_seconds so the range represents the correct duration.
+    """
+    start_sec = qtime_to_seconds(tag.start_time)
+    end_sec = qtime_to_seconds(tag.end_time)
+    if end_sec <= start_sec:
+        end_sec += 86400
+    return start_sec, end_sec
