@@ -449,7 +449,8 @@ class TagManager:
                     randomize_videos: bool = False,
                     series_end_behavior: str = "stop",
                     series_repeat_season: int = 0,
-                    series_random_season: int = 0) -> bool:
+                    series_random_season: int = 0,
+                    active_days: Optional[List[int]] = None) -> bool:
         if 0 <= index < len(self.tags):
             t = self.tags[index]
             t.name = name
@@ -471,6 +472,7 @@ class TagManager:
             t.series_end_behavior = series_end_behavior
             t.series_repeat_season = series_repeat_season
             t.series_random_season = series_random_season
+            t.active_days = active_days
             # Apply blacklist filtering to collection_videos
             t.collection_videos = collection_videos or []
             if t.collection_videos and t.blacklist:
