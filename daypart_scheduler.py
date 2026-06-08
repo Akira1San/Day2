@@ -444,6 +444,7 @@ class MainWindow(QMainWindow):
                     item.setData(Qt.UserRole, entry)
                     self.preview_list.addItem(item)
                     added += 1
+    def generate_monthly_preview(self):
         self.preview_list.clear()
         self.preview_title.setText("Calendar Schedule Preview (30 Days)")
 
