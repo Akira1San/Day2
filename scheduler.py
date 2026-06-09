@@ -411,7 +411,16 @@ class ScheduleGenerator:
 
     def generate_random_fill(self, remaining_seconds: int = 24 * 3600) -> List[ScheduleEntry]:
         all_tags = self.tag_manager.get_all_tags()
-        collection_videos = self._get_all_videos(all_tags)
+        # Check for marathon mode tags and filter videos accordingly
+        marathon_tags = [t for t in all_tags if getattr(t, 'is_random_fill', False) and getattr(t, 'marathon_mode', False)]
+        if marathon_tags:
+            collection_videos = []
+            for t in marathon_tags:
+                collection_videos.extend(self._get_marathon_videos(t, 0))
+            if not collection_videos:
+                collection_videos = self._get_all_videos(all_tags)
+        else:
+            collection_videos = self._get_all_videos(all_tags)
 
         if not collection_videos:
             return []

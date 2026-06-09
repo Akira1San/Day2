@@ -574,10 +574,12 @@ class RandomFillDialog(CollectionDialogBase):
         marathon_mode = self.marathon_cb.isChecked()
         marathon_tag_name = self.marathon_tag_combo.currentData() or ""
 
-        if self.marathon_all_days_cb.isChecked():
-            active_days = None
-        else:
-            active_days = [i + 1 for i, cb in enumerate(self.marathon_day_checkboxes) if cb.isChecked()]
+        active_days = None
+        if marathon_mode:
+            if self.marathon_all_days_cb.isChecked():
+                active_days = None
+            else:
+                active_days = [i + 1 for i, cb in enumerate(self.marathon_day_checkboxes) if cb.isChecked()]
 
         return Tag(
             tag_type="random",

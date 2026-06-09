@@ -134,6 +134,7 @@ def load_collection_videos_only(file_path: str) -> List[Dict[str, Any]]:
                 video_copy['_meta_season'] = season
                 video_copy['_meta_movie'] = movie_num
                 video_copy['_meta_part'] = part_num
+                video_copy['_meta_tags'] = coll_tags
                 videos.append(video_copy)
 
         return videos
