@@ -1293,8 +1293,9 @@ class ScheduleGenerator:
             if rf_videos:
                 random.shuffle(rf_videos)
 
-            total_seconds = num_days * 24 * 3600
-            final.extend(self._build_random_entries(rf_videos, rf_start, total_seconds, rf_sorted[0].name if rf_sorted else ""))
+            if rf_videos:
+                total_seconds = num_days * 24 * 3600
+                final.extend(self._build_random_entries(rf_videos, rf_start, total_seconds, rf_sorted[0].name if rf_sorted else ""))
         else:
             for day_offset in range(num_days):
                 day_offset_seconds = day_offset * 24 * 3600
