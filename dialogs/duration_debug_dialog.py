@@ -36,10 +36,9 @@ class DurationDebugDialog(QDialog):
         lookup = {}
         for v in collection_videos:
             name = get_video_display_name(v)
-            lookup[name] = {
-                'duration': v.get('duration', 90),
-                'had_duration': 'duration' in v,
-            }
+            dur = v.get('duration', 90)
+            had = 'duration' in v
+            lookup.setdefault(name, []).append((dur, had))
 
         results = []
         for entry in entries:
@@ -48,23 +47,24 @@ class DurationDebugDialog(QDialog):
             if " - " in video_key:
                 video_key = video_key.split(" - ", 1)[1]
 
-            info = lookup.get(video_key)
-            if info is None:
+            info_list = lookup.get(video_key)
+            if info_list is None:
                 filename = video_key.split("/")[-1]
-                info = lookup.get(filename)
+                info_list = lookup.get(filename)
 
-            if info is None:
+            if info_list is None:
                 status = "unknown"
                 coll_dur = None
-            elif not info['had_duration']:
+            elif not any(had for _, had in info_list):
                 status = "default"
-                coll_dur = info['duration']
-            elif scheduled != int(info['duration']):
-                status = "mismatch"
-                coll_dur = info['duration']
-            else:
+                coll_dur = info_list[0][0]
+            elif any(scheduled == int(dur) for dur, had in info_list if had):
+                matched = next((dur for dur, had in info_list if had and scheduled == int(dur)), None)
                 status = "ok"
-                coll_dur = info['duration']
+                coll_dur = matched
+            else:
+                status = "mismatch"
+                coll_dur = info_list[0][0]
 
             results.append((entry, scheduled, coll_dur, status))
 

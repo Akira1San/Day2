@@ -782,7 +782,7 @@ class ScheduleGenerator:
                                 if scheduled_slots and any(head_start < s_end and head_end > s_start for s_start, s_end in scheduled_slots):
                                     logger.debug(f"[APPROX day={day_offset+1}]   HEAD SKIPPED due to overlap: {head_start//3600%24:02d}:{(head_start%3600)//60:02d}:{head_start%60:02d}-{head_end//3600%24:02d}:{(head_end%3600)//60:02d}:{head_end%60:02d}")
                                 else:
-                                    final.append(ScheduleEntry(1, head_start, head_end, re.video_name))
+                                    pass  # Skip truncated entry — would have wrong duration
                         # Determine tail start after the tag's content ends
                         tail_start = current_pos
                         tail_end = re.end_seconds
@@ -790,8 +790,7 @@ class ScheduleGenerator:
                             if scheduled_slots and any(tail_start < s_end and tail_end > s_start for s_start, s_end in scheduled_slots):
                                 logger.debug(f"[APPROX day={day_offset+1}]   TAIL SKIPPED due to overlap: {tail_start//3600%24:02d}:{(tail_start%3600)//60:02d}:{tail_start%60:02d}-{tail_end//3600%24:02d}:{(tail_end%3600)//60:02d}:{tail_end%60:02d}")
                             else:
-                                final.append(ScheduleEntry(1, tail_start, tail_end, re.video_name))
-                                current_pos = tail_end
+                                current_pos = max(current_pos, re.end_seconds)
                         # Remove entry from day_unused
                         if re in day_unused:
                             day_unused.remove(re)
@@ -831,7 +830,6 @@ class ScheduleGenerator:
             elif rand_e.start_seconds < current_pos < rand_e.end_seconds:
                 dur = rand_e.end_seconds - current_pos
                 if dur > 0:
-                    final.append(ScheduleEntry(1, current_pos, rand_e.end_seconds, rand_e.video_name))
                     for idx, re in enumerate(random_entries):
                         if re is rand_e and idx not in used_random:
                             used_random.add(idx)
@@ -948,7 +946,6 @@ class ScheduleGenerator:
                                 day_unused.remove(best_rand)
                             current_pos = best_rand.end_seconds
                         elif current_pos < best_rand.end_seconds:
-                            final.append(ScheduleEntry(1, current_pos, best_rand.end_seconds, best_rand.video_name))
                             used_random.add(best_idx)
                             if best_rand in day_unused:
                                 day_unused.remove(best_rand)
@@ -1035,7 +1032,6 @@ class ScheduleGenerator:
                 elif rand_e.start_seconds < current_pos < rand_e.end_seconds:
                     dur = rand_e.end_seconds - current_pos
                     if dur > 0:
-                        final.append(ScheduleEntry(1, current_pos, rand_e.end_seconds, rand_e.video_name))
                         for idx, re in enumerate(random_entries):
                             if re is rand_e and idx not in used_random:
                                 used_random.add(idx)

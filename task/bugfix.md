@@ -1,79 +1,74 @@
-# Bugfix: Ghost Preview List (Items Invisible but Selectable)
+# Bug: MISMATCHED entries in debug dialog when using custom tag + random fill with approximate mode
 
-## Status
-**Resolved** — two root causes identified and fixed.
+## Status: FIXED
 
-## Symptom
-After loading tags and pressing **Generate** for a single-day schedule preview, the preview list appears visually empty. The items are still present in the model: they can be selected, and **Copy Preview Schedule** returns valid schedule text from the list.
+## Reproduction
 
-This means the bug is in the **view/paint path**, not in schedule generation.
+1. Load custom tag "Custom Test" (`Tags/Custom test.ini`):
+   - 09:00-23:19, 6 videos from `movie_collection_001.json`
+2. Load random fill tag "movies 3" (`Tags/Movies 3.ini`):
+   - 00:00-23:59, fill_24h=true, from `movie_collection_003.json`
+3. Enable approximate mode (find-replace is the default)
+4. Generate preview
+5. Open Duration Debug dialog
 
-## Evidence Collected So Far
+## Observed behavior
 
-### 1. Schedule generation works
-```
-[REFRESH] entries=2 approximate=False mode=None
-[REFRESH] list_count=2
-```
+Every day shows at least one random fill entry with status `MISMATCHED` — the scheduled duration differs from the collection duration. The affected entries are tail portions of random-fill videos that got truncated when the custom tag slot was inserted on top of them.
 
-### 2. Delegate sizeHint works and returns valid sizes
-```
-[DELEGATE] sizeHint text='Day 1\n20:00 - 20:51 - Sandokan 1976 - Sandokan E01.mp4' hint=293x42 avail=658
-[DELEGATE] sizeHint text='Day 1\n20:51 - 21:51 - Sandokan 1976 - Sandokan E02.mp4' hint=293x42 avail=658
-```
+## Root cause analysis
 
-### 3. Preview list count matches entries
-`self.preview_list.count()` equals the number of generated entries.
+### How the approximate merge works (find-replace mode)
 
-### 4. Copy path sees correct data
-`copy_preview()` successfully reads item texts / `ScheduleEntry.to_copy_string()` from the list and copies them.
+1. `_build_random_entries()` creates a continuous stream of random fill entries from 00:00-23:59, each entry having `video_name = "movies 3 - <filename>"` and `end_seconds - start_seconds = int(video.duration)` (e.g. `"movies 3 - The Crystal Storm Resurgence.mp4"` spanning `00:00 - 01:31`).
 
-## Current Implementation Notes
+2. The custom tag "Custom Test" is placed in its target slot (09:00-23:19). The `_place_tag_videos` method inserts 6 custom entries.
 
-### Preview list setup
-- `preview_list` is a `QListWidget` inside a `QScrollArea`.
-- Items are added as plain-text `QListWidgetItem(text)`.
-- Each item also stores the `ScheduleEntry` via `Qt.UserRole` for the delegate.
+3. `_consume_overlapping_tail()` handles random entries that overlap the slot start. It creates a **tail entry** from `current_pos` to `rand_e.end_seconds` with the **same video_name** as the original random entry (line 752/760 in `scheduler.py`).
 
-### Tag name coloring
-- A `TagNameColorDelegate(QStyledItemDelegate)` is installed on `preview_list`.
-- `paint()` reads the entry, extracts the tag name, builds HTML with `<span style="color:...">`, and renders it with `QTextDocument`.
-- `sizeHint()` also uses `QTextDocument` and a minimum width fallback (`_available_width()` returns `240` when `option.rect.width()` is `0`).
-- Selected/hover styles are defined in `QListWidget::item` and `QListWidget::item:selected`.
+4. `_approximate_finalize_day()` at line 1000-1003 handles random entries partially consumed by the advancing `current_pos`:
+   ```python
+   elif rand_e.start_seconds < current_pos < rand_e.end_seconds:
+       dur = rand_e.end_seconds - current_pos
+       if dur > 0:
+           final.append(ScheduleEntry(1, current_pos, rand_e.end_seconds, rand_e.video_name))
+   ```
+   This creates another truncated entry with the original video_name.
 
-### Logging added
-- `refresh_preview()` logs entry count and list count.
-- `generate_weekly_preview()` / `generate_monthly_preview()` log entry counts and added item counts.
-- `TagNameColorDelegate.paint()` logs the text, tag name, and color before painting.
-- `TagNameColorDelegate.sizeHint()` logs computed hints.
-- `copy_preview()` logs the raw text it reads from the list.
+The debug dialog compares `scheduled = entry.end_seconds - entry.start_seconds` against the full collection duration. Since the tail entry is shorter than the original video, it always shows MISMATCHED.
 
-## Root Causes (both fixed at `daypart_scheduler.py`)
+### Example
 
-### 1. Text drawn at wrong position (primary)
-- `doc.drawContents(painter, option.rect)` uses `option.rect` **only as a clip rect**, not a position.
-- The painter is in viewport coordinates (NOT pre-translated to the item's position).
-- Text is always drawn at viewport origin `(0,0)`, regardless of which item is being painted.
-- **Item 1** (`rect.y`=0): text at y=0 may partially show.
-- **Item 2+** (`rect.y`>0): clip rect starts below the text → **entire text clipped out**.
-- **Fix:** Added `painter.translate(option.rect.topLeft())` before `drawContents`, with `QRectF(0, 0, option.rect.width(), option.rect.height())` as clip rect.
+- Random fill entry: `"movies 3 - The Crystal Storm Resurgence.mp4"` (duration from collection: 5461s)
+- Custom tag slot starts at 09:00 (32400s)
+- If the random entry covers 07:30-09:01, the tail after 09:00 is 60s
+- Tail entry: `"movies 3 - The Crystal Storm Resurgence.mp4"` from 09:00 to 09:01 (60s)
+- Debug: scheduled=60s vs collection=5461s → MISMATCHED
 
-### 2. No default text color in QTextDocument (secondary)
-- `QTextDocument` uses `QPalette::Text` (usually black `#000000`) for unstyled HTML text.
-- Application stylesheet sets `QListWidget` background to `#2a2a3e` (dark).
-- Black-on-dark text is invisible (~1.3:1 contrast).
-- The `QWidget { color: #f8f8f2 }` stylesheet does **not** propagate into `QTextDocument`.
-- **Fix:** Added `<body style="color:#f8f8f2">` to the HTML to set the default text color to theme foreground.
+## Fix applied
 
-## Changes Made
+The root cause was that the scheduler created truncated entries with wrong durations. Videos from the random fill collection were partially overlapped by custom tag slots, and the scheduler created head/tail entries reusing the original video_name but with a shortened duration — a real scheduling bug, not just a display issue in the debug dialog.
 
-| File | Line | Change |
-|---|---|---|
-| `daypart_scheduler.py` | 73 | Wrap HTML body in `style="color:#f8f8f2"` for default text color |
-| `daypart_scheduler.py` | 79-82 | Translate painter to `option.rect.topLeft()` before `drawContents` |
-| `daypart_scheduler.py` | 59 | Added `rect={option.rect}` to paint debug log |
+### Changes in `scheduler.py`:
 
-## Housekeeping Task (Separate)
-- The log file has grown too large.
-- Rotate logs by creating a **new timestamped log file per run** in a dedicated `logs/` folder.
-- Implemented: `logs/daypart_scheduler_YYYYMMDD_HHMMSS.log` with `RotatingFileHandler`.
+1. **`_consume_overlapping_tail`** (lines 785, 793): Removed creation of truncated head and tail entries. When a random fill entry overlaps a custom tag slot, the entry is consumed (marked as used) but not added to the schedule. No partial-video entries are created.
+
+2. **`_apply_approximate_find_replace` best_rand path** (line 950-951): Removed creation of truncated entry when `current_pos` falls inside the anchor entry's time range. The anchor is consumed and skipped instead.
+
+3. **`_apply_approximate_find_replace` inline code** (lines 1035-1038): Removed creation of truncated entry when `current_pos` falls inside a remaining random entry. The entry is consumed and skipped.
+
+4. **`_approximate_finalize_day`** (lines 831-838): Same fix as #3 — removed truncated entry creation.
+
+### Effect
+
+No video entry in the schedule will have a duration that differs from its collection-defined duration. Overlapped random fill entries are skipped entirely (not added to the schedule). The scheduler continues with the next full-length entry after the custom tag slot. Some time gaps may occur, which is acceptable for approximate mode. Random fill entries come from a shuffled collection that cycles through videos, so skipping an occasional overlapped entry does not lose content — the next entry in the cycle continues normally.
+
+### Additional fix: Debug dialog duplicate-aware lookup (`duration_debug_dialog.py`)
+
+The debug dialog's `_build_comparison` previously used a flat `name → dict` lookup. If the same video file appeared in **multiple collections** with different durations (e.g., the same MP4 file in two different `.json` files), the second one loaded would silently overwrite the first, causing false MISMATCHED status.
+
+**Fix**: The lookup now stores a **list** of all `(duration, had_duration)` tuples per video name. When comparing, it considers the entry OK if the scheduled duration matches **any** of the known durations for that video. A truly truncated entry (matching none) still correctly shows MISMATCH.
+
+### Test file
+
+Added `Test/test_no_truncated_entries.py` — creates a custom tag + 24h random fill tag scenario, runs approximate find-replace, and verifies every entry's scheduled duration matches its collection duration.
