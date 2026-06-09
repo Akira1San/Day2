@@ -803,6 +803,29 @@ class ScheduleGenerator:
                             if ci not in used_random and later_re.start_seconds >= first_post.start_seconds and later_re.start_seconds < day_end:
                                 later_re.start_seconds -= shift
                                 later_re.end_seconds -= shift
+                    # Propagate compact shift across midnight boundary to next day only
+                    if shift != 0:
+                        last_shifted = max(
+                            (e for ci, e in enumerate(random_entries)
+                             if ci not in used_random
+                             and e.start_seconds >= first_post.start_seconds - shift
+                             and e.start_seconds < day_end),
+                            key=lambda e: e.end_seconds, default=None
+                        )
+                        if last_shifted and last_shifted.end_seconds > day_end:
+                            next_day_end = day_end + 86400
+                            next_entries = [(ci, e) for ci, e in enumerate(random_entries)
+                                            if ci not in used_random
+                                            and e.start_seconds >= day_end
+                                            and e.start_seconds < next_day_end]
+                            if next_entries:
+                                first_next_start = min(e.start_seconds for _, e in next_entries)
+                                gap_to_fill = first_next_start - last_shifted.end_seconds
+                                if gap_to_fill > 1:
+                                    for ci, ne in next_entries:
+                                        if ne.start_seconds >= first_next_start:
+                                            ne.start_seconds -= gap_to_fill
+                                            ne.end_seconds -= gap_to_fill
             return current_pos
 
         # Single-entry overlap handling for fragment/skip/gap_fill
