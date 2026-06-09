@@ -136,6 +136,49 @@ This means **every day from Day 2 onwards** has overlapping entries. In the 2-da
 
 ---
 
+## Overlap resolution combobox (planned)
+
+Add a second QComboBox next to the mode selector in `daypart_scheduler.py` to let users pick how overlapped entries are handled, without re-running the test with code changes.
+
+### UI spec
+
+| Element | Value |
+|---|---|
+| Widget | `QComboBox` next to `approx_mode_combo` (line 226) |
+| Options | `"Fragment (current)"`, `"Skip overlapped"`, `"Gap-fill"`, `"Compact stream"` |
+| Tooltip | `"How to handle random entries overlapping tag slots"` |
+| Width | `130px` |
+
+### Data flow
+
+```
+combo.currentText()  ──>  converted to snake_case  ──>  passed to
+  apply_approximate(mode=..., overlap_strategy="skip")
+     │
+     ▼
+  scheduler._consume_overlapping_tail(..., overlap_strategy="skip")
+                              │
+                              ▼
+                  if/elif on strategy:
+                    "fragment"  →  current behavior (head/tail entries)
+                    "skip"      →  remove entry, no head/tail
+                    "gap_fill"  →  use _process_random_fill_tag logic
+                    "compact"   →  shift remaining entries left
+```
+
+### Files to change
+
+| File | Change |
+|---|---|
+| `daypart_scheduler.py:226` | Add `QComboBox` + populate options |
+| `daypart_scheduler.py` (6 call sites) | Pass `overlap_strategy` to `apply_approximate()` |
+| `scheduler.py:725` | Accept `overlap_strategy` param, pass to strategies |
+| `strategies.py` (FindReplaceApproximateStrategy etc.) | Accept + pass to `_consume_overlapping_tail` |
+| `scheduler.py:530` (`_consume_overlapping_tail`) | Add strategy parameter + dispatch |
+| `scheduler.py:445` (`_approximate_finalize_day`) | Pass it through to `_consume_overlapping_tail` |
+
+---
+
 ## Appendix: Continuity column in debug dialog
 
 New 8th column "Continuity" in Duration Debug dialog:
