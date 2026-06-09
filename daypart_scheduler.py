@@ -541,6 +541,8 @@ class MainWindow(QMainWindow):
         )
         if not file_path:
             return
+        if not file_path.endswith('.ini'):
+            file_path += '.ini'
         if os.path.exists(file_path):
             reply = QMessageBox.question(
                 self, "Overwrite?",
@@ -949,6 +951,8 @@ class MainWindow(QMainWindow):
         tag = self.tag_manager.tags[current_row]
         file_path, _ = QFileDialog.getSaveFileName(self, "Save Tag", "", "INI Files (*.ini);;All Files (*)")
         if file_path:
+            if not file_path.endswith('.ini'):
+                file_path += '.ini'
             from serialization import save_single_tag_to_ini
             save_single_tag_to_ini(tag, file_path)
             self.statusBar().showMessage(f"Tag saved to {file_path}")
