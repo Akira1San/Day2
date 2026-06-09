@@ -228,6 +228,11 @@ class MainWindow(QMainWindow):
         self.approx_mode_combo.setToolTip("Approximate algorithm mode")
         self.approx_mode_combo.setFixedWidth(120)
 
+        self.overlap_strategy_combo = QComboBox()
+        self.overlap_strategy_combo.addItems(["Fragment (current)", "Skip overlapped", "Gap-fill", "Compact stream"])
+        self.overlap_strategy_combo.setToolTip("How to handle random entries overlapping tag slots")
+        self.overlap_strategy_combo.setFixedWidth(130)
+
         # Initialize buttons before layout
         self.copy_btn = QPushButton("Copy")
         self.copy_btn.setToolTip("Copy preview to clipboard")
@@ -290,6 +295,7 @@ class MainWindow(QMainWindow):
         row2_layout.addWidget(self.debug_btn)
         row2_layout.addStretch()
         row2_layout.addWidget(self.approx_mode_combo)
+        row2_layout.addWidget(self.overlap_strategy_combo)
         row2_layout.addWidget(self.approx_btn)
         bottom_btn_layout.addLayout(row2_layout)
 
@@ -364,7 +370,7 @@ class MainWindow(QMainWindow):
         mode = None
         if self.approximate_enabled:
             mode = self.approx_mode_combo.currentText().lower().replace("-", "_").replace(" ", "_")
-            entries = self.schedule_generator.apply_approximate(mode=mode)
+            entries = self.schedule_generator.apply_approximate(mode=mode, overlap_strategy=self._get_overlap_strategy())
         else:
             entries = self.schedule_generator.apply_custom_tags()
         for entry in entries:
@@ -376,7 +382,8 @@ class MainWindow(QMainWindow):
             'entries': entries,
             'num_days': 1,
             'approximate_enabled': self.approximate_enabled,
-            'mode': mode
+            'mode': mode,
+            'overlap_strategy': self._get_overlap_strategy() if self.approximate_enabled else None,
         }
 
     def generate_new_preview(self):
@@ -406,13 +413,14 @@ class MainWindow(QMainWindow):
             entries = self.schedule_generator.apply_custom_tags(num_days=7)
         else:
             mode = self.approx_mode_combo.currentText().lower().replace("-", "_").replace(" ", "_")
-            entries = self.schedule_generator.apply_approximate(num_days=7, mode=mode)
+            entries = self.schedule_generator.apply_approximate(num_days=7, mode=mode, overlap_strategy=self._get_overlap_strategy())
         self.schedule_entries = entries
         self.last_generated_schedule = {
             'entries': entries,
             'num_days': 7,
             'approximate_enabled': self.approximate_enabled,
-            'mode': mode
+            'mode': mode,
+            'overlap_strategy': self._get_overlap_strategy() if self.approximate_enabled else None,
         }
 
         added = 0
@@ -461,14 +469,15 @@ class MainWindow(QMainWindow):
             entries = self.schedule_generator.apply_custom_tags(num_days=30)
         else:
             mode = self.approx_mode_combo.currentText().lower().replace("-", "_").replace(" ", "_")
-            entries = self.schedule_generator.apply_approximate(num_days=30, mode=mode)
+            entries = self.schedule_generator.apply_approximate(num_days=30, mode=mode, overlap_strategy=self._get_overlap_strategy())
         # Store for save reuse and debug
         self.schedule_entries = entries
         self.last_generated_schedule = {
             'entries': entries,
             'num_days': 30,
             'approximate_enabled': self.approximate_enabled,
-            'mode': mode
+            'mode': mode,
+            'overlap_strategy': self._get_overlap_strategy() if self.approximate_enabled else None,
         }
 
         for day_offset in range(30):
@@ -837,7 +846,9 @@ class MainWindow(QMainWindow):
         if hasattr(self, 'last_generated_schedule') and self.last_generated_schedule:
             ls = self.last_generated_schedule
             if ls['num_days'] == num_days and ls['approximate_enabled'] == self.approximate_enabled:
-                if not self.approximate_enabled or (self.approximate_enabled and ls['mode'] == mode):
+                cached_strat = ls.get('overlap_strategy')
+                current_strat = self._get_overlap_strategy() if self.approximate_enabled else None
+                if not self.approximate_enabled or (self.approximate_enabled and ls['mode'] == mode and cached_strat == current_strat):
                     all_entries = ls['entries']
                     reuse = True
 
@@ -845,13 +856,14 @@ class MainWindow(QMainWindow):
             if not self.approximate_enabled:
                 all_entries = self.schedule_generator.apply_custom_tags(use_cache=False, num_days=num_days)
             else:
-                all_entries = self.schedule_generator.apply_approximate(num_days=num_days, mode=mode)
+                all_entries = self.schedule_generator.apply_approximate(num_days=num_days, mode=mode, overlap_strategy=self._get_overlap_strategy())
             # Update last_generated_schedule with this fresh generation
             self.last_generated_schedule = {
                 'entries': all_entries,
                 'num_days': num_days,
                 'approximate_enabled': self.approximate_enabled,
-                'mode': mode if self.approximate_enabled else None
+                'mode': mode if self.approximate_enabled else None,
+                'overlap_strategy': self._get_overlap_strategy() if self.approximate_enabled else None,
             }
 
         for day_offset in range(num_days):
@@ -914,7 +926,7 @@ class MainWindow(QMainWindow):
         self.schedule_generator.video_order_mode = self.video_order_combo.currentText().lower().replace(" ", "_")
         mode = self.approx_mode_combo.currentText().lower().replace("-", "_").replace(" ", "_")
         if self.approximate_enabled:
-            self.schedule_entries = self.schedule_generator.apply_approximate(mode=mode)
+            self.schedule_entries = self.schedule_generator.apply_approximate(mode=mode, overlap_strategy=self._get_overlap_strategy())
             self.preview_title.setText(f"24-Hour Schedule Preview [APPROXIMATE {mode.upper()}]")
             self.approx_btn.setText("APPROXIMATE ON")
             self.approx_btn.setStyleSheet("background-color: #22c55e; color: white; font-weight: bold; padding: 10px 20px; border-radius: 6px;")
@@ -933,8 +945,18 @@ class MainWindow(QMainWindow):
             'entries': self.schedule_entries,
             'num_days': 1,
             'approximate_enabled': self.approximate_enabled,
-             'mode': mode if self.approximate_enabled else None
-         }
+            'mode': mode if self.approximate_enabled else None,
+            'overlap_strategy': self._get_overlap_strategy() if self.approximate_enabled else None,
+        }
+
+    def _get_overlap_strategy(self) -> str:
+        text = self.overlap_strategy_combo.currentText()
+        return {
+            "Fragment (current)": "fragment",
+            "Skip overlapped": "skip",
+            "Gap-fill": "gap_fill",
+            "Compact stream": "compact",
+        }[text]
 
     def _on_video_order_changed(self):
         mode_text = self.video_order_combo.currentText().lower().replace(" ", "_")

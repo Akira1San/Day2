@@ -506,6 +506,7 @@ class PriorityApproximateStrategy:
                                     break
                     if best_rand and best_idx >= 0:
                         logger.debug(f"[APPROX day={day_offset+1}]   BEST end={best_rand.end_seconds//3600%24:02d}:{(best_rand.end_seconds%3600)//60:02d}:{best_rand.end_seconds%60:02d} gap={best_gap} -> tag at {best_rand.end_seconds//3600%24:02d}:{(best_rand.end_seconds%3600)//60:02d}:{best_rand.end_seconds%60:02d}")
+                        overlap_strategy = getattr(self.sg, '_overlap_strategy', 'fragment')
                         if current_pos <= best_rand.start_seconds:
                             final.append(best_rand)
                             used_random.add(best_idx)
@@ -513,11 +514,13 @@ class PriorityApproximateStrategy:
                                 day_unused.remove(best_rand)
                             current_pos = best_rand.end_seconds
                         elif current_pos < best_rand.end_seconds:
-                            final.append(ScheduleEntry(1, current_pos, best_rand.end_seconds, best_rand.video_name, "random_fill"))
+                            if overlap_strategy == 'fragment':
+                                final.append(ScheduleEntry(1, current_pos, best_rand.end_seconds, best_rand.video_name, "random_fill"))
                             used_random.add(best_idx)
                             if best_rand in day_unused:
                                 day_unused.remove(best_rand)
-                            current_pos = best_rand.end_seconds
+                            if overlap_strategy == 'fragment':
+                                current_pos = best_rand.end_seconds
                         else:
                             used_random.add(best_idx)
                             if best_rand in day_unused:

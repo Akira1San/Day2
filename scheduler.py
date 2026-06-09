@@ -722,11 +722,12 @@ class ScheduleGenerator:
         self.tag_manager.set_cached_random_entries(entries)
         return entries
 
-    def apply_approximate(self, num_days: int = 1, mode: str = "find_replace") -> List[ScheduleEntry]:
+    def apply_approximate(self, num_days: int = 1, mode: str = "find_replace", overlap_strategy: str = "fragment") -> List[ScheduleEntry]:
         """Dispatch to the appropriate approximate scheduling strategy."""
         # Bug 3 fix: same rotation behavior in approximate mode.
         self._generate_count += 1
-        logger.info(f"[APPROX] Using mode: {mode}")
+        self._overlap_strategy = overlap_strategy
+        logger.info(f"[APPROX] Using mode: {mode}, overlap_strategy={overlap_strategy}")
         if mode == "linear":
             return LinearApproximateStrategy(self).generate(num_days)
         elif mode == "find_replace":
@@ -766,32 +767,73 @@ class ScheduleGenerator:
 
         Finds any random entry in day_unused that intersects [slot_start, slot_end)
         and has end_seconds > min_end_threshold, marks it as used, removes it from
-        day_unused, and appends its remaining tail (from after the slot_end to entry end)
-        to final, provided it doesn't overlap other scheduled slots. Returns updated current_pos.
+        day_unused, and handles overlap according to the current overlap_strategy.
+
+        Strategies:
+          "fragment" — current behavior (head/tail entries with FRAGMENT_TAG_TYPE)
+          "skip"     — remove entry, no head/tail, don't advance current_pos
+          "gap_fill" — same as skip
+          "compact"  — same as skip, but shift remaining unused entries left to fill the gap
         """
+        overlap_strategy = getattr(self, '_overlap_strategy', 'fragment')
+
+        if overlap_strategy == 'compact':
+            # Compact: remove ALL overlapped entries in one pass, then shift remaining
+            # entries that start after the slot to start at current_pos.
+            overlapped_indices = set()
+            for re in day_unused[:]:
+                if re.start_seconds < slot_end and re.end_seconds > min_end_threshold:
+                    for idx, orig_re in enumerate(random_entries):
+                        if orig_re is re and idx not in used_random:
+                            used_random.add(idx)
+                            overlapped_indices.add(idx)
+                            if re in day_unused:
+                                day_unused.remove(re)
+                            break
+            if overlapped_indices:
+                # Shift remaining entries that start after the slot to begin at current_pos
+                post_slot = [e for i, e in enumerate(random_entries)
+                             if i not in used_random and e.start_seconds >= slot_end]
+                if post_slot:
+                    first_post = min(post_slot, key=lambda e: e.start_seconds)
+                    shift = first_post.start_seconds - current_pos
+                    if shift != 0:
+                        for ci, later_re in enumerate(random_entries):
+                            if ci not in used_random and later_re.start_seconds >= first_post.start_seconds:
+                                later_re.start_seconds -= shift
+                                later_re.end_seconds -= shift
+            return current_pos
+
+        # Single-entry overlap handling for fragment/skip/gap_fill
         for re in day_unused[:]:
             if re.start_seconds < slot_end and re.end_seconds > min_end_threshold:
                 for idx, orig_re in enumerate(random_entries):
                     if orig_re is re and idx not in used_random:
                         used_random.add(idx)
-                        # Place head portion (before tag slot) if available and non-overlapping
-                        if re.start_seconds < slot_start:
-                            head_start = re.start_seconds
-                            head_end = slot_start
-                            if head_end > head_start:
-                                if scheduled_slots and any(head_start < s_end and head_end > s_start for s_start, s_end in scheduled_slots):
-                                    logger.debug(f"[APPROX day={day_offset+1}]   HEAD SKIPPED due to overlap: {head_start//3600%24:02d}:{(head_start%3600)//60:02d}:{head_start%60:02d}-{head_end//3600%24:02d}:{(head_end%3600)//60:02d}:{head_end%60:02d}")
+
+                        if overlap_strategy == 'fragment':
+                            # Place head portion (before tag slot) if available and non-overlapping
+                            if re.start_seconds < slot_start:
+                                head_start = re.start_seconds
+                                head_end = slot_start
+                                if head_end > head_start:
+                                    if scheduled_slots and any(head_start < s_end and head_end > s_start for s_start, s_end in scheduled_slots):
+                                        logger.debug(f"[APPROX day={day_offset+1}]   HEAD SKIPPED due to overlap: {head_start//3600%24:02d}:{(head_start%3600)//60:02d}:{head_start%60:02d}-{head_end//3600%24:02d}:{(head_end%3600)//60:02d}:{head_end%60:02d}")
+                                    else:
+                                        final.append(ScheduleEntry(1, head_start, head_end, re.video_name, FRAGMENT_TAG_TYPE))
+                            # Determine tail start after the tag's content ends
+                            tail_start = current_pos
+                            tail_end = re.end_seconds
+                            if tail_end > tail_start:
+                                if scheduled_slots and any(tail_start < s_end and tail_end > s_start for s_start, s_end in scheduled_slots):
+                                    logger.debug(f"[APPROX day={day_offset+1}]   TAIL SKIPPED due to overlap: {tail_start//3600%24:02d}:{(tail_start%3600)//60:02d}:{tail_start%60:02d}-{tail_end//3600%24:02d}:{(tail_end%3600)//60:02d}:{tail_end%60:02d}")
                                 else:
-                                    final.append(ScheduleEntry(1, head_start, head_end, re.video_name, FRAGMENT_TAG_TYPE))
-                        # Determine tail start after the tag's content ends
-                        tail_start = current_pos
-                        tail_end = re.end_seconds
-                        if tail_end > tail_start:
-                            if scheduled_slots and any(tail_start < s_end and tail_end > s_start for s_start, s_end in scheduled_slots):
-                                logger.debug(f"[APPROX day={day_offset+1}]   TAIL SKIPPED due to overlap: {tail_start//3600%24:02d}:{(tail_start%3600)//60:02d}:{tail_start%60:02d}-{tail_end//3600%24:02d}:{(tail_end%3600)//60:02d}:{tail_end%60:02d}")
-                            else:
-                                final.append(ScheduleEntry(1, tail_start, tail_end, re.video_name, FRAGMENT_TAG_TYPE))
-                                current_pos = tail_end
+                                    final.append(ScheduleEntry(1, tail_start, tail_end, re.video_name, FRAGMENT_TAG_TYPE))
+                                    current_pos = tail_end
+                        elif overlap_strategy == 'skip' or overlap_strategy == 'gap_fill':
+                            # Remove entry entirely — no head/tail fragments
+                            pass
+
                         # Remove entry from day_unused
                         if re in day_unused:
                             day_unused.remove(re)
@@ -800,6 +842,7 @@ class ScheduleGenerator:
 
     def _approximate_finalize_day(self, random_entries, used_random, final, day_offset, day_start, scheduled_slots, current_pos):
         day_end = day_start + 86400
+        overlap_strategy = getattr(self, '_overlap_strategy', 'fragment')
         # Recompute day_unused: random entries not yet used that intersect the day
         day_unused = [e for i, e in enumerate(random_entries)
                       if i not in used_random
@@ -831,12 +874,14 @@ class ScheduleGenerator:
             elif rand_e.start_seconds < current_pos < rand_e.end_seconds:
                 dur = rand_e.end_seconds - current_pos
                 if dur > 0:
-                    final.append(ScheduleEntry(1, current_pos, rand_e.end_seconds, rand_e.video_name, FRAGMENT_TAG_TYPE))
+                    if overlap_strategy == 'fragment':
+                        final.append(ScheduleEntry(1, current_pos, rand_e.end_seconds, rand_e.video_name, FRAGMENT_TAG_TYPE))
                     for idx, re in enumerate(random_entries):
                         if re is rand_e and idx not in used_random:
                             used_random.add(idx)
                             break
-                    current_pos = rand_e.end_seconds
+                    if overlap_strategy == 'fragment':
+                        current_pos = rand_e.end_seconds
 
         # Add remaining unused random entries starting from current_pos
         day_unused2 = [e for i, e in enumerate(random_entries)
@@ -859,6 +904,7 @@ class ScheduleGenerator:
 
     def _apply_approximate_find_replace(self, num_days: int, custom_tags: list, series_tags: list, multi_series_tags: list, random_fill_tags: list, has_24h_fill: bool) -> List[ScheduleEntry]:
         """Find-and-replace algorithm: Don't truncate random fill, move custom tags instead."""
+        overlap_strategy = getattr(self, '_overlap_strategy', 'fragment')
         rf_sorted = sorted(random_fill_tags, key=lambda t: qtime_to_seconds(t.start_time))
 
         if not rf_sorted:
@@ -948,11 +994,13 @@ class ScheduleGenerator:
                                 day_unused.remove(best_rand)
                             current_pos = best_rand.end_seconds
                         elif current_pos < best_rand.end_seconds:
-                            final.append(ScheduleEntry(1, current_pos, best_rand.end_seconds, best_rand.video_name, FRAGMENT_TAG_TYPE))
+                            if overlap_strategy == 'fragment':
+                                final.append(ScheduleEntry(1, current_pos, best_rand.end_seconds, best_rand.video_name, FRAGMENT_TAG_TYPE))
                             used_random.add(best_idx)
                             if best_rand in day_unused:
                                 day_unused.remove(best_rand)
-                            current_pos = best_rand.end_seconds
+                            if overlap_strategy == 'fragment':
+                                current_pos = best_rand.end_seconds
                         else:
                             used_random.add(best_idx)
                             if best_rand in day_unused:
@@ -1035,12 +1083,14 @@ class ScheduleGenerator:
                 elif rand_e.start_seconds < current_pos < rand_e.end_seconds:
                     dur = rand_e.end_seconds - current_pos
                     if dur > 0:
-                        final.append(ScheduleEntry(1, current_pos, rand_e.end_seconds, rand_e.video_name, FRAGMENT_TAG_TYPE))
+                        if overlap_strategy == 'fragment':
+                            final.append(ScheduleEntry(1, current_pos, rand_e.end_seconds, rand_e.video_name, FRAGMENT_TAG_TYPE))
                         for idx, re in enumerate(random_entries):
                             if re is rand_e and idx not in used_random:
                                 used_random.add(idx)
                                 break
-                        current_pos = rand_e.end_seconds
+                        if overlap_strategy == 'fragment':
+                            current_pos = rand_e.end_seconds
 
             # Add remaining unused random entries
             day_unused2 = [e for i, e in enumerate(random_entries)
