@@ -780,6 +780,7 @@ class ScheduleGenerator:
         if overlap_strategy == 'compact':
             # Compact: remove ALL overlapped entries in one pass, then shift remaining
             # entries that start after the slot to start at current_pos.
+            day_end = (day_offset + 1) * 86400
             overlapped_indices = set()
             for re in day_unused[:]:
                 if re.start_seconds < slot_end and re.end_seconds > min_end_threshold:
@@ -791,15 +792,15 @@ class ScheduleGenerator:
                                 day_unused.remove(re)
                             break
             if overlapped_indices:
-                # Shift remaining entries that start after the slot to begin at current_pos
+                # Shift remaining entries that start after the slot within THIS day only
                 post_slot = [e for i, e in enumerate(random_entries)
-                             if i not in used_random and e.start_seconds >= slot_end]
+                             if i not in used_random and e.start_seconds >= slot_end and e.start_seconds < day_end]
                 if post_slot:
                     first_post = min(post_slot, key=lambda e: e.start_seconds)
                     shift = first_post.start_seconds - current_pos
                     if shift != 0:
                         for ci, later_re in enumerate(random_entries):
-                            if ci not in used_random and later_re.start_seconds >= first_post.start_seconds:
+                            if ci not in used_random and later_re.start_seconds >= first_post.start_seconds and later_re.start_seconds < day_end:
                                 later_re.start_seconds -= shift
                                 later_re.end_seconds -= shift
             return current_pos
