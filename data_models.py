@@ -330,6 +330,9 @@ class MultiSeriesTag(Tag):
         return total
 
 
+FRAGMENT_TAG_TYPE = "fragment"
+
+
 class ScheduleEntry:
     def __init__(self, day: int, start_seconds: int, end_seconds: int, video_name: str, tag_type: str = ""):
         self.day = day
@@ -368,6 +371,8 @@ class ScheduleEntry:
     @property
     def tag_color(self) -> Optional[QColor]:
         if self.tag_type:
+            if self.tag_type == FRAGMENT_TAG_TYPE:
+                return QColor("#6366f1")
             if self.tag_type in ("series", "multi_series"):
                 return QColor("#7c3aed")
             if self.tag_type == "custom":

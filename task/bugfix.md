@@ -16,59 +16,50 @@
 
 Every day shows at least one random fill entry with status `MISMATCHED` — the scheduled duration differs from the collection duration. The affected entries are tail portions of random-fill videos that got truncated when the custom tag slot was inserted on top of them.
 
-## Root cause analysis
+## Root cause
 
-### How the approximate merge works (find-replace mode)
+In approximate find-replace mode, when a custom tag slot overlaps a random fill entry, the scheduler creates **head/tail entries** that reuse the original `video_name` but have a shortened duration. The debug dialog compares `scheduled = end - start` against the collection duration and flags these as `MISMATCHED`.
 
-1. `_build_random_entries()` creates a continuous stream of random fill entries from 00:00-23:59, each entry having `video_name = "movies 3 - <filename>"` and `end_seconds - start_seconds = int(video.duration)` (e.g. `"movies 3 - The Crystal Storm Resurgence.mp4"` spanning `00:00 - 01:31`).
+Additionally, the debug dialog used a flat `name → dict` lookup: if the same video file appeared in two different collections (with different durations), the second overwrote the first, causing false MISMATCHED status.
 
-2. The custom tag "Custom Test" is placed in its target slot (09:00-23:19). The `_place_tag_videos` method inserts 6 custom entries.
+## Fix
 
-3. `_consume_overlapping_tail()` handles random entries that overlap the slot start. It creates a **tail entry** from `current_pos` to `rand_e.end_seconds` with the **same video_name** as the original random entry (line 752/760 in `scheduler.py`).
+Three changes across the codebase:
 
-4. `_approximate_finalize_day()` at line 1000-1003 handles random entries partially consumed by the advancing `current_pos`:
-   ```python
-   elif rand_e.start_seconds < current_pos < rand_e.end_seconds:
-       dur = rand_e.end_seconds - current_pos
-       if dur > 0:
-           final.append(ScheduleEntry(1, current_pos, rand_e.end_seconds, rand_e.video_name))
-   ```
-   This creates another truncated entry with the original video_name.
+### 1. `data_models.py` — Fragment tag type constant
 
-The debug dialog compares `scheduled = entry.end_seconds - entry.start_seconds` against the full collection duration. Since the tail entry is shorter than the original video, it always shows MISMATCHED.
+Added `FRAGMENT_TAG_TYPE = "fragment"` and a distinct color (`#6366f1` / indigo) for fragment entries in the schedule view.
 
-### Example
+### 2. `scheduler.py` — Mark truncated entries as fragments
 
-- Random fill entry: `"movies 3 - The Crystal Storm Resurgence.mp4"` (duration from collection: 5461s)
-- Custom tag slot starts at 09:00 (32400s)
-- If the random entry covers 07:30-09:01, the tail after 09:00 is 60s
-- Tail entry: `"movies 3 - The Crystal Storm Resurgence.mp4"` from 09:00 to 09:01 (60s)
-- Debug: scheduled=60s vs collection=5461s → MISMATCHED
+All 4 locations that create truncated entries now pass `tag_type=FRAGMENT_TAG_TYPE`:
 
-## Fix applied
+| Location | What it creates |
+|---|---|
+| `_consume_overlapping_tail` (head) | Head portion of overlapped entry before slot start |
+| `_consume_overlapping_tail` (tail) | Tail portion of overlapped entry after slot end |
+| `_apply_approximate_find_replace` best_rand path | Partial entry when current_pos ≤ best_rand.end |
+| `_apply_approximate_find_replace` inline | Partial entry when current_pos falls inside a random entry |
+| `_approximate_finalize_day` | Same as above (deduplicated path) |
 
-The root cause was that the scheduler created truncated entries with wrong durations. Videos from the random fill collection were partially overlapped by custom tag slots, and the scheduler created head/tail entries reusing the original video_name but with a shortened duration — a real scheduling bug, not just a display issue in the debug dialog.
+This keeps the schedule **continuous** (no gaps) while identifying fragments by their tag_type.
 
-### Changes in `scheduler.py`:
+### 3. `duration_debug_dialog.py` — Handle fragments + duplicate-aware lookup
 
-1. **`_consume_overlapping_tail`** (lines 785, 793): Removed creation of truncated head and tail entries. When a random fill entry overlaps a custom tag slot, the entry is consumed (marked as used) but not added to the schedule. No partial-video entries are created.
+**Fragment handling**: Entries with `tag_type == FRAGMENT_TAG_TYPE` skip the duration mismatch check and display as `FRAGMENT` (indigo color) instead of `MISMATCHED`.
 
-2. **`_apply_approximate_find_replace` best_rand path** (line 950-951): Removed creation of truncated entry when `current_pos` falls inside the anchor entry's time range. The anchor is consumed and skipped instead.
+**Duplicate-aware lookup**: Changed from `name → dict` to `name → list[(dur, had_duration)]`. An entry is OK if its scheduled duration matches **any** collection entry for that video. A truly truncated entry (matching none) still shows MISMATCH.
 
-3. **`_apply_approximate_find_replace` inline code** (lines 1035-1038): Removed creation of truncated entry when `current_pos` falls inside a remaining random entry. The entry is consumed and skipped.
+**Continuity column**: Added 8th column "Continuity" that checks whether each entry starts exactly when the previous ends:
 
-4. **`_approximate_finalize_day`** (lines 831-838): Same fix as #3 — removed truncated entry creation.
-
-### Effect
-
-No video entry in the schedule will have a duration that differs from its collection-defined duration. Overlapped random fill entries are skipped entirely (not added to the schedule). The scheduler continues with the next full-length entry after the custom tag slot. Some time gaps may occur, which is acceptable for approximate mode. Random fill entries come from a shuffled collection that cycles through videos, so skipping an occasional overlapped entry does not lose content — the next entry in the cycle continues normally.
-
-### Additional fix: Debug dialog duplicate-aware lookup (`duration_debug_dialog.py`)
-
-The debug dialog's `_build_comparison` previously used a flat `name → dict` lookup. If the same video file appeared in **multiple collections** with different durations (e.g., the same MP4 file in two different `.json` files), the second one loaded would silently overwrite the first, causing false MISMATCHED status.
-
-**Fix**: The lookup now stores a **list** of all `(duration, had_duration)` tuples per video name. When comparing, it considers the entry OK if the scheduled duration matches **any** of the known durations for that video. A truly truncated entry (matching none) still correctly shows MISMATCH.
+| Value | Meaning | Color |
+|---|---|---|
+| OK | Starts exactly when previous ends | default |
+| GAP | Starts after previous ends — unfilled time | muted gray |
+| OVERLAP | Starts before previous ends | bold red |
 
 ### Test file
 
-Added `Test/test_no_truncated_entries.py` — creates a custom tag + 24h random fill tag scenario, runs approximate find-replace, and verifies every entry's scheduled duration matches its collection duration.
+`Test/test_no_truncated_entries.py` — creates a custom tag + 24h random fill tag scenario, runs approximate find-replace, and verifies:
+- Fragment entries (tag_type="fragment") are allowed to have shorter durations
+- Non-fragment entries must have scheduled == collection duration

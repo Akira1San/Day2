@@ -6,6 +6,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QFont
 
 from utils import get_video_display_name
+from data_models import FRAGMENT_TAG_TYPE
 
 
 class DurationDebugDialog(QDialog):
@@ -16,12 +17,18 @@ class DurationDebugDialog(QDialog):
         "mismatch": (QColor("#2a1515"), QColor("#ef4444")),
         "default": (QColor("#2a2a15"), QColor("#f59e0b")),
         "unknown": (QColor("#2a2a2e"), QColor("#6a6a7a")),
+        "gap":     (QColor("#1e1e2e"), QColor("#94a3b8")),
+        "overlap": (QColor("#2a1515"), QColor("#ef4444")),
+        "fragment": (QColor("#1a1a2e"), QColor("#818cf8")),
     }
     STATUS_LABELS = {
         "ok":       "OK",
         "mismatch": "MISMATCH",
         "default":  "DEFAULT",
         "unknown":  "UNKNOWN",
+        "gap":      "GAP",
+        "overlap":  "OVERLAP",
+        "fragment":  "FRAGMENT",
     }
     def __init__(self, parent, schedule_entries, collection_videos):
         super().__init__(parent)
@@ -40,33 +47,50 @@ class DurationDebugDialog(QDialog):
             had = 'duration' in v
             lookup.setdefault(name, []).append((dur, had))
 
+        sorted_entries = sorted(entries, key=lambda e: (e.day, e.start_seconds))
+        prev_end = None
         results = []
-        for entry in entries:
+        for entry in sorted_entries:
             scheduled = entry.end_seconds - entry.start_seconds
-            video_key = entry.video_name
-            if " - " in video_key:
-                video_key = video_key.split(" - ", 1)[1]
 
-            info_list = lookup.get(video_key)
-            if info_list is None:
-                filename = video_key.split("/")[-1]
-                info_list = lookup.get(filename)
-
-            if info_list is None:
-                status = "unknown"
+            if entry.tag_type == FRAGMENT_TAG_TYPE:
+                status = "fragment"
                 coll_dur = None
-            elif not any(had for _, had in info_list):
-                status = "default"
-                coll_dur = info_list[0][0]
-            elif any(scheduled == int(dur) for dur, had in info_list if had):
-                matched = next((dur for dur, had in info_list if had and scheduled == int(dur)), None)
-                status = "ok"
-                coll_dur = matched
             else:
-                status = "mismatch"
-                coll_dur = info_list[0][0]
+                video_key = entry.video_name
+                if " - " in video_key:
+                    video_key = video_key.split(" - ", 1)[1]
 
-            results.append((entry, scheduled, coll_dur, status))
+                info_list = lookup.get(video_key)
+                if info_list is None:
+                    filename = video_key.split("/")[-1]
+                    info_list = lookup.get(filename)
+
+                if info_list is None:
+                    status = "unknown"
+                    coll_dur = None
+                elif not any(had for _, had in info_list):
+                    status = "default"
+                    coll_dur = info_list[0][0]
+                elif any(scheduled == int(dur) for dur, had in info_list if had):
+                    matched = next((dur for dur, had in info_list if had and scheduled == int(dur)), None)
+                    status = "ok"
+                    coll_dur = matched
+                else:
+                    status = "mismatch"
+                    coll_dur = info_list[0][0]
+
+            if prev_end is None:
+                continuity = "ok"
+            elif entry.start_seconds == prev_end:
+                continuity = "ok"
+            elif entry.start_seconds > prev_end:
+                continuity = "gap"
+            else:
+                continuity = "overlap"
+            prev_end = entry.end_seconds
+
+            results.append((entry, scheduled, coll_dur, status, continuity))
 
         return results
 
@@ -75,10 +99,10 @@ class DurationDebugDialog(QDialog):
 
         summary = QLabel()
         total = len(self.comparison_data)
-        ok_count = sum(1 for _, _, _, s in self.comparison_data if s == "ok")
-        mismatch_count = sum(1 for _, _, _, s in self.comparison_data if s == "mismatch")
-        default_count = sum(1 for _, _, _, s in self.comparison_data if s == "default")
-        unknown_count = sum(1 for _, _, _, s in self.comparison_data if s == "unknown")
+        ok_count = sum(1 for _, _, _, s, _ in self.comparison_data if s == "ok")
+        mismatch_count = sum(1 for _, _, _, s, _ in self.comparison_data if s == "mismatch")
+        default_count = sum(1 for _, _, _, s, _ in self.comparison_data if s == "default")
+        unknown_count = sum(1 for _, _, _, s, _ in self.comparison_data if s == "unknown")
 
         parts = [f"{total} entries"]
         if ok_count:
@@ -94,8 +118,8 @@ class DurationDebugDialog(QDialog):
         layout.addWidget(summary)
 
         self.table = QTableWidget()
-        self.table.setColumnCount(7)
-        headers = ["#", "Day", "Time", "Video", "Scheduled", "Collection", "Status"]
+        self.table.setColumnCount(8)
+        headers = ["#", "Day", "Time", "Video", "Scheduled", "Collection", "Status", "Continuity"]
         self.table.setHorizontalHeaderLabels(headers)
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Fixed)
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
@@ -104,13 +128,14 @@ class DurationDebugDialog(QDialog):
         self.table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(6, QHeaderView.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeToContents)
         self.table.setColumnWidth(0, 40)
         self.table.setSelectionMode(QTableWidget.NoSelection)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.verticalHeader().setVisible(False)
 
         self.table.setRowCount(len(self.comparison_data))
-        for row, (entry, scheduled, coll_dur, status) in enumerate(self.comparison_data):
+        for row, (entry, scheduled, coll_dur, status, continuity) in enumerate(self.comparison_data):
             bg, fg = self.COLORS.get(status, (QColor("#1e1e2e"), QColor("#a0a0b0")))
 
             start_h = (entry.start_seconds // 3600) % 24
@@ -122,6 +147,7 @@ class DurationDebugDialog(QDialog):
             coll_str = f"{int(coll_dur)}s" if coll_dur is not None else "N/A"
             status_label = self.STATUS_LABELS.get(status, status)
 
+            continuity_label = self.STATUS_LABELS.get(continuity, continuity)
             items_data = [
                 str(row + 1),
                 str((entry.start_seconds // 86400) + 1),
@@ -130,13 +156,19 @@ class DurationDebugDialog(QDialog):
                 f"{scheduled}s",
                 coll_str,
                 status_label,
+                continuity_label,
             ]
 
             for col, text in enumerate(items_data):
                 item = QTableWidgetItem(text)
-                item.setBackground(bg)
-                item.setForeground(fg)
-                if status in ("mismatch",):
+                if col == 7:
+                    cell_bg, cell_fg = self.COLORS.get(continuity, (QColor("#1e1e2e"), QColor("#a0a0b0")))
+                    item.setBackground(cell_bg)
+                    item.setForeground(cell_fg)
+                else:
+                    item.setBackground(bg)
+                    item.setForeground(fg)
+                if status in ("mismatch",) or continuity in ("overlap",):
                     font = item.font()
                     font.setBold(True)
                     item.setFont(font)
@@ -157,8 +189,8 @@ class DurationDebugDialog(QDialog):
 
     def copy_to_clipboard(self):
         lines = []
-        lines.append("#\tDay\tTime\tVideo\tScheduled\tCollection\tStatus")
-        for row, (entry, scheduled, coll_dur, status) in enumerate(self.comparison_data):
+        lines.append("#\tDay\tTime\tVideo\tScheduled\tCollection\tStatus\tContinuity")
+        for row, (entry, scheduled, coll_dur, status, continuity) in enumerate(self.comparison_data):
             start_h = (entry.start_seconds // 3600) % 24
             start_m = (entry.start_seconds % 3600) // 60
             end_h = (entry.end_seconds // 3600) % 24
@@ -166,8 +198,9 @@ class DurationDebugDialog(QDialog):
             time_str = f"{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d}"
             coll_str = f"{int(coll_dur)}s" if coll_dur is not None else "N/A"
             status_label = self.STATUS_LABELS.get(status, status)
+            continuity_label = self.STATUS_LABELS.get(continuity, continuity)
             lines.append(
-                f"{row + 1}\t{(entry.start_seconds // 86400) + 1}\t{time_str}\t{entry.video_name}\t{scheduled}s\t{coll_str}\t{status_label}"
+                f"{row + 1}\t{(entry.start_seconds // 86400) + 1}\t{time_str}\t{entry.video_name}\t{scheduled}s\t{coll_str}\t{status_label}\t{continuity_label}"
             )
         QApplication.clipboard().setText("\n".join(lines))
 

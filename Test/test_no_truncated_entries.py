@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Verify that approximate find-replace mode does NOT create truncated entries — 
-every video's scheduled duration must match its collection duration.
+Verify that approximate find-replace mode handles entries correctly:
+- Non-fragment entries must have scheduled == collection duration
+- Fragment entries (tag_type="fragment") are allowed to have shorter durations
 """
 import sys, os, random
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -9,6 +10,7 @@ random.seed(42)
 
 from PySide6.QtCore import QTime
 from models import ScheduleGenerator, TagManager, Tag
+from data_models import FRAGMENT_TAG_TYPE
 
 def make_video(name, dur_min):
     return {"path": f"/p/{name}.mp4", "duration": dur_min * 60}
@@ -58,8 +60,15 @@ def test_no_truncated_entries():
     print(f"{'='*60}")
 
     mismatches = []
+    fragments = 0
     for i, e in enumerate(entries):
         scheduled = e.end_seconds - e.start_seconds
+
+        if e.tag_type == FRAGMENT_TAG_TYPE:
+            fragments += 1
+            print(f"  #{i+1}: {e.video_name} — FRAGMENT ({scheduled}s)")
+            continue
+
         # Extract video name from entry (strip tag prefix)
         video_key = e.video_name
         if " - " in video_key:
@@ -88,7 +97,7 @@ def test_no_truncated_entries():
             print(f"  {start_h:02d}:{start_m:02d}-{end_h:02d}:{end_m:02d} {e.video_name}: {sched}s vs {exp}s")
         return False
     else:
-        print(f"\n*** PASSED: All {len(entries)} entries have correct durations ***")
+        print(f"\n*** PASSED: All {len(entries)} entries have correct durations ({fragments} fragments) ***")
         return True
 
 
