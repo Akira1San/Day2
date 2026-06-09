@@ -57,6 +57,12 @@ def serialize_tag_to_string(tag) -> str:
         lines.append(f"fill_24h = {'true' if getattr(tag, 'fill_24h', False) else 'false'}")
         lines.append(f"collection_profile = {getattr(tag, 'collection_profile', '')}")
         lines.append(f"blacklist_profile = {getattr(tag, 'blacklist_profile', '')}")
+        marathon_mode = getattr(tag, 'marathon_mode', False)
+        if marathon_mode:
+            lines.append(f"marathon_mode = true")
+            marathon_tag_name = getattr(tag, 'marathon_tag_name', '')
+            if marathon_tag_name:
+                lines.append(f"marathon_tag_name = {marathon_tag_name}")
     
     else:
         lines.append(f"type = custom")
@@ -184,6 +190,8 @@ def deserialize_tag_from_string(data: str, tag_class, qtime_from_string):
         fill_24h = tag_section.get('fill_24h', 'false') == 'true'
         collection_profile = tag_section.get('collection_profile', '')
         blacklist_profile = tag_section.get('blacklist_profile', '')
+        marathon_mode = tag_section.get('marathon_mode', 'false') == 'true'
+        marathon_tag_name = tag_section.get('marathon_tag_name', '')
         
         blacklist = []
         if blacklist_path:
@@ -192,7 +200,8 @@ def deserialize_tag_from_string(data: str, tag_class, qtime_from_string):
         return tag_class('random', name, qtime_from_string(start, 'HH:mm'), qtime_from_string(end, 'HH:mm'),
                         collection_videos, collection_path, is_random_fill=True,
                         blacklist=blacklist, blacklist_path=blacklist_path, fill_24h=fill_24h,
-                        collection_profile=collection_profile, blacklist_profile=blacklist_profile)
+                        collection_profile=collection_profile, blacklist_profile=blacklist_profile,
+                        marathon_mode=marathon_mode, marathon_tag_name=marathon_tag_name)
     
     else:
         is_random_videos = tag_section.get('randomize_videos', 'false') == 'true'

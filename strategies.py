@@ -84,12 +84,16 @@ class CustomTagMergeStrategy:
                         merged = [(e.start_seconds, e.end_seconds) for e in custom_entries + series_entries + multi_series_entries]
                         self.sg._process_random_fill_tag(rf, fill_entries, merged, 0, day_offset_seconds)
         elif rf_sorted:
-            rf_start = qtime_to_seconds(rf_sorted[0].start_time)
-            rf_videos = rf_sorted[0].collection_videos.copy() if rf_sorted[0].collection_videos else []
+            rf_first = rf_sorted[0]
+            if getattr(rf_first, 'marathon_mode', False):
+                rf_videos = self.sg._get_marathon_videos(rf_first, 0)
+            else:
+                rf_videos = rf_first.collection_videos.copy() if rf_first.collection_videos else []
+            rf_start = qtime_to_seconds(rf_first.start_time)
             if rf_videos:
                 random.shuffle(rf_videos)
             total_seconds = num_days * 24 * 3600
-            fill_entries.extend(self.sg._build_random_entries(rf_videos, rf_start, total_seconds, rf_sorted[0].name))
+            fill_entries.extend(self.sg._build_random_entries(rf_videos, rf_start, total_seconds, rf_first.name))
 
         rf_24h_tags = [rf for rf in rf_sorted if getattr(rf, 'fill_24h', False)]
         if fill_entries and rf_24h_tags:
@@ -250,7 +254,10 @@ class EarlyFillApproximateStrategy:
             return LinearApproximateStrategy(self.sg).generate(num_days)
 
         rf = rf_sorted[0]
-        rf_videos = rf.collection_videos.copy() if rf.collection_videos else []
+        if getattr(rf, 'marathon_mode', False):
+            rf_videos = self.sg._get_marathon_videos(rf, 0)
+        else:
+            rf_videos = rf.collection_videos.copy() if rf.collection_videos else []
         if rf_videos:
             random.shuffle(rf_videos)
         total_seconds = num_days * 24 * 3600
@@ -334,7 +341,10 @@ class LateFillApproximateStrategy:
             return LinearApproximateStrategy(self.sg).generate(num_days)
 
         rf = rf_sorted[0]
-        rf_videos = rf.collection_videos.copy() if rf.collection_videos else []
+        if getattr(rf, 'marathon_mode', False):
+            rf_videos = self.sg._get_marathon_videos(rf, 0)
+        else:
+            rf_videos = rf.collection_videos.copy() if rf.collection_videos else []
         if rf_videos:
             random.shuffle(rf_videos)
         total_seconds = num_days * 24 * 3600
@@ -428,7 +438,10 @@ class PriorityApproximateStrategy:
             return LinearApproximateStrategy(self.sg).generate(num_days)
 
         rf = rf_sorted[0]
-        rf_videos = rf.collection_videos.copy() if rf.collection_videos else []
+        if getattr(rf, 'marathon_mode', False):
+            rf_videos = self.sg._get_marathon_videos(rf, 0)
+        else:
+            rf_videos = rf.collection_videos.copy() if rf.collection_videos else []
         if rf_videos:
             random.shuffle(rf_videos)
         total_seconds = num_days * 24 * 3600
@@ -586,7 +599,10 @@ class LinearSpanningApproximateStrategy:
             return LinearApproximateStrategy(self.sg).generate(num_days)
 
         rf = rf_sorted[0]
-        rf_videos = rf.collection_videos.copy() if rf.collection_videos else []
+        if getattr(rf, 'marathon_mode', False):
+            rf_videos = self.sg._get_marathon_videos(rf, 0)
+        else:
+            rf_videos = rf.collection_videos.copy() if rf.collection_videos else []
         if rf_videos:
             random.shuffle(rf_videos)
         total_seconds = num_days * 24 * 3600
@@ -720,7 +736,10 @@ class ExhaustiveApproximateStrategy:
         if not rf_sorted:
             return LinearApproximateStrategy(self.sg).generate(num_days)
         rf = rf_sorted[0]
-        rf_videos = rf.collection_videos.copy() if rf.collection_videos else []
+        if getattr(rf, 'marathon_mode', False):
+            rf_videos = self.sg._get_marathon_videos(rf, 0)
+        else:
+            rf_videos = rf.collection_videos.copy() if rf.collection_videos else []
         if rf_videos:
             random.shuffle(rf_videos)
         total_seconds = num_days * 24 * 3600

@@ -42,12 +42,16 @@ class Tag:
                    series_end_behavior: str = "stop",
                    series_repeat_season: int = 0,
                    series_random_season: int = 0,
-                   active_days: Optional[List[int]] = None):
+                   active_days: Optional[List[int]] = None,
+                   marathon_mode: bool = False,
+                   marathon_tag_name: str = ""):
         self.tag_type = tag_type
         self.name = name
         self.start_time = start_time or QTime(0, 0)
         self.end_time = end_time or QTime(0, 0)
         self.is_random_fill = is_random_fill
+        self.marathon_mode = marathon_mode
+        self.marathon_tag_name = marathon_tag_name
         self.collection_videos = collection_videos or []
         self.collection_path = collection_path
         self.randomize_videos = randomize_videos
@@ -450,7 +454,9 @@ class TagManager:
                     series_end_behavior: str = "stop",
                     series_repeat_season: int = 0,
                     series_random_season: int = 0,
-                    active_days: Optional[List[int]] = None) -> bool:
+                    active_days: Optional[List[int]] = None,
+                    marathon_mode: bool = False,
+                    marathon_tag_name: str = "") -> bool:
         if 0 <= index < len(self.tags):
             t = self.tags[index]
             t.name = name
@@ -473,6 +479,8 @@ class TagManager:
             t.series_repeat_season = series_repeat_season
             t.series_random_season = series_random_season
             t.active_days = active_days
+            t.marathon_mode = marathon_mode
+            t.marathon_tag_name = marathon_tag_name
             # Apply blacklist filtering to collection_videos
             t.collection_videos = collection_videos or []
             if t.collection_videos and t.blacklist:

@@ -686,7 +686,9 @@ class MainWindow(QMainWindow):
                    new_tag.series_end_behavior if hasattr(new_tag, 'series_end_behavior') else 'stop',
                    new_tag.series_repeat_season if hasattr(new_tag, 'series_repeat_season') else 0,
                    new_tag.series_random_season if hasattr(new_tag, 'series_random_season') else 0,
-                   active_days=new_tag.active_days if hasattr(new_tag, 'active_days') else None
+                   active_days=new_tag.active_days if hasattr(new_tag, 'active_days') else None,
+                   marathon_mode=new_tag.marathon_mode if hasattr(new_tag, 'marathon_mode') else False,
+                   marathon_tag_name=new_tag.marathon_tag_name if hasattr(new_tag, 'marathon_tag_name') else ''
                )
              self.refresh_tags_list()
              self.refresh_preview()

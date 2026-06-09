@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Optional
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QSpinBox,
-    QMessageBox, QListWidgetItem
+    QMessageBox, QListWidgetItem, QComboBox
 )
 from PySide6.QtCore import Qt, QTime
 
@@ -339,6 +339,41 @@ class RandomFillDialog(CollectionDialogBase):
         self.fill_24h_check.setChecked(True)
         right_layout.addWidget(self.fill_24h_check)
 
+        # Marathon Mode
+        self.marathon_cb = QCheckBox("Marathon Mode (play all day on selected days)")
+        self.marathon_cb.setChecked(False)
+        right_layout.addWidget(self.marathon_cb)
+
+        # Active Days (for marathon mode)
+        active_days_layout = QHBoxLayout()
+        active_days_layout.addWidget(QLabel("Active Days:"))
+        day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        self.marathon_day_checkboxes = []
+        for day_name in day_names:
+            cb = QCheckBox(day_name)
+            cb.setChecked(True)
+            cb.stateChanged.connect(self._update_marathon_all_days_checkbox)
+            active_days_layout.addWidget(cb)
+            self.marathon_day_checkboxes.append(cb)
+        self.marathon_all_days_cb = QCheckBox("All")
+        self.marathon_all_days_cb.setChecked(True)
+        self.marathon_all_days_cb.stateChanged.connect(self._on_marathon_all_days_toggled)
+        active_days_layout.addWidget(self.marathon_all_days_cb)
+        active_days_layout.addStretch()
+        right_layout.addLayout(active_days_layout)
+
+        # Collection Tag combo
+        tag_combo_layout = QHBoxLayout()
+        tag_combo_layout.addWidget(QLabel("Collection Tag:"))
+        self.marathon_tag_combo = QComboBox()
+        self.marathon_tag_combo.addItem("None", "")
+        tag_combo_layout.addWidget(self.marathon_tag_combo)
+        tag_combo_layout.addStretch()
+        right_layout.addLayout(tag_combo_layout)
+
+        # Connect marathon signals
+        self.marathon_cb.toggled.connect(self._on_marathon_toggled)
+
         # Save/Cancel buttons
         btn_layout = QHBoxLayout()
         btn_layout.addWidget(self.save_btn)
@@ -378,6 +413,36 @@ class RandomFillDialog(CollectionDialogBase):
             if idx >= 0:
                 self.blacklist_profile_combo.setCurrentIndex(idx)
 
+        # Marathon mode fields
+        marathon_mode = getattr(tag, 'marathon_mode', False)
+        self.marathon_cb.setChecked(marathon_mode)
+        if marathon_mode:
+            self.fill_24h_check.setChecked(True)
+            self.fill_24h_check.setEnabled(False)
+            self.start_time_edit.setEnabled(False)
+            self.end_time_edit.setEnabled(False)
+
+        marathon_tag_name = getattr(tag, 'marathon_tag_name', '')
+        if marathon_tag_name:
+            idx = self.marathon_tag_combo.findData(marathon_tag_name)
+            if idx >= 0:
+                self.marathon_tag_combo.setCurrentIndex(idx)
+
+        active_days = getattr(tag, 'active_days', None)
+        if active_days is not None:
+            self.marathon_all_days_cb.setChecked(False)
+            for cb in self.marathon_day_checkboxes:
+                cb.setEnabled(True)
+                cb.setChecked(False)
+            for d in active_days:
+                if 1 <= d <= 7:
+                    self.marathon_day_checkboxes[d - 1].setChecked(True)
+        else:
+            self.marathon_all_days_cb.setChecked(True)
+            for cb in self.marathon_day_checkboxes:
+                cb.setChecked(True)
+                cb.setEnabled(False)
+
         # Ensure added videos are filtered by current blacklist
         self.added_videos = filter_videos_by_blacklist(self.added_videos, self.blacklist)
         self.refresh_added_list()
@@ -392,6 +457,49 @@ class RandomFillDialog(CollectionDialogBase):
         default_info = next(iter(self.collection_info_dict.values())) if self.collection_info_dict else {}
         self.info_panel.set_collection_info(default_info)
         self.info_panel.set_cover_image(default_info.get('cover'))
+        self._populate_marathon_tag_combo()
+
+    def _populate_marathon_tag_combo(self):
+        """Populate marathon tag combo from raw tags in collection metadata."""
+        current = self.marathon_tag_combo.currentData()
+        self.marathon_tag_combo.blockSignals(True)
+        self.marathon_tag_combo.clear()
+        self.marathon_tag_combo.addItem("None", "")
+        all_tags = set()
+        for coll_info in self.collection_info_dict.values():
+            for t in coll_info.get('tags', []):
+                all_tags.add(t)
+        for t in sorted(all_tags):
+            self.marathon_tag_combo.addItem(t, t)
+        idx = self.marathon_tag_combo.findData(current)
+        if idx >= 0:
+            self.marathon_tag_combo.setCurrentIndex(idx)
+        self.marathon_tag_combo.blockSignals(False)
+
+    def _on_marathon_toggled(self, checked: bool):
+        """Auto-check fill_24h when marathon mode is enabled."""
+        if checked:
+            self.fill_24h_check.setChecked(True)
+            self.fill_24h_check.setEnabled(False)
+            self.start_time_edit.setEnabled(False)
+            self.end_time_edit.setEnabled(False)
+        else:
+            self.fill_24h_check.setEnabled(True)
+            self.start_time_edit.setEnabled(True)
+            self.end_time_edit.setEnabled(True)
+
+    def _on_marathon_all_days_toggled(self, checked: bool):
+        enabled = not checked
+        for cb in self.marathon_day_checkboxes:
+            cb.setChecked(checked)
+            cb.setEnabled(enabled)
+
+    def _update_marathon_all_days_checkbox(self):
+        all_checked = all(cb.isChecked() for cb in self.marathon_day_checkboxes)
+        if all_checked:
+            self.marathon_all_days_cb.setChecked(True)
+            for cb in self.marathon_day_checkboxes:
+                cb.setEnabled(False)
 
     def _on_video_selected(self, video: dict):
         """Handle selection in collection list: update video info and cover."""
@@ -463,6 +571,14 @@ class RandomFillDialog(CollectionDialogBase):
         if blacklist_profile == "-- None --":
             blacklist_profile = ""
 
+        marathon_mode = self.marathon_cb.isChecked()
+        marathon_tag_name = self.marathon_tag_combo.currentData() or ""
+
+        if self.marathon_all_days_cb.isChecked():
+            active_days = None
+        else:
+            active_days = [i + 1 for i, cb in enumerate(self.marathon_day_checkboxes) if cb.isChecked()]
+
         return Tag(
             tag_type="random",
             name=self.name_input.text() or "Random Fill",
@@ -475,5 +591,8 @@ class RandomFillDialog(CollectionDialogBase):
             is_random_fill=True,
             fill_24h=fill_24h,
             collection_profile=collection_profile,
-            blacklist_profile=blacklist_profile
+            blacklist_profile=blacklist_profile,
+            marathon_mode=marathon_mode,
+            marathon_tag_name=marathon_tag_name,
+            active_days=active_days
         )

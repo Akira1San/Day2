@@ -28,7 +28,8 @@ def load_collection_json(file_path: str) -> Tuple[List[Dict[str, Any]], Dict[str
                     'cover': coll.get('cover', ''),
                     'description': coll.get('description', ''),
                     'genre': coll.get('genre', []),
-                    'year': coll.get('year', '')
+                    'year': coll.get('year', ''),
+                    'tags': coll.get('tags', [])
                 }
 
         for coll in collections:
@@ -47,6 +48,7 @@ def load_collection_json(file_path: str) -> Tuple[List[Dict[str, Any]], Dict[str
                 video_copy['_meta_season'] = season
                 video_copy['_meta_movie'] = movie_num
                 video_copy['_meta_part'] = part_num
+                video_copy['_meta_tags'] = coll_tags
                 collection_videos.append(video_copy)
     except Exception:
         pass
