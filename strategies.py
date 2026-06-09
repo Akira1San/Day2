@@ -48,7 +48,8 @@ class CustomTagMergeStrategy:
         # the per-day branch below, which would otherwise reset each day to
         # 00:00 and leave gaps at the end of every day.
         rf_24h_tags = [rf for rf in random_fill_tags if getattr(rf, 'fill_24h', False)]
-        if rf_24h_tags and not custom_tags and not series_tags and not multi_series_tags:
+        has_marathon = any(getattr(rf, 'marathon_mode', False) for rf in rf_24h_tags)
+        if rf_24h_tags and not custom_tags and not series_tags and not multi_series_tags and not has_marathon:
             return self.sg.generate_random_fill(24 * 3600 * num_days)
 
         occupied = set()
@@ -187,7 +188,8 @@ class FindReplaceApproximateStrategy:
         rf_24h_tags = [t for t in random_fill_tags if getattr(t, 'fill_24h', False)]
 
         if rf_24h_tags and not custom_tags and not series_tags and not multi_series_tags:
-            return self.sg.generate_random_fill(24 * 3600 * num_days)
+            if not any(getattr(rf, 'marathon_mode', False) for rf in rf_24h_tags):
+                return self.sg.generate_random_fill(24 * 3600 * num_days)
 
         has_24h_fill = bool(rf_24h_tags)
 
@@ -214,7 +216,8 @@ class LinearApproximateStrategy:
         rf_24h_tags = [t for t in random_fill_tags if getattr(t, 'fill_24h', False)]
 
         if rf_24h_tags and not custom_tags and not series_tags and not multi_series_tags:
-            return self.sg.generate_random_fill(24 * 3600 * num_days)
+            if not any(getattr(rf, 'marathon_mode', False) for rf in rf_24h_tags):
+                return self.sg.generate_random_fill(24 * 3600 * num_days)
 
         has_24h_fill = bool(rf_24h_tags)
 
@@ -244,7 +247,8 @@ class EarlyFillApproximateStrategy:
 
         rf_24h_tags = [t for t in random_fill_tags if getattr(t, 'fill_24h', False)]
         if rf_24h_tags and not custom_tags and not series_tags and not multi_series_tags:
-            return self.sg.generate_random_fill(24 * 3600 * num_days)
+            if not any(getattr(rf, 'marathon_mode', False) for rf in rf_24h_tags):
+                return self.sg.generate_random_fill(24 * 3600 * num_days)
 
         if not custom_tags and not series_tags and not multi_series_tags and not random_fill_tags:
             return []
@@ -331,7 +335,8 @@ class LateFillApproximateStrategy:
 
         rf_24h_tags = [t for t in random_fill_tags if getattr(t, 'fill_24h', False)]
         if rf_24h_tags and not custom_tags and not series_tags and not multi_series_tags:
-            return self.sg.generate_random_fill(24 * 3600 * num_days)
+            if not any(getattr(rf, 'marathon_mode', False) for rf in rf_24h_tags):
+                return self.sg.generate_random_fill(24 * 3600 * num_days)
 
         if not custom_tags and not series_tags and not multi_series_tags and not random_fill_tags:
             return []
@@ -428,7 +433,8 @@ class PriorityApproximateStrategy:
 
         rf_24h_tags = [t for t in random_fill_tags if getattr(t, 'fill_24h', False)]
         if rf_24h_tags and not custom_tags and not series_tags and not multi_series_tags:
-            return self.sg.generate_random_fill(24 * 3600 * num_days)
+            if not any(getattr(rf, 'marathon_mode', False) for rf in rf_24h_tags):
+                return self.sg.generate_random_fill(24 * 3600 * num_days)
 
         if not custom_tags and not series_tags and not multi_series_tags and not random_fill_tags:
             return []
@@ -589,7 +595,8 @@ class LinearSpanningApproximateStrategy:
 
         rf_24h_tags = [t for t in random_fill_tags if getattr(t, 'fill_24h', False)]
         if rf_24h_tags and not custom_tags and not series_tags and not multi_series_tags:
-            return self.sg.generate_random_fill(24 * 3600 * num_days)
+            if not any(getattr(rf, 'marathon_mode', False) for rf in rf_24h_tags):
+                return self.sg.generate_random_fill(24 * 3600 * num_days)
 
         if not custom_tags and not series_tags and not multi_series_tags and not random_fill_tags:
             return []

@@ -411,16 +411,7 @@ class ScheduleGenerator:
 
     def generate_random_fill(self, remaining_seconds: int = 24 * 3600) -> List[ScheduleEntry]:
         all_tags = self.tag_manager.get_all_tags()
-        # Check for marathon mode tags and filter videos accordingly
-        marathon_tags = [t for t in all_tags if getattr(t, 'is_random_fill', False) and getattr(t, 'marathon_mode', False)]
-        if marathon_tags:
-            collection_videos = []
-            for t in marathon_tags:
-                collection_videos.extend(self._get_marathon_videos(t, 0))
-            if not collection_videos:
-                collection_videos = self._get_all_videos(all_tags)
-        else:
-            collection_videos = self._get_all_videos(all_tags)
+        collection_videos = self._get_all_videos(all_tags)
 
         if not collection_videos:
             return []
@@ -628,9 +619,10 @@ class ScheduleGenerator:
             marathon_mode = getattr(rf, 'marathon_mode', False)
             if marathon_mode:
                 day_offset = start_offset // 86400
-                if not self._is_tag_active_on_day(rf, day_offset):
-                    return
-                rf_videos_base = self._get_marathon_videos(rf, day_offset)
+                if self._is_tag_active_on_day(rf, day_offset):
+                    rf_videos_base = self._get_marathon_videos(rf, day_offset)
+                else:
+                    rf_videos_base = rf.collection_videos.copy() if rf.collection_videos else []
             else:
                 rf_videos_base = rf.collection_videos.copy() if rf.collection_videos else []
             if not rf_videos_base:
@@ -872,12 +864,8 @@ class ScheduleGenerator:
         if not rf_sorted:
             return LinearApproximateStrategy(self).generate(num_days)
 
-        rf_first = rf_sorted[0]
-        rf_name = rf_first.name
-        if getattr(rf_first, 'marathon_mode', False):
-            rf_videos = self._get_marathon_videos(rf_first, 0)
-        else:
-            rf_videos = rf_first.collection_videos.copy() if rf_first.collection_videos else []
+        rf_name = rf_sorted[0].name
+        rf_videos = rf_sorted[0].collection_videos.copy() if rf_sorted and rf_sorted[0].collection_videos else []
         if rf_videos:
             random.shuffle(rf_videos)
 
@@ -1298,23 +1286,15 @@ class ScheduleGenerator:
         rf_sorted = sorted(random_fill_tags, key=lambda t: qtime_to_seconds(t.start_time))
 
         if not has_24h_fill:
-            rf_first = rf_sorted[0] if rf_sorted else None
-            if rf_first:
-                rf_start = qtime_to_seconds(rf_first.start_time)
-                rf_end = qtime_to_seconds(rf_first.end_time)
-                if getattr(rf_first, 'marathon_mode', False):
-                    rf_videos = self._get_marathon_videos(rf_first, 0)
-                else:
-                    rf_videos = rf_first.collection_videos.copy() if rf_first.collection_videos else []
-            else:
-                rf_start = 0
-                rf_end = 24 * 3600
-                rf_videos = []
+            rf_start = qtime_to_seconds(rf_sorted[0].start_time) if rf_sorted else 0
+            rf_end = qtime_to_seconds(rf_sorted[0].end_time) if rf_sorted else 24 * 3600
+
+            rf_videos = rf_sorted[0].collection_videos.copy() if rf_sorted and rf_sorted[0].collection_videos else []
             if rf_videos:
                 random.shuffle(rf_videos)
 
             total_seconds = num_days * 24 * 3600
-            final.extend(self._build_random_entries(rf_videos, rf_start, total_seconds, rf_first.name if rf_first else ""))
+            final.extend(self._build_random_entries(rf_videos, rf_start, total_seconds, rf_sorted[0].name if rf_sorted else ""))
         else:
             for day_offset in range(num_days):
                 day_offset_seconds = day_offset * 24 * 3600
