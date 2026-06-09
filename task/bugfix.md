@@ -108,7 +108,31 @@ Before placing the tag, find a gap between two random entries that is at least a
 
 ### Solution E: Try different approximate modes
 
-The scheduler already supports multiple approximate modes (`linear`, `early_fill`, `late_fill`, `priority`, `best_fit`, `round_robin`, `linear_spanning`, `exhaustive`). Some may handle the overlap better than find-replace for specific scenarios.
+The scheduler already supports multiple approximate modes. Test results with the bug reproduction scenario (2 days, custom tag + random fill):
+
+| Mode | Entries | Errors | Fragments | Verdict |
+|---|---|---|---|---|
+| linear | 32 | 0 | 0 | OK |
+| find_replace | 34 | 0 | 4 | OK (fragments) |
+| early_fill | 34 | 0 | 4 | OK (fragments) |
+| late_fill | 34 | 0 | 4 | OK (fragments) |
+| priority | 36 | 0 | 8 | OK (fragments) |
+| best_fit | 34 | 0 | 4 | OK (fragments) |
+| **round_robin** | **44** | **5** | **0** | **BROKEN** |
+| linear_spanning | 34 | 0 | 4 | OK (fragments) |
+| exhaustive | 34 | 0 | 4 | OK (fragments) |
+
+### BUG: Round Robin mode creates overlapping entries from day 2 onwards
+
+Round Robin is the only mode that produces 0 fragments yet has errors. The problem:
+
+1. Videos are allowed to **cross midnight** (e.g., `23:20-00:50`)
+2. The algorithm also **fills Day 2 from 00:00** with fresh entries
+3. The midnight-crossing entries from Day 1 **overlap** with Day 2's 00:00 entries
+
+This means **every day from Day 2 onwards** has overlapping entries. In the 2-day test, entries #40-44 spill into Day 3 territory.
+
+**Root cause**: `RoundRobinApproximateStrategy` in `strategies.py:573` places entries without constraining them to day boundaries, and the next day's generation doesn't account for midnight-crossing entries from the previous day.
 
 ---
 
