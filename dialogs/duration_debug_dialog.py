@@ -103,6 +103,8 @@ class DurationDebugDialog(QDialog):
         mismatch_count = sum(1 for _, _, _, s, _ in self.comparison_data if s == "mismatch")
         default_count = sum(1 for _, _, _, s, _ in self.comparison_data if s == "default")
         unknown_count = sum(1 for _, _, _, s, _ in self.comparison_data if s == "unknown")
+        gap_count = sum(1 for _, _, _, _, c in self.comparison_data if c == "gap")
+        overlap_count = sum(1 for _, _, _, _, c in self.comparison_data if c == "overlap")
 
         parts = [f"{total} entries"]
         if ok_count:
@@ -113,6 +115,10 @@ class DurationDebugDialog(QDialog):
             parts.append(f"{default_count} DEFAULT (90s)")
         if unknown_count:
             parts.append(f"{unknown_count} UNKNOWN")
+        if gap_count:
+            parts.append(f"{gap_count} GAP")
+        if overlap_count:
+            parts.append(f"{overlap_count} OVERLAP")
         summary.setText(" | ".join(parts))
         summary.setFont(QFont("", 12, QFont.Bold))
         layout.addWidget(summary)

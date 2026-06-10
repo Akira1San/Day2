@@ -10,6 +10,7 @@ from data_models import (
     MultiSeriesTag,
     ScheduleEntry,
     TagManager,
+    compute_schedule_issues,
 )
 from scheduler import ScheduleGenerator
 from strategies import (
@@ -30,6 +31,7 @@ __all__ = [
     "MultiSeriesTag",
     "ScheduleEntry",
     "TagManager",
+    "compute_schedule_issues",
     "ScheduleGenerator",
     "CustomTagMergeStrategy",
     "FindReplaceApproximateStrategy",

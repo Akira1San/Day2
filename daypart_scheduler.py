@@ -100,7 +100,7 @@ from utils import (
     get_video_display_name, format_duration, get_config_paths, filter_videos_by_blacklist,
     get_schedule_profiles
 )
-from models import Tag, ScheduleEntry, TagManager, ScheduleGenerator
+from models import Tag, ScheduleEntry, TagManager, ScheduleGenerator, compute_schedule_issues
 from dialogs import TagDialog, RandomFillDialog, SeriesDialog, ConfigDialog, SchedulePreviewDialog, DurationDebugDialog
 
 
@@ -385,6 +385,7 @@ class MainWindow(QMainWindow):
             'mode': mode,
             'overlap_strategy': self._get_overlap_strategy() if self.approximate_enabled else None,
         }
+        self._show_issues_in_statusbar(entries)
 
     def generate_new_preview(self):
         self.tag_manager.clear_cache()
@@ -422,6 +423,7 @@ class MainWindow(QMainWindow):
             'mode': mode,
             'overlap_strategy': self._get_overlap_strategy() if self.approximate_enabled else None,
         }
+        self._show_issues_in_statusbar(entries)
 
         added = 0
         for day_offset in range(7):
@@ -479,6 +481,7 @@ class MainWindow(QMainWindow):
             'mode': mode,
             'overlap_strategy': self._get_overlap_strategy() if self.approximate_enabled else None,
         }
+        self._show_issues_in_statusbar(entries)
 
         for day_offset in range(30):
             current_date = start_date + __import__('datetime').timedelta(days=day_offset)
@@ -508,6 +511,25 @@ class MainWindow(QMainWindow):
                     item = QListWidgetItem(text)
                     item.setData(Qt.UserRole, entry)
                     self.preview_list.addItem(item)
+
+    def _show_issues_in_statusbar(self, entries=None):
+        if entries is None:
+            entries = self.schedule_entries
+        if not entries:
+            self.statusBar().showMessage("No entries to check")
+            return
+        issues = compute_schedule_issues(entries)
+        msg = f"{issues['total']} entries"
+        if issues['gaps']:
+            msg += f", {issues['gaps']} gap(s)"
+        if issues['overlaps']:
+            msg += f", {issues['overlaps']} overlap(s)"
+        if issues['mismatches']:
+            msg += f", {issues['mismatches']} mismatch(es)"
+        if issues['gaps'] or issues['overlaps'] or issues['mismatches']:
+            msg += " — check Debug for details"
+        preview_log.info(f"Schedule issues: {msg}")
+        self.statusBar().showMessage(msg)
 
     def debug_durations(self):
         entries = self.schedule_entries
@@ -936,7 +958,8 @@ class MainWindow(QMainWindow):
             self.preview_title.setText("24-Hour Schedule Preview [Approximate OFF]")
             self.approx_btn.setText("Approximate OFF")
             self.approx_btn.setStyleSheet("background-color: #4a4a5e; color: #a0a0b0; font-weight: bold; padding: 10px 20px; border-radius: 6px;")
-            self.statusBar().showMessage("Approximate: OFF")
+        self.statusBar().showMessage("Approximate: OFF")
+        self._show_issues_in_statusbar(self.schedule_entries)
         self.preview_list.clear()
         for entry in self.schedule_entries:
             self.preview_list.addItem(entry.to_display_string())

@@ -1183,7 +1183,9 @@ class ScheduleGenerator:
                             self._gap_video_idx += 1
                             video_name = get_video_display_name(video)
                             name = f"{rf_name} - {video_name}" if rf_name else video_name
-                            final.append(ScheduleEntry(1, gap_pos, gap_pos + dur, name))
+                            e = ScheduleEntry(1, gap_pos, gap_pos + dur, name)
+                            e.problem = "gap"
+                            final.append(e)
                             gap_pos += dur
                             placed = True
                             break

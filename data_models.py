@@ -340,6 +340,7 @@ class ScheduleEntry:
         self.end_seconds = end_seconds
         self.video_name = video_name
         self.tag_type = tag_type
+        self.problem: str = ""
 
     @property
     def start_minutes(self) -> int:
@@ -386,6 +387,8 @@ class ScheduleEntry:
             return QColor("#7c3aed")
         if tag_prefix == "[C]":
             return QColor("#059669")
+        if self.problem:
+            return QColor("#ef4444")
         return None
 
     def to_copy_string(self) -> str:
@@ -411,6 +414,23 @@ class ScheduleEntry:
         else:
             colored_video = f'<span style="color:{color.name()}">{video_name}</span>'
         return text.replace(video_name, colored_video, 1)
+
+
+def compute_schedule_issues(entries: list) -> dict:
+    sorted_entries = sorted(entries, key=lambda e: (e.day, e.start_seconds))
+    gaps = 0
+    overlaps = 0
+    mismatches = 0
+    prev_end = None
+    for entry in sorted_entries:
+        if prev_end is not None:
+            if entry.start_seconds > prev_end:
+                gaps += 1
+            elif entry.start_seconds < prev_end:
+                overlaps += 1
+        prev_end = entry.end_seconds
+    total = len(sorted_entries)
+    return {"gaps": gaps, "overlaps": overlaps, "mismatches": mismatches, "total": total}
 
 
 class TagManager:
