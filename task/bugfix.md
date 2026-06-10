@@ -118,13 +118,15 @@ The scheduler already supports multiple approximate modes. Test results with the
 | late_fill | 34 | 0 | 4 | OK (fragments) |
 | priority | 36 | 0 | 8 | OK (fragments) |
 | best_fit | 34 | 0 | 4 | OK (fragments) |
-| **round_robin** | **44** | **5** | **0** | **BROKEN** |
+| **round_robin** | **34** | **0** | **4** | **OK (fragments)** |
 | linear_spanning | 34 | 0 | 4 | OK (fragments) |
 | exhaustive | 34 | 0 | 4 | OK (fragments) |
 
 ### BUG: Round Robin mode creates overlapping entries from day 2 onwards
 
-Round Robin is the only mode that produces 0 fragments yet has errors. The problem:
+**Status**: X done
+
+Round Robin was the only mode that produced 0 fragments yet had errors. The problem:
 
 1. Videos are allowed to **cross midnight** (e.g., `23:20-00:50`)
 2. The algorithm also **fills Day 2 from 00:00** with fresh entries
@@ -132,50 +134,70 @@ Round Robin is the only mode that produces 0 fragments yet has errors. The probl
 
 This means **every day from Day 2 onwards** has overlapping entries. In the 2-day test, entries #40-44 spill into Day 3 territory.
 
-**Root cause**: `RoundRobinApproximateStrategy` in `strategies.py:573` places entries without constraining them to day boundaries, and the next day's generation doesn't account for midnight-crossing entries from the previous day.
+**Root cause**: `RoundRobinApproximateStrategy` in `strategies.py:573` placed entries via `CustomTagMergeStrategy`, which did **not** call `_consume_overlapping_tail` or `_approximate_finalize_day`. The overlap strategy combo (fragment/skip/compact) was completely ignored.
+
+**Fix**: Delegated to `LinearSpanningApproximateStrategy` instead, which properly handles overlaps per day. Also fixed fill_24h double-offset bug in `CustomTagMergeStrategy` where `merged_ranges` used absolute times but `start_offset` was added again.
+
+**Result**: round_robin now shows 34 entries, 0 errors, 4 fragments — matching all other modes.
 
 ---
 
-## Overlap resolution combobox (planned)
+## Overlap Resolution Combobox
 
-Add a second QComboBox next to the mode selector in `daypart_scheduler.py` to let users pick how overlapped entries are handled, without re-running the test with code changes.
+**Status**: X done
 
-### UI spec
+Combobox added next to approximate mode selector with 3 strategies: `fragment`, `skip`, `compact`. Dispatched through `_consume_overlapping_tail`, `_approximate_finalize_day`, `_apply_approximate_find_replace`.
 
-| Element | Value |
-|---|---|
-| Widget | `QComboBox` next to `approx_mode_combo` (line 226) |
-| Options | `"Fragment (current)"`, `"Skip overlapped"`, `"Gap-fill"`, `"Compact stream"` |
-| Tooltip | `"How to handle random entries overlapping tag slots"` |
-| Width | `130px` |
+### Compact strategy fix notes
+- Carryover gap formula: use `prev_day_last_end` directly instead of `max(prev, day_start)`.
+- Carryover shift persisted to `random_entries` so subsequent days use corrected positions.
+- Post-day_unused2 gap-fill fills remaining intra-day gaps with pool videos.
+- Verified: 0 overlaps, 0 gaps on 30-day test.
 
-### Data flow
-
-```
-combo.currentText()  ──>  converted to snake_case  ──>  passed to
-  apply_approximate(mode=..., overlap_strategy="skip")
-     │
-     ▼
-  scheduler._consume_overlapping_tail(..., overlap_strategy="skip")
-                              │
-                              ▼
-                  if/elif on strategy:
-                    "fragment"  →  current behavior (head/tail entries)
-                    "skip"      →  remove entry, no head/tail
-                    "gap_fill"  →  use _process_random_fill_tag logic
-                    "compact"   →  shift remaining entries left
-```
-
-### Files to change
-
+### Files changed
 | File | Change |
 |---|---|
-| `daypart_scheduler.py:226` | Add `QComboBox` + populate options |
-| `daypart_scheduler.py` (6 call sites) | Pass `overlap_strategy` to `apply_approximate()` |
-| `scheduler.py:725` | Accept `overlap_strategy` param, pass to strategies |
-| `strategies.py` (FindReplaceApproximateStrategy etc.) | Accept + pass to `_consume_overlapping_tail` |
-| `scheduler.py:530` (`_consume_overlapping_tail`) | Add strategy parameter + dispatch |
-| `scheduler.py:445` (`_approximate_finalize_day`) | Pass it through to `_consume_overlapping_tail` |
+| `daypart_scheduler.py` | Combo + `_get_overlap_strategy()` + 5 call sites |
+| `strategies.py` | All 10 strategies accept `overlap_strategy` param |
+| `scheduler.py` | `_consume_overlapping_tail` dispatch + compact shift + gap-fill |
+
+---
+
+## Task: Re-Generate Overlap Bug
+
+**Status**: Open
+
+### Description
+First Generate is clean (0 overlaps). After pressing Generate 2-3 more times, overlaps appear.
+
+### Root Cause
+`_generate_count` rotates video ordering via `effective_day = (day_offset + self._generate_count) % num_movies`. Different rotations produce different inter-day carryover gaps that the compact pipeline may not handle.
+
+### Investigation Notes
+- `_gap_video_idx` initialized from `len(random_entries) % len(rf_videos)` — changes with generate count
+- Compact shift's per-day entry removal may interact poorly with rotated movie order
+
+### Fix Approach (proposed)
+1. Reset overlap state more aggressively between generate calls
+2. Add overlap verification in the generate pipeline
+3. Increase gap-fill overlap checking for edge cases
+
+---
+
+## Task: Problem Color + Status Bar
+
+**Status**: X done
+
+### Description
+Problematic entries (gap-fill, overlaps) colored red in preview. Status bar and debug dialog show counts.
+
+### Changes
+- Added `problem` field to `ScheduleEntry` — gap-fill entries set `problem="gap"`.
+- `tag_color` returns red (`#ef4444`) when `problem` is set.
+- `compute_schedule_issues(entries)` returns gap/overlap/mismatch counts.
+- `_show_issues_in_statusbar()` displays counts in status bar + logs to debug.
+- Wired into `refresh_preview`, `generate_weekly_preview`, `generate_monthly_preview`, `run_approximate`.
+- Debug dialog summary shows gap + overlap counts.
 
 ---
 

@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import (
     QApplication, QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QTableWidget, QTableWidgetItem, QHeaderView
+    QTableWidget, QTableWidgetItem, QHeaderView, QMessageBox
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QFont
@@ -17,7 +17,7 @@ class DurationDebugDialog(QDialog):
         "mismatch": (QColor("#2a1515"), QColor("#ef4444")),
         "default": (QColor("#2a2a15"), QColor("#f59e0b")),
         "unknown": (QColor("#2a2a2e"), QColor("#6a6a7a")),
-        "gap":     (QColor("#1e1e2e"), QColor("#94a3b8")),
+        "gap":     (QColor("#1e1e2e"), QColor("#f59e0b")),
         "overlap": (QColor("#2a1515"), QColor("#ef4444")),
         "fragment": (QColor("#1a1a2e"), QColor("#818cf8")),
     }
@@ -185,8 +185,12 @@ class DurationDebugDialog(QDialog):
         self.copy_btn = QPushButton("Copy to Clipboard")
         self.copy_btn.clicked.connect(self.copy_to_clipboard)
 
+        help_btn = QPushButton("Help")
+        help_btn.clicked.connect(self.show_help)
+
         btn_layout = QHBoxLayout()
         btn_layout.addWidget(self.copy_btn)
+        btn_layout.addWidget(help_btn)
         btn_layout.addStretch()
         close_btn = QPushButton("Close")
         close_btn.clicked.connect(self.accept)
@@ -209,6 +213,25 @@ class DurationDebugDialog(QDialog):
                 f"{row + 1}\t{(entry.start_seconds // 86400) + 1}\t{time_str}\t{entry.video_name}\t{scheduled}s\t{coll_str}\t{status_label}\t{continuity_label}"
             )
         QApplication.clipboard().setText("\n".join(lines))
+
+    def show_help(self):
+        QMessageBox.information(self, "Debug Dialog — Legend",
+            "<b>Status column</b><br>"
+            "<b>OK</b> — Scheduled duration matches collection duration<br>"
+            "<b>MISMATCH</b> — Scheduled duration differs from collection<br>"
+            "<b>DEFAULT</b> — No explicit duration in collection; 90s assumed<br>"
+            "<b>UNKNOWN</b> — Video not found in any loaded collection<br>"
+            "<b>FRAGMENT</b> — Head/tail portion of a video cut by a tag slot;<br>"
+            "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;duration comparison skipped<br>"
+            "<br>"
+            "<b>Continuity column</b><br>"
+            "<b>OK</b> — Starts exactly when previous entry ends<br>"
+            "<b>GAP</b> — Starts after previous entry — unfilled time<br>"
+            "<b>OVERLAP</b> — Starts before previous entry ends<br>"
+            "<br>"
+            "<b>Collection column</b><br>"
+            "Expected duration (seconds) from the collection file.<br>"
+            "Shows <b>N/A</b> for fragments (duration comparison not applicable).")
 
     def apply_styles(self):
         self.setStyleSheet("""

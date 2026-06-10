@@ -11,6 +11,7 @@ from data_models import (
     ScheduleEntry,
     TagManager,
     compute_schedule_issues,
+    mark_continuity_problems,
 )
 from scheduler import ScheduleGenerator
 from strategies import (
@@ -32,6 +33,7 @@ __all__ = [
     "ScheduleEntry",
     "TagManager",
     "compute_schedule_issues",
+    "mark_continuity_problems",
     "ScheduleGenerator",
     "CustomTagMergeStrategy",
     "FindReplaceApproximateStrategy",

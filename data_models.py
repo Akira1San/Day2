@@ -387,6 +387,10 @@ class ScheduleEntry:
             return QColor("#7c3aed")
         if tag_prefix == "[C]":
             return QColor("#059669")
+        if self.problem == "gap":
+            return QColor("#f59e0b")
+        if self.problem == "overlap":
+            return QColor("#ef4444")
         if self.problem:
             return QColor("#ef4444")
         return None
@@ -431,6 +435,18 @@ def compute_schedule_issues(entries: list) -> dict:
         prev_end = entry.end_seconds
     total = len(sorted_entries)
     return {"gaps": gaps, "overlaps": overlaps, "mismatches": mismatches, "total": total}
+
+
+def mark_continuity_problems(entries: list):
+    sorted_entries = sorted(entries, key=lambda e: (e.day, e.start_seconds))
+    prev_end = None
+    for entry in sorted_entries:
+        if prev_end is not None and not entry.problem:
+            if entry.start_seconds > prev_end:
+                entry.problem = "gap"
+            elif entry.start_seconds < prev_end:
+                entry.problem = "overlap"
+        prev_end = entry.end_seconds
 
 
 class TagManager:

@@ -100,7 +100,7 @@ from utils import (
     get_video_display_name, format_duration, get_config_paths, filter_videos_by_blacklist,
     get_schedule_profiles
 )
-from models import Tag, ScheduleEntry, TagManager, ScheduleGenerator, compute_schedule_issues
+from models import Tag, ScheduleEntry, TagManager, ScheduleGenerator, compute_schedule_issues, mark_continuity_problems
 from dialogs import TagDialog, RandomFillDialog, SeriesDialog, ConfigDialog, SchedulePreviewDialog, DurationDebugDialog
 
 
@@ -373,6 +373,7 @@ class MainWindow(QMainWindow):
             entries = self.schedule_generator.apply_approximate(mode=mode, overlap_strategy=self._get_overlap_strategy())
         else:
             entries = self.schedule_generator.apply_custom_tags()
+        mark_continuity_problems(entries)
         for entry in entries:
             item = QListWidgetItem(entry.to_display_string())
             item.setData(Qt.UserRole, entry)
@@ -415,6 +416,7 @@ class MainWindow(QMainWindow):
         else:
             mode = self.approx_mode_combo.currentText().lower().replace("-", "_").replace(" ", "_")
             entries = self.schedule_generator.apply_approximate(num_days=7, mode=mode, overlap_strategy=self._get_overlap_strategy())
+        mark_continuity_problems(entries)
         self.schedule_entries = entries
         self.last_generated_schedule = {
             'entries': entries,
@@ -472,6 +474,7 @@ class MainWindow(QMainWindow):
         else:
             mode = self.approx_mode_combo.currentText().lower().replace("-", "_").replace(" ", "_")
             entries = self.schedule_generator.apply_approximate(num_days=30, mode=mode, overlap_strategy=self._get_overlap_strategy())
+        mark_continuity_problems(entries)
         # Store for save reuse and debug
         self.schedule_entries = entries
         self.last_generated_schedule = {
