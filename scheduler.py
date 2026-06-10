@@ -929,6 +929,7 @@ class ScheduleGenerator:
 
         used_random = set()
         self._compact_carryover = 0
+        self._gap_video_idx = len(random_entries) % len(rf_videos) if rf_videos else 0
 
         for day_offset in range(num_days):
             day_start = day_offset * 24 * 3600
@@ -949,11 +950,17 @@ class ScheduleGenerator:
                 day_first = min((e for e in day_entries if e.start_seconds >= day_start),
                                 key=lambda e: e.start_seconds, default=None)
                 if day_first:
-                    gap = day_first.start_seconds - max(self._prev_day_last_end, day_start)
+                    gap = day_first.start_seconds - self._prev_day_last_end
                     if gap > 1:
                         for e in day_entries:
                             e.start_seconds -= gap
                             e.end_seconds -= gap
+                        # Also update random_entries so subsequent days use corrected positions
+                        for local_idx, e in enumerate(day_entries):
+                            global_idx = day_to_global[local_idx]
+                            re = random_entries[global_idx]
+                            re.start_seconds = e.start_seconds
+                            re.end_seconds = e.end_seconds
                 self._compact_carryover = 0
 
             day_unused = [e for e in day_entries
@@ -1134,6 +1141,58 @@ class ScheduleGenerator:
                                 used_day.add(idx)
                                 break
                         current_pos = rand_e.end_seconds
+
+            # Fill remaining intra-day gaps with videos from the pool
+            if overlap_strategy == 'compact' and rf_videos:
+                blocked = sorted(
+                    [(e.start_seconds, e.end_seconds) for e in final
+                     if e.start_seconds < day_end and e.end_seconds > day_start],
+                    key=lambda x: x[0]
+                )
+                merged = []
+                for start, end in blocked:
+                    if merged and start <= merged[-1][1]:
+                        merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+                    else:
+                        merged.append((start, end))
+                gap_pos = day_start
+                while gap_pos < day_end:
+                    in_blocked = False
+                    for ms, me in merged:
+                        if ms <= gap_pos < me:
+                            gap_pos = me
+                            in_blocked = True
+                            break
+                    if in_blocked:
+                        continue
+                    nearest_stop = day_end
+                    for ms, me in merged:
+                        if gap_pos < me and ms > gap_pos:
+                            nearest_stop = min(nearest_stop, ms)
+                    space = nearest_stop - gap_pos
+                    if space <= 0:
+                        break
+                    placed = False
+                    for _ in range(len(rf_videos)):
+                        idx = self._gap_video_idx % len(rf_videos)
+                        video = rf_videos[idx]
+                        dur = int(video.get('duration', 90))
+                        if dur < 1:
+                            dur = 90
+                        if dur <= space:
+                            self._gap_video_idx += 1
+                            video_name = get_video_display_name(video)
+                            name = f"{rf_name} - {video_name}" if rf_name else video_name
+                            final.append(ScheduleEntry(1, gap_pos, gap_pos + dur, name))
+                            gap_pos += dur
+                            placed = True
+                            break
+                        self._gap_video_idx += 1
+                    if not placed:
+                        if space > 2:
+                            gap_pos = nearest_stop
+                        else:
+                            break
 
             # Sync per-day usage back to global tracking
             for local_idx in used_day:
