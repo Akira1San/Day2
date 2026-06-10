@@ -6,6 +6,7 @@ approximate-mode dispatcher, and private scheduling algorithms.
 """
 
 from __future__ import annotations
+import copy
 import os
 import random
 import logging
@@ -46,6 +47,8 @@ class ScheduleGenerator:
         # so re-Generate produces visibly different previews in movie_sequence mode.
         # Reset only by explicit re-initialization; not bumped by per-tag/cached calls.
         self._generate_count = 0
+        self._compact_carryover = 0
+        self._prev_day_last_end = 0
         from datetime import date
         self.schedule_start_weekday = date.today().weekday()  # 0=Monday, 6=Sunday
 
@@ -803,29 +806,6 @@ class ScheduleGenerator:
                             if ci not in used_random and later_re.start_seconds >= first_post.start_seconds and later_re.start_seconds < day_end:
                                 later_re.start_seconds -= shift
                                 later_re.end_seconds -= shift
-                    # Propagate compact shift across midnight boundary to next day only
-                    if shift != 0:
-                        last_shifted = max(
-                            (e for ci, e in enumerate(random_entries)
-                             if ci not in used_random
-                             and e.start_seconds >= first_post.start_seconds - shift
-                             and e.start_seconds < day_end),
-                            key=lambda e: e.end_seconds, default=None
-                        )
-                        if last_shifted and last_shifted.end_seconds > day_end:
-                            next_day_end = day_end + 86400
-                            next_entries = [(ci, e) for ci, e in enumerate(random_entries)
-                                            if ci not in used_random
-                                            and e.start_seconds >= day_end
-                                            and e.start_seconds < next_day_end]
-                            if next_entries:
-                                first_next_start = min(e.start_seconds for _, e in next_entries)
-                                gap_to_fill = first_next_start - last_shifted.end_seconds
-                                if gap_to_fill > 1:
-                                    for ci, ne in next_entries:
-                                        if ne.start_seconds >= first_next_start:
-                                            ne.start_seconds -= gap_to_fill
-                                            ne.end_seconds -= gap_to_fill
             return current_pos
 
         # Single-entry overlap handling for fragment/skip/gap_fill
@@ -948,16 +928,36 @@ class ScheduleGenerator:
         all_custom_sorted = sorted(custom_tags + series_tags + multi_series_tags, key=lambda t: qtime_to_seconds(t.start_time))
 
         used_random = set()
+        self._compact_carryover = 0
 
         for day_offset in range(num_days):
             day_start = day_offset * 24 * 3600
             day_end = (day_offset + 1) * 24 * 3600
 
-            # Get fresh list of unused random entries for this day
-            day_unused = [e for i, e in enumerate(random_entries)
-                          if i not in used_random
-                          and e.start_seconds < day_end
-                          and e.end_seconds > day_start]
+            # Build per-day independent copies — compact shifts never leak to other days
+            day_indices = sorted(i for i, e in enumerate(random_entries)
+                                if i not in used_random
+                                and e.start_seconds < day_end
+                                and e.end_seconds > day_start)
+            day_entries = [copy.copy(random_entries[i]) for i in day_indices]
+            day_to_global = dict(enumerate(day_indices))
+            used_day = set()
+
+            # Apply carryover from previous day: shift entries left to close the gap
+            # between the previous day's last entry end and the first entry on this day.
+            if overlap_strategy == 'compact':
+                day_first = min((e for e in day_entries if e.start_seconds >= day_start),
+                                key=lambda e: e.start_seconds, default=None)
+                if day_first:
+                    gap = day_first.start_seconds - max(self._prev_day_last_end, day_start)
+                    if gap > 1:
+                        for e in day_entries:
+                            e.start_seconds -= gap
+                            e.end_seconds -= gap
+                self._compact_carryover = 0
+
+            day_unused = [e for e in day_entries
+                          if e.start_seconds < day_end and e.end_seconds > day_start]
             day_unused.sort(key=lambda e: e.start_seconds)
 
             day_customs = []
@@ -1003,8 +1003,8 @@ class ScheduleGenerator:
                         if gap < best_gap:
                             best_gap = gap
                             best_rand = rand_e
-                            for idx, re in enumerate(random_entries):
-                                if re is rand_e and idx not in used_random:
+                            for idx, re in enumerate(day_entries):
+                                if re is rand_e and idx not in used_day:
                                     best_idx = idx
                                     break
 
@@ -1013,20 +1013,20 @@ class ScheduleGenerator:
                         # Add the random entry to final before placing custom tag
                         if current_pos <= best_rand.start_seconds:
                             final.append(best_rand)
-                            used_random.add(best_idx)
+                            used_day.add(best_idx)
                             if best_rand in day_unused:
                                 day_unused.remove(best_rand)
                             current_pos = best_rand.end_seconds
                         elif current_pos < best_rand.end_seconds:
                             if overlap_strategy == 'fragment':
                                 final.append(ScheduleEntry(1, current_pos, best_rand.end_seconds, best_rand.video_name, FRAGMENT_TAG_TYPE))
-                            used_random.add(best_idx)
+                            used_day.add(best_idx)
                             if best_rand in day_unused:
                                 day_unused.remove(best_rand)
                             if overlap_strategy == 'fragment':
                                 current_pos = best_rand.end_seconds
                         else:
-                            used_random.add(best_idx)
+                            used_day.add(best_idx)
                             if best_rand in day_unused:
                                 day_unused.remove(best_rand)
 
@@ -1040,7 +1040,7 @@ class ScheduleGenerator:
 
                         # Consume overlapping random entry tails
                         current_pos = self._consume_overlapping_tail(
-                            slot_start, slot_end, current_pos, day_unused, random_entries, used_random, final, day_offset,
+                            slot_start, slot_end, current_pos, day_unused, day_entries, used_day, final, day_offset,
                             min_end_threshold=slot_start,
                             scheduled_slots=scheduled_slots,
                         )
@@ -1060,7 +1060,7 @@ class ScheduleGenerator:
 
                     # Consume overlapping random entry tails
                     current_pos = self._consume_overlapping_tail(
-                        slot_start, slot_end, current_pos, day_unused, random_entries, used_random, final, day_offset,
+                        slot_start, slot_end, current_pos, day_unused, day_entries, used_day, final, day_offset,
                         min_end_threshold=slot_start,
                         scheduled_slots=scheduled_slots,
                         label="fallback",
@@ -1068,8 +1068,8 @@ class ScheduleGenerator:
             # Next custom tag iteration continues here
 
             # Add unused random entries from day_start to current_pos
-            day_unused = [e for i, e in enumerate(random_entries)
-                          if i not in used_random
+            day_unused = [e for i, e in enumerate(day_entries)
+                          if i not in used_day
                           and e.start_seconds < day_end
                           and e.end_seconds > day_start]
             day_unused.sort(key=lambda e: e.start_seconds)
@@ -1099,9 +1099,9 @@ class ScheduleGenerator:
                 if rand_e.end_seconds <= current_pos:
                     final.append(rand_e)
                     occupied_ranges.append((rand_e.start_seconds, rand_e.end_seconds))
-                    for idx, re in enumerate(random_entries):
-                        if re is rand_e and idx not in used_random:
-                            used_random.add(idx)
+                    for idx, re in enumerate(day_entries):
+                        if re is rand_e and idx not in used_day:
+                            used_day.add(idx)
                             break
                     current_pos = rand_e.end_seconds
                 elif rand_e.start_seconds < current_pos < rand_e.end_seconds:
@@ -1109,16 +1109,16 @@ class ScheduleGenerator:
                     if dur > 0:
                         if overlap_strategy == 'fragment':
                             final.append(ScheduleEntry(1, current_pos, rand_e.end_seconds, rand_e.video_name, FRAGMENT_TAG_TYPE))
-                        for idx, re in enumerate(random_entries):
-                            if re is rand_e and idx not in used_random:
-                                used_random.add(idx)
+                        for idx, re in enumerate(day_entries):
+                            if re is rand_e and idx not in used_day:
+                                used_day.add(idx)
                                 break
                         if overlap_strategy == 'fragment':
                             current_pos = rand_e.end_seconds
 
             # Add remaining unused random entries
-            day_unused2 = [e for i, e in enumerate(random_entries)
-                           if i not in used_random
+            day_unused2 = [e for i, e in enumerate(day_entries)
+                           if i not in used_day
                            and e.start_seconds < day_end
                            and e.end_seconds > day_start]
             day_unused2.sort(key=lambda e: e.start_seconds)
@@ -1129,11 +1129,25 @@ class ScheduleGenerator:
                     if not any(rand_e.start_seconds < slot_end and rand_e.end_seconds > slot_start
                                for slot_start, slot_end in scheduled_slots):
                         final.append(rand_e)
-                        for idx, re in enumerate(random_entries):
-                            if re is rand_e and idx not in used_random:
-                                used_random.add(idx)
+                        for idx, re in enumerate(day_entries):
+                            if re is rand_e and idx not in used_day:
+                                used_day.add(idx)
                                 break
                         current_pos = rand_e.end_seconds
+
+            # Sync per-day usage back to global tracking
+            for local_idx in used_day:
+                used_random.add(day_to_global[local_idx])
+
+            # Track last entry end and carryover for next day's gap calculation
+            if final:
+                last_on_day = max((e for e in final if e.start_seconds >= day_start),
+                                  key=lambda e: e.end_seconds, default=None)
+                if last_on_day:
+                    self._prev_day_last_end = last_on_day.end_seconds
+                    if overlap_strategy == 'compact' and last_on_day.end_seconds > day_end:
+                        self._compact_carryover = max(self._compact_carryover,
+                                                       last_on_day.end_seconds - day_end)
 
         final.sort(key=lambda e: e.start_seconds)
 
