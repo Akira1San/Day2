@@ -82,7 +82,11 @@ class CustomTagMergeStrategy:
                 day_offset_seconds = day_offset * 24 * 3600
                 for rf in rf_sorted:
                     if getattr(rf, 'fill_24h', False):
-                        merged = [(e.start_seconds, e.end_seconds) for e in custom_entries + series_entries + multi_series_entries]
+                        day_start = day_offset_seconds
+                        day_end = day_offset_seconds + 24 * 3600
+                        merged = [(e.start_seconds - day_offset_seconds, e.end_seconds - day_offset_seconds)
+                                   for e in custom_entries + series_entries + multi_series_entries
+                                   if e.start_seconds < day_end and e.end_seconds > day_start]
                         self.sg._process_random_fill_tag(rf, fill_entries, merged, 0, day_offset_seconds)
         elif rf_sorted:
             rf_first = rf_sorted[0]
@@ -109,7 +113,11 @@ class CustomTagMergeStrategy:
                     for day_offset in range(1, num_days):
                         day_offset_seconds = day_offset * 24 * 3600
                         for rf in rf_sorted[1:]:
-                            merged = [(e.start_seconds, e.end_seconds) for e in custom_entries + series_entries + multi_series_entries]
+                            day_start = day_offset_seconds
+                            day_end = day_offset_seconds + 24 * 3600
+                            merged = [(e.start_seconds - day_offset_seconds, e.end_seconds - day_offset_seconds)
+                                       for e in custom_entries + series_entries + multi_series_entries
+                                       if e.start_seconds < day_end and e.end_seconds > day_start]
                             self.sg._process_random_fill_tag(rf, fill_entries, merged, start_vid_idx, day_offset_seconds)
 
         entries = custom_entries + series_entries + multi_series_entries + fill_entries
@@ -580,7 +588,7 @@ class RoundRobinApproximateStrategy:
         self.sg = schedule_generator
 
     def generate(self, num_days: int = 1) -> List[ScheduleEntry]:
-        return CustomTagMergeStrategy(self.sg).generate(num_days)
+        return LinearSpanningApproximateStrategy(self.sg).generate(num_days)
 
 
 class LinearSpanningApproximateStrategy:
