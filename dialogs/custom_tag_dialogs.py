@@ -676,7 +676,7 @@ class GapTagDialog(QDialog):
         self.name_input.setToolTip("Name for this gap filler tag. Displayed in the tag list.")
         self.gap_max_spin = QSpinBox()
         self.gap_max_spin.setRange(0, 86400)
-        self.gap_max_spin.setValue(0)
+        self.gap_max_spin.setValue(3600)
         self.gap_max_spin.setSuffix(" sec")
         self.gap_max_spin.setSpecialValueText("No limit")
         self.gap_max_spin.setToolTip(

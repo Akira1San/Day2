@@ -200,6 +200,9 @@ class CustomTagMergeStrategy:
             return []
 
         gap_max = gap_tag.gap_max_duration
+        if gap_max is None or gap_max == 0:
+            gap_max = 7200
+            logger.warning("gap_max_duration is 0 or unset; capping at 7200s (2h) for performance")
         preserve_boundaries = gap_tag.gap_preserve_boundaries
         all_placed = custom_entries + series_entries + multi_series_entries + fill_entries
 

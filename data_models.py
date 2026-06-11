@@ -520,7 +520,7 @@ class TagManager:
                     marathon_tag_name: str = "",
                     is_gap_filler: bool = False,
                     gap_collections: Optional[List[dict]] = None,
-                    gap_max_duration: Optional[int] = None,
+                   gap_max_duration: Optional[int] = 3600,
                     gap_preserve_boundaries: bool = False) -> bool:
         if 0 <= index < len(self.tags):
             t = self.tags[index]

@@ -165,6 +165,52 @@ content.
 - Update `copy_to_clipboard()` to recurse children
 - Summary counts at top still reflect total entries (including collapsed)
 
+### 12. Integration with approximate scheduling modes
+Gap tag currently only works when approximation is OFF (`CustomTagMergeStrategy`).
+It should also work with all approximate modes (Find-Replace, Linear, Early Fill,
+Late Fill, Priority, etc.) so the schedule is continuous regardless of mode.
+
+**Approach:**
+Since `_fill_gap_fillers` is a self-contained post-processing step (takes placed
+entries, computes gaps, fills them), add it as a **common final step** in
+`ScheduleGenerator.apply_approximate()` (`scheduler.py:728`), after the strategy
+returns its entries. This covers all 9 approximate modes at once.
+
+**Implementation sketch in `apply_approximate()`:**
+```python
+entries = strategy.generate(num_days)
+
+# Post-process: fill remaining gaps with gap tag videos
+gap_tags = [t for t in self.tag_manager.get_all_tags() if t.is_gap_filler]
+if gap_tags:
+    from strategies import CustomTagMergeStrategy
+    dummy_strategy = CustomTagMergeStrategy(self)
+    gap_entries = dummy_strategy._fill_gap_fillers(
+        gap_tags, entries, [], [], [], num_days
+    )
+    entries = entries + gap_entries
+    entries.sort(key=lambda e: e.start_seconds)
+
+return entries
+```
+
+**Key points:**
+- Fragment entries (head/tail from fragment overlap strategy) are naturally in the
+  entries list, so the gap filler treats them as occupied — no re-filling over them.
+- `_fill_gap_fillers` computes occupied ranges directly from placed entries; no
+  separate `occupied` set needed.
+- Day boundaries, `gap_max_duration`, and `gap_preserve_boundaries` all work the
+  same as in non-approximate mode.
+- All 9 modes benefit: Linear, Find-Replace, Early Fill, Late Fill, Priority,
+  Best Fit, Round Robin, Linear Spanning, Exhaustive.
+
+**Success criteria:**
+- After any approximate strategy runs, any remaining empty intervals (00:00–24:00
+  not covered by placed entries) are filled with gap videos.
+- No gap video overlaps any primary or fragment entry.
+- The schedule is continuous from 00:00 to 24:00 (or until `gap_max_duration` is
+  reached).
+
 ## Notes
 - Gap Tag is independent from Group Approximation (which is an approximate-mode algorithm).
 - They could be combined later (e.g., Group Approximation could also invoke gap filling for leftover gaps).
