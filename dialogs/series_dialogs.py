@@ -157,14 +157,6 @@ class SeriesDialog(BaseTagDialog, SeriesProfileMixin):
         series_layout.addStretch()
         right_layout.addLayout(series_layout)
 
-        # Auto calc button
-        calc_layout = QHBoxLayout()
-        self.auto_calc_btn = QPushButton("Auto Calc End Time")
-        self.auto_calc_btn.clicked.connect(self.auto_calc_end_time)
-        calc_layout.addWidget(self.auto_calc_btn)
-        calc_layout.addStretch()
-        right_layout.addLayout(calc_layout)
-
         # Active days
         active_days_layout = QHBoxLayout()
         active_days_layout.addWidget(QLabel("Active Days:"))
@@ -183,9 +175,13 @@ class SeriesDialog(BaseTagDialog, SeriesProfileMixin):
         active_days_layout.addStretch()
         right_layout.addLayout(active_days_layout)
 
-        # Time inputs
+        # Time inputs + auto calc
         time_layout = QHBoxLayout()
         self._setup_time_inputs(time_layout)
+        self.auto_calc_btn = QPushButton("Auto Calc End Time")
+        self.auto_calc_btn.clicked.connect(self.auto_calc_end_time)
+        time_layout.addWidget(self.auto_calc_btn)
+        time_layout.addStretch()
         right_layout.addLayout(time_layout)
 
         # Dialog buttons
