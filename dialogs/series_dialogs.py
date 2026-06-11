@@ -2,7 +2,7 @@ import logging
 from pathlib import Path
 from typing import List, Optional
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QComboBox,
+    QDialog, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QComboBox,
     QSpinBox, QPushButton, QListWidget, QListWidgetItem, QMessageBox, QFileDialog,
     QCheckBox
 )
@@ -10,10 +10,12 @@ from PySide6.QtCore import QTime
 
 from .base import BaseTagDialog
 from .profile_mixin import SeriesProfileMixin
+from .widgets.info_panel import CollectionInfoPanel, VideoInfoDisplay
 from models import Tag, MultiSeriesTag
 from utils import (
     load_collection_json, load_blacklist_json,
     get_video_display_name, format_duration,
+    get_config_paths, get_covers_path,
     parse_videos_for_series, qtime_to_minutes
 )
 
@@ -29,18 +31,45 @@ class SeriesDialog(BaseTagDialog, SeriesProfileMixin):
         self.setModal(True)
         self.collection_profile = ""
         self.blacklist_profile = ""
+        self.collection_info_dict = {}
+
+        # Determine covers root directory (matching RandomFillDialog pattern)
+        try:
+            collection_path, _ = get_config_paths()
+            covers_cfg = get_covers_path()
+            if covers_cfg:
+                self.covers_root = Path(covers_cfg)
+            else:
+                self.covers_root = Path(collection_path).parent.parent
+        except Exception:
+            self.covers_root = Path('.')
+
+        self.info_panel = CollectionInfoPanel(parent=self, covers_root=self.covers_root)
+        self.video_info = VideoInfoDisplay()
+
         self.setup_ui()
         self.load_available_profiles()  # From mixin
         if tag:
             self._populate_from_tag(tag)
 
     def setup_ui(self):
-        layout = QVBoxLayout(self)
+        main_layout = QHBoxLayout(self)
+
+        # ── Left panel: collection info + video info ──
+        left = QWidget()
+        left_layout = QVBoxLayout(left)
+        left_layout.addWidget(self.info_panel)
+        left_layout.addWidget(self.video_info)
+        main_layout.addWidget(left)
+
+        # ── Right panel: existing controls ──
+        right = QWidget()
+        right_layout = QVBoxLayout(right)
 
         # Name
-        layout.addWidget(QLabel("Name:"))
+        right_layout.addWidget(QLabel("Name:"))
         self.name_input = QLineEdit()
-        layout.addWidget(self.name_input)
+        right_layout.addWidget(self.name_input)
 
         # Profile row
         profile_layout = QHBoxLayout()
@@ -55,7 +84,7 @@ class SeriesDialog(BaseTagDialog, SeriesProfileMixin):
         profile_layout.addWidget(self.blacklist_profile_combo)
 
         profile_layout.addStretch()
-        layout.addLayout(profile_layout)
+        right_layout.addLayout(profile_layout)
 
         # Collection browse
         coll_layout = QHBoxLayout()
@@ -69,13 +98,14 @@ class SeriesDialog(BaseTagDialog, SeriesProfileMixin):
         browse_btn.clicked.connect(self.browse_collection)  # from mixin
         coll_layout.addWidget(browse_btn)
         coll_layout.addStretch()
-        layout.addLayout(coll_layout)
+        right_layout.addLayout(coll_layout)
 
         # Videos list
-        layout.addWidget(QLabel("Videos in Collection:"))
+        right_layout.addWidget(QLabel("Videos in Collection:"))
         self.videos_list = QListWidget()
         self.videos_list.setMinimumHeight(150)
-        layout.addWidget(self.videos_list)
+        self.videos_list.itemSelectionChanged.connect(self._on_video_selection_changed)
+        right_layout.addWidget(self.videos_list)
 
         # Series options
         series_layout = QHBoxLayout()
@@ -140,7 +170,7 @@ class SeriesDialog(BaseTagDialog, SeriesProfileMixin):
         series_layout.addWidget(self.random_season_spin)
 
         series_layout.addStretch()
-        layout.addLayout(series_layout)
+        right_layout.addLayout(series_layout)
 
         # Auto calc button
         calc_layout = QHBoxLayout()
@@ -148,12 +178,12 @@ class SeriesDialog(BaseTagDialog, SeriesProfileMixin):
         self.auto_calc_btn.clicked.connect(self.auto_calc_end_time)
         calc_layout.addWidget(self.auto_calc_btn)
         calc_layout.addStretch()
-        layout.addLayout(calc_layout)
+        right_layout.addLayout(calc_layout)
 
         # Time inputs
         time_layout = QHBoxLayout()
         self._setup_time_inputs(time_layout)
-        layout.addLayout(time_layout)
+        right_layout.addLayout(time_layout)
 
         # Dialog buttons
         btn_layout = QHBoxLayout()
@@ -163,11 +193,30 @@ class SeriesDialog(BaseTagDialog, SeriesProfileMixin):
         cancel_btn.clicked.connect(self.reject)
         btn_layout.addWidget(save_btn)
         btn_layout.addWidget(cancel_btn)
-        layout.addLayout(btn_layout)
+        right_layout.addLayout(btn_layout)
+
+        main_layout.addWidget(right)
 
     def _update_end_behavior_ui(self, behavior: str):
         self.repeat_season_spin.setVisible(behavior == "repeat")
         self.random_season_spin.setVisible(behavior == "random")
+
+    def _on_collection_loaded(self):
+        """Update info panel after collection is loaded."""
+        default_info = next(iter(self.collection_info_dict.values())) if self.collection_info_dict else {}
+        self.info_panel.set_collection_info(default_info)
+        self.info_panel.set_cover_image(default_info.get('cover'))
+
+    def _on_video_selection_changed(self):
+        """Update video info when a video is selected in the list."""
+        selected = self.videos_list.selectedItems()
+        if not selected:
+            self.video_info.setText("Select a video to see details")
+            return
+        row = self.videos_list.row(selected[0])
+        if 0 <= row < len(self.collection_videos):
+            video = self.collection_videos[row]
+            self.video_info.set_video_info(video)
 
     def _on_all_days_toggled(self, checked: bool):
         enabled = not checked
@@ -194,15 +243,23 @@ class SeriesDialog(BaseTagDialog, SeriesProfileMixin):
             idx = self.play_mode_combo.findText(tag.play_mode)
             if idx >= 0:
                 self.play_mode_combo.setCurrentIndex(idx)
-        if tag.collection_videos:
+        if tag.collection_path:
+            self.load_collection(tag.collection_path)
+            if tag.collection_videos:
+                self.collection_videos = tag.collection_videos.copy()
+                self.videos_list.clear()
+                for video in self.collection_videos:
+                    path = video.get('path', '')
+                    duration = video.get('duration', 0)
+                    display_name = get_video_display_name(video)
+                    self.videos_list.addItem(f"{display_name} ({format_duration(duration)})")
+        elif tag.collection_videos:
             self.collection_videos = tag.collection_videos.copy()
             for video in self.collection_videos:
                 path = video.get('path', '')
                 duration = video.get('duration', 0)
                 display_name = get_video_display_name(video)
                 self.videos_list.addItem(f"{display_name} ({format_duration(duration)})")
-        if tag.collection_path:
-            self.collection_path.setText(tag.collection_path)
 
         collection_profile = getattr(tag, 'collection_profile', '')
         if collection_profile:
@@ -250,15 +307,17 @@ class SeriesDialog(BaseTagDialog, SeriesProfileMixin):
 
     def load_collection(self, file_path: str):
         """Load collection JSON and populate video list (no blacklist handling)."""
-        collection_videos, _ = load_collection_json(file_path)
+        collection_videos, collection_info_dict = load_collection_json(file_path)
         self.collection_path.setText(file_path)
         self.videos_list.clear()
         self.collection_videos = collection_videos
+        self.collection_info_dict = collection_info_dict
         for video in collection_videos:
             path = video.get('path', '')
             duration = video.get('duration', 0)
             display_name = get_video_display_name(video)
             self.videos_list.addItem(f"{display_name} ({format_duration(duration)})")
+        self._on_collection_loaded()
 
     def auto_calc_end_time(self):
         """Calculate end time based on series parsing and video count."""
