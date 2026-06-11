@@ -128,6 +128,43 @@ active_days = 1,2,3,4,5,6,7
 
 ---
 
+### 10. Performance: Gap fill cap & soft limit
+When there are many gap videos (e.g., trailers) and large empty intervals, the gap
+filler generates one ScheduleEntry per video, producing thousands of entries and
+slowing down generation.
+
+**Fix:**
+1. Default `gap_max_duration` to 3600 (1 hour) in `data_models.py` `Tag.__init__()`.
+2. Add a **soft internal cap** in `_fill_gap_fillers`: if `gap_max_duration` is
+   None or 0, cap at 7200s (2h) and log a warning.
+3. Update `GapTagDialog` spinbox default to 3600 with tooltip:
+   *"Max fill per day. Higher values = more entries = slower generation.
+   Recommended: 1800–3600."*
+4. Update `Tags/Gap fill 1.ini` to set `gap_max_duration = 3600`.
+
+### 11. UI: Collapsible gap groups in schedule preview & debug dialog
+When the gap filler generates many entries (thousands), the flat schedule
+preview list and debug table become unusable — gap entries drown out real
+content.
+
+**Changes:**
+
+**Main preview (`daypart_scheduler.py`):**
+- Swap `QListWidget` → `QTreeWidget` for `self.preview_list`
+- New method `_populate_preview_tree(entries)` that groups consecutive gap
+  entries (`tag_type == "gap_fill"` or `problem == "gap"`) under a single
+  collapsible parent item
+- Parent text: `"▶ Gap — N entries — HH:MM–HH:MM"` in amber bold
+- Parents start **collapsed** by default
+- Update `refresh_preview()`, `generate_weekly_preview()`,
+  `generate_monthly_preview()`, `copy_preview()` to use tree + recurse children
+
+**Duration Debug Dialog (`dialogs/duration_debug_dialog.py`):**
+- Swap `QTableWidget` → `QTreeWidget` (supports columns natively)
+- Group consecutive gap rows under a single collapsible parent in the table
+- Update `copy_to_clipboard()` to recurse children
+- Summary counts at top still reflect total entries (including collapsed)
+
 ## Notes
 - Gap Tag is independent from Group Approximation (which is an approximate-mode algorithm).
 - They could be combined later (e.g., Group Approximation could also invoke gap filling for leftover gaps).

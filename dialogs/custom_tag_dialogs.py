@@ -673,13 +673,23 @@ class GapTagDialog(QDialog):
         self.resize(650, 500)
 
         self.name_input = QLineEdit("Gap Fill")
+        self.name_input.setToolTip("Name for this gap filler tag. Displayed in the tag list.")
         self.gap_max_spin = QSpinBox()
         self.gap_max_spin.setRange(0, 86400)
         self.gap_max_spin.setValue(0)
         self.gap_max_spin.setSuffix(" sec")
         self.gap_max_spin.setSpecialValueText("No limit")
+        self.gap_max_spin.setToolTip(
+            "Maximum seconds of gap content to insert per day (0 = unlimited).\n"
+            "Higher values produce more entries and slower generation.\n"
+            "Recommended: 1800–3600 (30–60 min)."
+        )
         self.preserve_boundaries_cb = QCheckBox("Preserve day boundaries (don't split videos across days)")
         self.preserve_boundaries_cb.setChecked(False)
+        self.preserve_boundaries_cb.setToolTip(
+            "If checked, a gap video that would cross midnight is skipped\n"
+            "instead of being split across two days."
+        )
 
         self.collection_table = QTableWidget(0, 4)
         self.collection_table.setHorizontalHeaderLabels(["", "Collection File", "Type", ""])
@@ -694,6 +704,7 @@ class GapTagDialog(QDialog):
         self.collection_table.verticalHeader().setVisible(False)
 
         self.add_collection_btn = QPushButton("Add Collection")
+        self.add_collection_btn.setToolTip("Add a row to select a collection JSON file and its content type.")
         self.add_collection_btn.clicked.connect(self._add_empty_row)
 
         # Active days
@@ -701,6 +712,7 @@ class GapTagDialog(QDialog):
         self.day_checkboxes = []
         self.all_days_cb = QCheckBox("All")
         self.all_days_cb.setChecked(True)
+        self.all_days_cb.setToolTip("Check all / uncheck all days. Unchecked days will skip the gap filler.")
 
         self.build_ui()
 
@@ -734,9 +746,15 @@ class GapTagDialog(QDialog):
         # Active days
         days_row = QHBoxLayout()
         days_row.addWidget(QLabel("Active Days:"))
-        for day_name in ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]:
+        day_tooltips = [
+            "Fill gaps on Mondays", "Fill gaps on Tuesdays", "Fill gaps on Wednesdays",
+            "Fill gaps on Thursdays", "Fill gaps on Fridays", "Fill gaps on Saturdays",
+            "Fill gaps on Sundays"
+        ]
+        for day_name, tip in zip(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], day_tooltips):
             cb = QCheckBox(day_name)
             cb.setChecked(True)
+            cb.setToolTip(tip)
             cb.stateChanged.connect(self._update_all_days_checkbox)
             days_row.addWidget(cb)
             self.day_checkboxes.append(cb)
@@ -748,8 +766,10 @@ class GapTagDialog(QDialog):
         # Buttons
         btn_row = QHBoxLayout()
         save_btn = QPushButton("Save")
+        save_btn.setToolTip("Save this gap tag and add it to the tag list.")
         save_btn.clicked.connect(self._validate_and_accept)
         cancel_btn = QPushButton("Cancel")
+        cancel_btn.setToolTip("Discard changes and close.")
         cancel_btn.clicked.connect(self.reject)
         btn_row.addStretch()
         btn_row.addWidget(save_btn)
@@ -761,6 +781,7 @@ class GapTagDialog(QDialog):
         self.collection_table.insertRow(row)
 
         browse_btn = QPushButton("Browse...")
+        browse_btn.setToolTip("Browse for a collection JSON file containing gap content (trailers, promos, etc.).")
         browse_btn.clicked.connect(lambda: self._browse_collection(row))
         self.collection_table.setCellWidget(row, 0, browse_btn)
 
@@ -770,11 +791,17 @@ class GapTagDialog(QDialog):
 
         type_combo = QComboBox()
         type_combo.addItems(self.GAP_TYPES)
+        type_combo.setToolTip(
+            "Content type for display purposes only:\n"
+            "Trailer / Promo / Music / Standby Loop.\n"
+            "Does not affect scheduling order."
+        )
         if type_str in self.GAP_TYPES:
             type_combo.setCurrentIndex(self.GAP_TYPES.index(type_str))
         self.collection_table.setCellWidget(row, 2, type_combo)
 
         remove_btn = QPushButton("X")
+        remove_btn.setToolTip("Remove this collection from the gap filler.")
         remove_btn.clicked.connect(lambda: self._remove_row(row))
         self.collection_table.setCellWidget(row, 3, remove_btn)
 
