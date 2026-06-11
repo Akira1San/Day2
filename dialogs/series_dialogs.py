@@ -127,21 +127,6 @@ class SeriesDialog(BaseTagDialog, SeriesProfileMixin):
         self.video_count_spin.setValue(1)
         series_layout.addWidget(self.video_count_spin)
 
-        # Active days alongside video count
-        series_layout.addWidget(QLabel("Active Days:"))
-        day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-        self.day_checkboxes = []
-        for day_name in day_names:
-            cb = QCheckBox(day_name)
-            cb.setChecked(True)
-            cb.stateChanged.connect(self._update_all_days_checkbox)
-            series_layout.addWidget(cb)
-            self.day_checkboxes.append(cb)
-        self.all_days_cb = QCheckBox("All")
-        self.all_days_cb.setChecked(True)
-        self.all_days_cb.stateChanged.connect(self._on_all_days_toggled)
-        series_layout.addWidget(self.all_days_cb)
-
         series_layout.addWidget(QLabel("Play Mode:"))
         self.play_mode_combo = QComboBox()
         self.play_mode_combo.addItems(["sequence", "season_sequence", "random"])
@@ -179,6 +164,24 @@ class SeriesDialog(BaseTagDialog, SeriesProfileMixin):
         calc_layout.addWidget(self.auto_calc_btn)
         calc_layout.addStretch()
         right_layout.addLayout(calc_layout)
+
+        # Active days
+        active_days_layout = QHBoxLayout()
+        active_days_layout.addWidget(QLabel("Active Days:"))
+        day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        self.day_checkboxes = []
+        for day_name in day_names:
+            cb = QCheckBox(day_name)
+            cb.setChecked(True)
+            cb.stateChanged.connect(self._update_all_days_checkbox)
+            active_days_layout.addWidget(cb)
+            self.day_checkboxes.append(cb)
+        self.all_days_cb = QCheckBox("All")
+        self.all_days_cb.setChecked(True)
+        self.all_days_cb.stateChanged.connect(self._on_all_days_toggled)
+        active_days_layout.addWidget(self.all_days_cb)
+        active_days_layout.addStretch()
+        right_layout.addLayout(active_days_layout)
 
         # Time inputs
         time_layout = QHBoxLayout()
