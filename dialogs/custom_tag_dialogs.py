@@ -32,6 +32,20 @@ class TagDialog(CollectionDialogBase):
         self.video_count_spin.setMinimum(1)
         self.video_count_spin.setValue(1)
 
+        # Determine covers root directory
+        try:
+            collection_path, _ = get_config_paths()
+            covers_cfg = get_covers_path()
+            if covers_cfg:
+                self.covers_root = Path(covers_cfg)
+            else:
+                self.covers_root = Path(collection_path).parent.parent
+        except Exception:
+            self.covers_root = Path('.')
+
+        self.info_panel = CollectionInfoPanel(parent=self, covers_root=self.covers_root)
+        self.video_info = VideoInfoDisplay()
+
         # Build UI using common components
         self.build_ui()
 
@@ -47,14 +61,25 @@ class TagDialog(CollectionDialogBase):
             self._populate_from_tag(tag)
 
     def build_ui(self):
-        layout = QVBoxLayout(self)
+        main_layout = QHBoxLayout(self)
+
+        # ── Left panel: collection info + video info ──
+        left = QWidget()
+        left_layout = QVBoxLayout(left)
+        left_layout.addWidget(self.info_panel)
+        left_layout.addWidget(self.video_info)
+        main_layout.addWidget(left)
+
+        # ── Right panel: controls ──
+        right = QWidget()
+        right_layout = QVBoxLayout(right)
 
         # Name row
         name_layout = QHBoxLayout()
         name_layout.addWidget(QLabel("Name:"))
         name_layout.addWidget(self.name_input)
         name_layout.addStretch()
-        layout.addLayout(name_layout)
+        right_layout.addLayout(name_layout)
 
         # Profile selection row
         profile_widget = QWidget()
@@ -64,7 +89,7 @@ class TagDialog(CollectionDialogBase):
         profile_layout.addWidget(QLabel("Blacklist Profile:"))
         profile_layout.addWidget(self.blacklist_profile_combo)
         profile_layout.addStretch()
-        layout.addWidget(profile_widget)
+        right_layout.addWidget(profile_widget)
 
         # Collection browse row
         coll_widget = QWidget()
@@ -73,7 +98,7 @@ class TagDialog(CollectionDialogBase):
         coll_layout.addWidget(self.collection_path)
         coll_layout.addWidget(self.browse_button)
         coll_layout.addStretch()
-        layout.addWidget(coll_widget)
+        right_layout.addWidget(coll_widget)
 
         # Video sections (collection, added, blacklist)
         video_container = QWidget()
@@ -81,12 +106,7 @@ class TagDialog(CollectionDialogBase):
         video_layout.addWidget(self.collection_section.widget)
         video_layout.addWidget(self.added_section.widget)
         video_layout.addWidget(self.blacklist_section.widget)
-        layout.addWidget(video_container)
-
-        # Video info display
-        self.video_info = QLabel("Select a video to see details")
-        self.video_info.setWordWrap(True)
-        layout.addWidget(self.video_info)
+        right_layout.addWidget(video_container)
 
         # Video count + Active days
         count_layout = QHBoxLayout()
@@ -106,18 +126,20 @@ class TagDialog(CollectionDialogBase):
         self.all_days_cb.stateChanged.connect(self._on_all_days_toggled)
         count_layout.addWidget(self.all_days_cb)
         count_layout.addStretch()
-        layout.addLayout(count_layout)
+        right_layout.addLayout(count_layout)
 
-        # Time inputs
+        # Time inputs + auto calc
         time_layout = QHBoxLayout()
         self._setup_time_inputs(time_layout)
-        layout.addLayout(time_layout)
+        right_layout.addLayout(time_layout)
 
         # Save/Cancel buttons
         btn_layout = QHBoxLayout()
         btn_layout.addWidget(self.save_btn)
         btn_layout.addWidget(self.cancel_btn)
-        layout.addLayout(btn_layout)
+        right_layout.addLayout(btn_layout)
+
+        main_layout.addWidget(right)
 
     def _populate_from_tag(self, tag: Tag):
         """Fill UI fields from an existing Tag."""
@@ -174,14 +196,51 @@ class TagDialog(CollectionDialogBase):
                 cb.setChecked(True)
                 cb.setEnabled(False)
 
+    def _on_collection_loaded(self):
+        """Update info panel after collection is loaded."""
+        default_info = next(iter(self.collection_info_dict.values())) if self.collection_info_dict else {}
+        self.info_panel.set_collection_info(default_info)
+        self.info_panel.set_cover_image(default_info.get('cover'))
+
     def _on_video_selected(self, video: dict):
-        """Display basic info for the selected video."""
-        info = (
-            f"Name: {video.get('name', '-')}\n"
-            f"Path: {video.get('path', '-')}\n"
-            f"Duration: {int(video.get('duration', 0))}s"
-        )
-        self.video_info.setText(info)
+        """Handle selection in collection list: update video info and cover."""
+        self.video_info.set_video_info(video)
+        coll_id = video.get('collection_id', '')
+        coll_info = self.collection_info_dict.get(coll_id, {})
+        cover_path = coll_info.get('cover', '')
+        self.info_panel.set_cover_image(cover_path)
+
+    def on_added_video_selected(self, item):
+        """Handle selection in added videos list."""
+        path = item.data(Qt.UserRole)
+        video = next((v for v in self.added_videos if v.get('path') == path), None)
+        if video:
+            self.video_info.set_video_info(video)
+            coll_id = video.get('collection_id', '')
+            if not coll_id:
+                for v in self.collection_videos:
+                    if v.get('path', '') == path:
+                        coll_id = v.get('collection_id', '')
+                        break
+            coll_info = self.collection_info_dict.get(coll_id, {})
+            cover_path = coll_info.get('cover', '')
+            self.info_panel.set_cover_image(cover_path)
+
+    def on_blacklist_video_selected(self, item):
+        """Handle selection in blacklist."""
+        path = item.data(Qt.UserRole)
+        video = next((v for v in self.blacklist if v.get('path') == path), None)
+        if video:
+            self.video_info.set_video_info(video)
+            coll_id = video.get('collection_id', '')
+            if not coll_id:
+                for v in self.collection_videos:
+                    if v.get('path', '') == path:
+                        coll_id = v.get('collection_id', '')
+                        break
+            coll_info = self.collection_info_dict.get(coll_id, {})
+            cover_path = coll_info.get('cover', '')
+            self.info_panel.set_cover_image(cover_path)
 
     def _recalc_end_time(self):
         if not self.added_videos:
