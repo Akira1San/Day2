@@ -676,19 +676,26 @@ class GapTagDialog(QDialog):
         self.name_input.setToolTip("Name for this gap filler tag. Displayed in the tag list.")
         self.gap_max_spin = QSpinBox()
         self.gap_max_spin.setRange(0, 86400)
-        self.gap_max_spin.setValue(3600)
+        self.gap_max_spin.setValue(14400)
         self.gap_max_spin.setSuffix(" sec")
         self.gap_max_spin.setSpecialValueText("No limit")
         self.gap_max_spin.setToolTip(
             "Maximum seconds of gap content to insert per day (0 = unlimited).\n"
             "Higher values produce more entries and slower generation.\n"
-            "Recommended: 1800–3600 (30–60 min)."
+            "Recommended: 7200–14400 (2–4 h)."
         )
         self.preserve_boundaries_cb = QCheckBox("Preserve day boundaries (don't split videos across days)")
         self.preserve_boundaries_cb.setChecked(False)
         self.preserve_boundaries_cb.setToolTip(
             "If checked, a gap video that would cross midnight is skipped\n"
             "instead of being split across two days."
+        )
+        self.gap_between_only_cb = QCheckBox("Only fill between tags (leave day edges empty to show gaps)")
+        self.gap_between_only_cb.setChecked(False)
+        self.gap_between_only_cb.setToolTip(
+            "If checked, gap fill only fills gaps BETWEEN scheduled tags.\n"
+            "Empty space before the first tag and after the last tag is\n"
+            "left unfilled so you can see where extra content is needed."
         )
 
         self.collection_table = QTableWidget(0, 4)
@@ -742,6 +749,7 @@ class GapTagDialog(QDialog):
         dur_row.addStretch()
         layout.addLayout(dur_row)
         layout.addWidget(self.preserve_boundaries_cb)
+        layout.addWidget(self.gap_between_only_cb)
 
         # Active days
         days_row = QHBoxLayout()
@@ -829,6 +837,9 @@ class GapTagDialog(QDialog):
         self.preserve_boundaries_cb.setChecked(
             getattr(tag, 'gap_preserve_boundaries', False)
         )
+        self.gap_between_only_cb.setChecked(
+            getattr(tag, 'gap_fill_between_only', False)
+        )
         active_days = getattr(tag, 'active_days', None)
         if active_days is not None:
             self.all_days_cb.setChecked(False)
@@ -898,5 +909,6 @@ class GapTagDialog(QDialog):
             gap_collections=gap_collections,
             gap_max_duration=gap_max,
             gap_preserve_boundaries=self.preserve_boundaries_cb.isChecked(),
+            gap_fill_between_only=self.gap_between_only_cb.isChecked(),
             active_days=active_days
         )

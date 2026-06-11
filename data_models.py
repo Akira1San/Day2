@@ -47,8 +47,9 @@ class Tag:
                    marathon_tag_name: str = "",
                    is_gap_filler: bool = False,
                    gap_collections: Optional[List[dict]] = None,
-                   gap_max_duration: Optional[int] = None,
-                   gap_preserve_boundaries: bool = False):
+                    gap_max_duration: Optional[int] = 14400,
+                    gap_preserve_boundaries: bool = False,
+                    gap_fill_between_only: bool = False):
         self.tag_type = tag_type
         self.name = name
         self.start_time = start_time or QTime(0, 0)
@@ -60,6 +61,7 @@ class Tag:
         self.gap_collections = gap_collections or []
         self.gap_max_duration = gap_max_duration
         self.gap_preserve_boundaries = gap_preserve_boundaries
+        self.gap_fill_between_only = gap_fill_between_only
         self.collection_videos = collection_videos or []
         self.collection_path = collection_path
         self.randomize_videos = randomize_videos
@@ -520,8 +522,9 @@ class TagManager:
                     marathon_tag_name: str = "",
                     is_gap_filler: bool = False,
                     gap_collections: Optional[List[dict]] = None,
-                   gap_max_duration: Optional[int] = 3600,
-                    gap_preserve_boundaries: bool = False) -> bool:
+                    gap_max_duration: Optional[int] = 14400,
+                    gap_preserve_boundaries: bool = False,
+                    gap_fill_between_only: bool = False) -> bool:
         if 0 <= index < len(self.tags):
             t = self.tags[index]
             t.name = name
@@ -550,6 +553,7 @@ class TagManager:
             t.gap_collections = gap_collections or []
             t.gap_max_duration = gap_max_duration
             t.gap_preserve_boundaries = gap_preserve_boundaries
+            t.gap_fill_between_only = gap_fill_between_only
             # Apply blacklist filtering to collection_videos
             t.collection_videos = collection_videos or []
             if t.collection_videos and t.blacklist:

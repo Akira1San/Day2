@@ -54,6 +54,7 @@ def serialize_tag_to_string(tag) -> str:
         gap_max = getattr(tag, 'gap_max_duration', None)
         lines.append(f"gap_max_duration = {gap_max if gap_max is not None else ''}")
         lines.append(f"gap_preserve_boundaries = {'true' if getattr(tag, 'gap_preserve_boundaries', False) else 'false'}")
+        lines.append(f"gap_fill_between_only = {'true' if getattr(tag, 'gap_fill_between_only', False) else 'false'}")
         active_days = getattr(tag, 'active_days', None)
         lines.append(f"active_days = {','.join(str(d) for d in active_days) if active_days else ''}")
 
@@ -205,6 +206,7 @@ def deserialize_tag_from_string(data: str, tag_class, qtime_from_string):
         gap_max_raw = tag_section.get('gap_max_duration', '')
         gap_max_duration = int(gap_max_raw) if gap_max_raw.strip().isdigit() else None
         gap_preserve_boundaries = tag_section.get('gap_preserve_boundaries', 'false') == 'true'
+        gap_fill_between_only = tag_section.get('gap_fill_between_only', 'false') == 'true'
         active_days_str = tag_section.get('active_days', '')
         active_days = [int(d) for d in active_days_str.split(',') if d.strip().isdigit()] if active_days_str.strip() else None
 
@@ -212,6 +214,7 @@ def deserialize_tag_from_string(data: str, tag_class, qtime_from_string):
                         is_gap_filler=True, gap_collections=gap_collections,
                         gap_max_duration=gap_max_duration,
                         gap_preserve_boundaries=gap_preserve_boundaries,
+                        gap_fill_between_only=gap_fill_between_only,
                         active_days=active_days)
 
     elif tag_type == 'random':

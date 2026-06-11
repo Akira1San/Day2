@@ -201,8 +201,8 @@ class CustomTagMergeStrategy:
 
         gap_max = gap_tag.gap_max_duration
         if gap_max is None or gap_max == 0:
-            gap_max = 7200
-            logger.warning("gap_max_duration is 0 or unset; capping at 7200s (2h) for performance")
+            gap_max = 14400
+            logger.warning("gap_max_duration is 0 or unset; capping at 14400s (4h) for performance")
         preserve_boundaries = gap_tag.gap_preserve_boundaries
         all_placed = custom_entries + series_entries + multi_series_entries + fill_entries
 
@@ -239,6 +239,9 @@ class CustomTagMergeStrategy:
                 pos = max(pos, end)
             if pos < day_end:
                 gaps.append((pos, day_end))
+
+            if gap_tag.gap_fill_between_only:
+                gaps = [(gs, ge) for gs, ge in gaps if gs != day_start and ge != day_end]
 
             day_filled = 0
             for gap_start, gap_end in gaps:
