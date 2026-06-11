@@ -403,6 +403,30 @@ def group_videos_by_movie(videos: List[Dict]) -> Dict[int, List[Dict]]:
     return result
 
 
+def load_gap_collections(collections_config: List[Dict]) -> List[Dict]:
+    """Load and pool all videos from a gap tag's collection configs.
+
+    Each entry in collections_config should have:
+        {"path": "/path/to/file.json", "type": "trailer"}
+
+    The type field is stored for display only; all videos are pooled together.
+    Returns a flat list of video dicts.
+    """
+    all_videos = []
+    seen_paths = set()
+    for entry in collections_config:
+        path = entry.get("path", "")
+        if not path:
+            continue
+        videos = load_collection_videos_only(path)
+        for v in videos:
+            vpath = v.get("path", "")
+            if vpath not in seen_paths:
+                seen_paths.add(vpath)
+                all_videos.append(v)
+    return all_videos
+
+
 def normalize_tag_time_range(tag) -> Tuple[int, int]:
     """Get (start_seconds, end_seconds) from a tag, normalizing midnight wrap.
 

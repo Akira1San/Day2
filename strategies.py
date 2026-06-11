@@ -17,6 +17,7 @@ from utils import (
     get_video_display_name,
     parse_videos_for_series,
     normalize_tag_time_range,
+    load_gap_collections,
 )
 from data_models import ScheduleEntry
 
@@ -120,7 +121,13 @@ class CustomTagMergeStrategy:
                                        if e.start_seconds < day_end and e.end_seconds > day_start]
                             self.sg._process_random_fill_tag(rf, fill_entries, merged, start_vid_idx, day_offset_seconds)
 
-        entries = custom_entries + series_entries + multi_series_entries + fill_entries
+        # Gap filler: fill remaining empty intervals with gap tag videos
+        gap_tags = [t for t in all_tags if t.is_gap_filler]
+        if gap_tags:
+            gap_entries = self._fill_gap_fillers(gap_tags, custom_entries, series_entries, multi_series_entries, fill_entries, num_days)
+            entries = custom_entries + series_entries + multi_series_entries + fill_entries + gap_entries
+        else:
+            entries = custom_entries + series_entries + multi_series_entries + fill_entries
         entries.sort(key=lambda e: e.start_seconds)
         return entries
 
@@ -177,6 +184,94 @@ class CustomTagMergeStrategy:
 
         final.sort(key=lambda e: e.start_seconds)
         return final
+
+    def _fill_gap_fillers(self, gap_tags, custom_entries, series_entries, multi_series_entries, fill_entries, num_days):
+        """Fill unoccupied day intervals with gap tag videos across multiple days.
+
+        Pools videos from all gap collections across all gap tags (currently
+        using the first gap tag), then fills gaps day by day in round-robin.
+        """
+        if not gap_tags:
+            return []
+
+        gap_tag = gap_tags[0]
+        gap_videos = load_gap_collections(gap_tag.gap_collections)
+        if not gap_videos:
+            return []
+
+        gap_max = gap_tag.gap_max_duration
+        preserve_boundaries = gap_tag.gap_preserve_boundaries
+        all_placed = custom_entries + series_entries + multi_series_entries + fill_entries
+
+        gap_entries = []
+        vid_idx = 0
+
+        for day_offset in range(num_days):
+            if not self.sg._is_tag_active_on_day(gap_tag, day_offset):
+                continue
+
+            day_start = day_offset * 86400
+            day_end = day_start + 86400
+
+            occupied_ranges = []
+            for e in all_placed:
+                if e.start_seconds < day_end and e.end_seconds > day_start:
+                    start = max(e.start_seconds, day_start)
+                    end = min(e.end_seconds, day_end)
+                    occupied_ranges.append((start, end))
+
+            occupied_ranges.sort()
+            merged = []
+            for start, end in occupied_ranges:
+                if merged and start <= merged[-1][1]:
+                    merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+                else:
+                    merged.append((start, end))
+
+            gaps = []
+            pos = day_start
+            for start, end in merged:
+                if start > pos:
+                    gaps.append((pos, start))
+                pos = max(pos, end)
+            if pos < day_end:
+                gaps.append((pos, day_end))
+
+            day_filled = 0
+            for gap_start, gap_end in gaps:
+                if gap_end - gap_start <= 0:
+                    continue
+                gap_pos = gap_start
+                while gap_pos < gap_end:
+                    if gap_max is not None and day_filled >= gap_max:
+                        break
+
+                    video = gap_videos[vid_idx % len(gap_videos)]
+                    vid_idx += 1
+
+                    duration = int(video.get('duration', 90))
+                    if duration < 1:
+                        duration = 90
+
+                    if gap_pos + duration > gap_end:
+                        break
+
+                    if preserve_boundaries and gap_pos + duration > day_end:
+                        break
+
+                    if gap_max is not None:
+                        remaining = gap_max - day_filled
+                        if duration > remaining:
+                            duration = remaining
+
+                    video_name = f"[Gap] {get_video_display_name(video)}"
+                    entry = ScheduleEntry(1, gap_pos, gap_pos + duration, video_name, "gap_fill")
+                    entry.problem = "gap"
+                    gap_entries.append(entry)
+                    gap_pos += duration
+                    day_filled += duration
+
+        return gap_entries
 
 
 class FindReplaceApproximateStrategy:

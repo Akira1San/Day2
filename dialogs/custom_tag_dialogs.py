@@ -1,10 +1,11 @@
 import json
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List, Dict
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QSpinBox,
-    QMessageBox, QListWidgetItem, QComboBox
+    QMessageBox, QListWidgetItem, QComboBox, QDialog, QTableWidget,
+    QTableWidgetItem, QHeaderView, QPushButton, QFileDialog, QLineEdit
 )
 from PySide6.QtCore import Qt, QTime
 
@@ -655,5 +656,220 @@ class RandomFillDialog(CollectionDialogBase):
             blacklist_profile=blacklist_profile,
             marathon_mode=marathon_mode,
             marathon_tag_name=marathon_tag_name,
+            active_days=active_days
+        )
+
+
+class GapTagDialog(QDialog):
+    """Dialog for creating/editing gap filler tags with multiple typed collections."""
+
+    GAP_TYPES = ["trailer", "promo", "music", "standby_loop"]
+
+    def __init__(self, parent=None, tag: Optional[Tag] = None):
+        super().__init__(parent)
+        self.tag = tag
+        self.setWindowTitle("Add Gap Tag" if not tag else "Edit Gap Tag")
+        self.setModal(True)
+        self.resize(650, 500)
+
+        self.name_input = QLineEdit("Gap Fill")
+        self.gap_max_spin = QSpinBox()
+        self.gap_max_spin.setRange(0, 86400)
+        self.gap_max_spin.setValue(0)
+        self.gap_max_spin.setSuffix(" sec")
+        self.gap_max_spin.setSpecialValueText("No limit")
+        self.preserve_boundaries_cb = QCheckBox("Preserve day boundaries (don't split videos across days)")
+        self.preserve_boundaries_cb.setChecked(False)
+
+        self.collection_table = QTableWidget(0, 4)
+        self.collection_table.setHorizontalHeaderLabels(["", "Collection File", "Type", ""])
+        self.collection_table.horizontalHeader().setStretchLastSection(False)
+        self.collection_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Fixed)
+        self.collection_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.collection_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Fixed)
+        self.collection_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.Fixed)
+        self.collection_table.setColumnWidth(0, 90)
+        self.collection_table.setColumnWidth(2, 120)
+        self.collection_table.setColumnWidth(3, 50)
+        self.collection_table.verticalHeader().setVisible(False)
+
+        self.add_collection_btn = QPushButton("Add Collection")
+        self.add_collection_btn.clicked.connect(self._add_empty_row)
+
+        # Active days
+        day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        self.day_checkboxes = []
+        self.all_days_cb = QCheckBox("All")
+        self.all_days_cb.setChecked(True)
+
+        self.build_ui()
+
+        if tag:
+            self._populate_from_tag(tag)
+        elif not self.tag:
+            self._add_empty_row()
+
+    def build_ui(self):
+        layout = QVBoxLayout(self)
+
+        # Name
+        name_row = QHBoxLayout()
+        name_row.addWidget(QLabel("Name:"))
+        name_row.addWidget(self.name_input)
+        layout.addLayout(name_row)
+
+        # Collection table
+        layout.addWidget(QLabel("Gap Collections:"))
+        layout.addWidget(self.collection_table)
+        layout.addWidget(self.add_collection_btn)
+
+        # Max duration + preserve boundaries
+        dur_row = QHBoxLayout()
+        dur_row.addWidget(QLabel("Max fill per day:"))
+        dur_row.addWidget(self.gap_max_spin)
+        dur_row.addStretch()
+        layout.addLayout(dur_row)
+        layout.addWidget(self.preserve_boundaries_cb)
+
+        # Active days
+        days_row = QHBoxLayout()
+        days_row.addWidget(QLabel("Active Days:"))
+        for day_name in ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]:
+            cb = QCheckBox(day_name)
+            cb.setChecked(True)
+            cb.stateChanged.connect(self._update_all_days_checkbox)
+            days_row.addWidget(cb)
+            self.day_checkboxes.append(cb)
+        self.all_days_cb.stateChanged.connect(self._on_all_days_toggled)
+        days_row.addWidget(self.all_days_cb)
+        days_row.addStretch()
+        layout.addLayout(days_row)
+
+        # Buttons
+        btn_row = QHBoxLayout()
+        save_btn = QPushButton("Save")
+        save_btn.clicked.connect(self._validate_and_accept)
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.reject)
+        btn_row.addStretch()
+        btn_row.addWidget(save_btn)
+        btn_row.addWidget(cancel_btn)
+        layout.addLayout(btn_row)
+
+    def _add_empty_row(self, path: str = "", type_str: str = "trailer"):
+        row = self.collection_table.rowCount()
+        self.collection_table.insertRow(row)
+
+        browse_btn = QPushButton("Browse...")
+        browse_btn.clicked.connect(lambda: self._browse_collection(row))
+        self.collection_table.setCellWidget(row, 0, browse_btn)
+
+        path_label = QLabel(path if path else "(none)")
+        path_label.setWordWrap(True)
+        self.collection_table.setCellWidget(row, 1, path_label)
+
+        type_combo = QComboBox()
+        type_combo.addItems(self.GAP_TYPES)
+        if type_str in self.GAP_TYPES:
+            type_combo.setCurrentIndex(self.GAP_TYPES.index(type_str))
+        self.collection_table.setCellWidget(row, 2, type_combo)
+
+        remove_btn = QPushButton("X")
+        remove_btn.clicked.connect(lambda: self._remove_row(row))
+        self.collection_table.setCellWidget(row, 3, remove_btn)
+
+    def _browse_collection(self, row: int):
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Select Collection JSON", "", "JSON Files (*.json);;All Files (*)"
+        )
+        if file_path:
+            path_label = self.collection_table.cellWidget(row, 1)
+            path_label.setText(file_path)
+
+    def _remove_row(self, row: int):
+        self.collection_table.removeRow(row)
+
+    def _populate_from_tag(self, tag: Tag):
+        self.name_input.setText(tag.name)
+        for gc in getattr(tag, 'gap_collections', []):
+            self._add_empty_row(
+                path=gc.get("path", ""),
+                type_str=gc.get("type", "trailer")
+            )
+        gap_max = getattr(tag, 'gap_max_duration', None)
+        if gap_max is not None:
+            self.gap_max_spin.setValue(gap_max)
+        self.preserve_boundaries_cb.setChecked(
+            getattr(tag, 'gap_preserve_boundaries', False)
+        )
+        active_days = getattr(tag, 'active_days', None)
+        if active_days is not None:
+            self.all_days_cb.setChecked(False)
+            for cb in self.day_checkboxes:
+                cb.setEnabled(True)
+                cb.setChecked(False)
+            for d in active_days:
+                if 1 <= d <= 7:
+                    self.day_checkboxes[d - 1].setChecked(True)
+        else:
+            self.all_days_cb.setChecked(True)
+            for cb in self.day_checkboxes:
+                cb.setChecked(True)
+                cb.setEnabled(False)
+
+    def _on_all_days_toggled(self, checked: bool):
+        enabled = not checked
+        for cb in self.day_checkboxes:
+            cb.setChecked(checked)
+            cb.setEnabled(enabled)
+
+    def _update_all_days_checkbox(self):
+        all_checked = all(cb.isChecked() for cb in self.day_checkboxes)
+        if all_checked:
+            self.all_days_cb.setChecked(True)
+            for cb in self.day_checkboxes:
+                cb.setEnabled(False)
+
+    def _validate_and_accept(self):
+        if not self.name_input.text().strip():
+            QMessageBox.warning(self, "No Name", "Please enter a name for the gap tag.")
+            return
+        gap_collections = []
+        for row in range(self.collection_table.rowCount()):
+            path_label = self.collection_table.cellWidget(row, 1)
+            path = path_label.text() if path_label else ""
+            if path and path != "(none)":
+                gap_collections.append({"path": path, "type": self.collection_table.cellWidget(row, 2).currentText() if self.collection_table.cellWidget(row, 2) else "trailer"})
+        if not gap_collections:
+            QMessageBox.warning(self, "No Collections", "Please add at least one collection.")
+            return
+        self.accept()
+
+    def get_tag(self) -> Tag:
+        name = self.name_input.text().strip()
+        gap_collections = []
+        for row in range(self.collection_table.rowCount()):
+            path_label = self.collection_table.cellWidget(row, 1)
+            type_combo = self.collection_table.cellWidget(row, 2)
+            path = path_label.text() if path_label else ""
+            type_str = type_combo.currentText() if type_combo else "trailer"
+            if path and path != "(none)":
+                gap_collections.append({"path": path, "type": type_str})
+        gap_max = self.gap_max_spin.value()
+        if gap_max == 0:
+            gap_max = None
+        if self.all_days_cb.isChecked():
+            active_days = None
+        else:
+            active_days = [i + 1 for i, cb in enumerate(self.day_checkboxes) if cb.isChecked()]
+        return Tag(
+            tag_type="gap",
+            name=name,
+            start_time=QTime(0, 0),
+            end_time=QTime(23, 59),
+            is_gap_filler=True,
+            gap_collections=gap_collections,
+            gap_max_duration=gap_max,
+            gap_preserve_boundaries=self.preserve_boundaries_cb.isChecked(),
             active_days=active_days
         )

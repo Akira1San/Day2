@@ -44,7 +44,11 @@ class Tag:
                    series_random_season: int = 0,
                    active_days: Optional[List[int]] = None,
                    marathon_mode: bool = False,
-                   marathon_tag_name: str = ""):
+                   marathon_tag_name: str = "",
+                   is_gap_filler: bool = False,
+                   gap_collections: Optional[List[dict]] = None,
+                   gap_max_duration: Optional[int] = None,
+                   gap_preserve_boundaries: bool = False):
         self.tag_type = tag_type
         self.name = name
         self.start_time = start_time or QTime(0, 0)
@@ -52,6 +56,10 @@ class Tag:
         self.is_random_fill = is_random_fill
         self.marathon_mode = marathon_mode
         self.marathon_tag_name = marathon_tag_name
+        self.is_gap_filler = is_gap_filler
+        self.gap_collections = gap_collections or []
+        self.gap_max_duration = gap_max_duration
+        self.gap_preserve_boundaries = gap_preserve_boundaries
         self.collection_videos = collection_videos or []
         self.collection_path = collection_path
         self.randomize_videos = randomize_videos
@@ -110,6 +118,16 @@ class Tag:
                 self._flat_ordered = [v for s in self._sorted_seasons for v in self._season_groups[s]]
 
     def to_display_string(self) -> str:
+        if self.is_gap_filler or self.tag_type == "gap":
+            type_counts = {"T": 0, "P": 0, "M": 0, "S": 0}
+            type_map = {"trailer": "T", "promo": "P", "music": "M", "standby_loop": "S"}
+            for gc in self.gap_collections:
+                t = gc.get("type", "")
+                key = type_map.get(t)
+                if key:
+                    type_counts[key] += 1
+            summary = f"T:{type_counts['T']}, P:{type_counts['P']}, M:{type_counts['M']}, S:{type_counts['S']}"
+            return f"[Gap] {self.name} ({summary})"
         if self.tag_type == "random" or self.is_random_fill:
             fill_24h = getattr(self, 'fill_24h', False)
             collection_profile = getattr(self, 'collection_profile', '')
@@ -139,6 +157,8 @@ class Tag:
 
     @property
     def tag_color(self) -> Optional[QColor]:
+        if self.is_gap_filler or self.tag_type == "gap":
+            return QColor("#f59e0b")
         if self.tag_type == "random" or self.is_random_fill:
             return None
         if self.is_series or getattr(self, 'is_multi_series', False):
@@ -497,7 +517,11 @@ class TagManager:
                     series_random_season: int = 0,
                     active_days: Optional[List[int]] = None,
                     marathon_mode: bool = False,
-                    marathon_tag_name: str = "") -> bool:
+                    marathon_tag_name: str = "",
+                    is_gap_filler: bool = False,
+                    gap_collections: Optional[List[dict]] = None,
+                    gap_max_duration: Optional[int] = None,
+                    gap_preserve_boundaries: bool = False) -> bool:
         if 0 <= index < len(self.tags):
             t = self.tags[index]
             t.name = name
@@ -522,6 +546,10 @@ class TagManager:
             t.active_days = active_days
             t.marathon_mode = marathon_mode
             t.marathon_tag_name = marathon_tag_name
+            t.is_gap_filler = is_gap_filler
+            t.gap_collections = gap_collections or []
+            t.gap_max_duration = gap_max_duration
+            t.gap_preserve_boundaries = gap_preserve_boundaries
             # Apply blacklist filtering to collection_videos
             t.collection_videos = collection_videos or []
             if t.collection_videos and t.blacklist:

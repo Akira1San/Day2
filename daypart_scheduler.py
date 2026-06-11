@@ -101,7 +101,7 @@ from utils import (
     get_schedule_profiles
 )
 from models import Tag, ScheduleEntry, TagManager, ScheduleGenerator, compute_schedule_issues, mark_continuity_problems
-from dialogs import TagDialog, RandomFillDialog, SeriesDialog, ConfigDialog, SchedulePreviewDialog, DurationDebugDialog
+from dialogs import TagDialog, RandomFillDialog, SeriesDialog, ConfigDialog, SchedulePreviewDialog, DurationDebugDialog, GapTagDialog
 
 
 APPROXIMATE_THRESHOLD_MINUTES = 40
@@ -160,6 +160,11 @@ class MainWindow(QMainWindow):
         self.add_multi_series_btn.setToolTip("Add a multi-series container tag")
         self.add_multi_series_btn.clicked.connect(self.add_multi_series_tag)
         btn_layout.addWidget(self.add_multi_series_btn)
+
+        self.add_gap_btn = QPushButton("Gap")
+        self.add_gap_btn.setToolTip("Add a gap filler tag to fill empty time intervals")
+        self.add_gap_btn.clicked.connect(self.add_gap_tag)
+        btn_layout.addWidget(self.add_gap_btn)
 
         self.edit_btn = QPushButton("Edit")
         self.edit_btn.setToolTip("Edit the selected tag")
@@ -677,6 +682,13 @@ class MainWindow(QMainWindow):
             self.refresh_tags_list()
             self.refresh_preview()
 
+    def add_gap_tag(self):
+        dialog = GapTagDialog(self)
+        if dialog.exec():
+            self.tag_manager.add_tag(dialog.get_tag())
+            self.refresh_tags_list()
+            self.refresh_preview()
+
     def edit_tag(self):
          current_row = self.tags_list.currentRow()
          if current_row < 0:
@@ -684,6 +696,13 @@ class MainWindow(QMainWindow):
              return
  
          tag = self.tag_manager.tags[current_row]
+         if tag.is_gap_filler:
+             dialog = GapTagDialog(self, tag)
+             if dialog.exec():
+                 self.tag_manager.tags[current_row] = dialog.get_tag()
+                 self.refresh_tags_list()
+                 self.refresh_preview()
+             return
          if tag.is_random_fill:
              dialog = RandomFillDialog(self, tag)
          elif tag.is_series:
