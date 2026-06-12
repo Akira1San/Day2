@@ -55,6 +55,8 @@ def serialize_tag_to_string(tag) -> str:
         lines.append(f"gap_max_duration = {gap_max if gap_max is not None else ''}")
         lines.append(f"gap_preserve_boundaries = {'true' if getattr(tag, 'gap_preserve_boundaries', False) else 'false'}")
         lines.append(f"gap_fill_between_only = {'true' if getattr(tag, 'gap_fill_between_only', False) else 'false'}")
+        lines.append(f"gap_auto_resolve_overlaps = {'true' if getattr(tag, 'gap_auto_resolve_overlaps', False) else 'false'}")
+        lines.append(f"gap_shift_padding = {getattr(tag, 'gap_shift_padding', 180)}")
         active_days = getattr(tag, 'active_days', None)
         lines.append(f"active_days = {','.join(str(d) for d in active_days) if active_days else ''}")
 
@@ -207,6 +209,9 @@ def deserialize_tag_from_string(data: str, tag_class, qtime_from_string):
         gap_max_duration = int(gap_max_raw) if gap_max_raw.strip().isdigit() else None
         gap_preserve_boundaries = tag_section.get('gap_preserve_boundaries', 'false') == 'true'
         gap_fill_between_only = tag_section.get('gap_fill_between_only', 'false') == 'true'
+        gap_auto_resolve_overlaps = tag_section.get('gap_auto_resolve_overlaps', 'false') == 'true'
+        gap_shift_padding_raw = tag_section.get('gap_shift_padding', '180')
+        gap_shift_padding = int(gap_shift_padding_raw) if gap_shift_padding_raw.strip().isdigit() else 180
         active_days_str = tag_section.get('active_days', '')
         active_days = [int(d) for d in active_days_str.split(',') if d.strip().isdigit()] if active_days_str.strip() else None
 
@@ -215,6 +220,8 @@ def deserialize_tag_from_string(data: str, tag_class, qtime_from_string):
                         gap_max_duration=gap_max_duration,
                         gap_preserve_boundaries=gap_preserve_boundaries,
                         gap_fill_between_only=gap_fill_between_only,
+                        gap_auto_resolve_overlaps=gap_auto_resolve_overlaps,
+                        gap_shift_padding=gap_shift_padding,
                         active_days=active_days)
 
     elif tag_type == 'random':

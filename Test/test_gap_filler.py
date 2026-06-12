@@ -217,6 +217,70 @@ def test_between_only_fills_middle_gaps():
     print("  PASS: Only inter-tag gaps filled")
 
 
+def test_auto_resolve_shifts_overlapping_tags():
+    """gap_auto_resolve_overlaps=True shifts overlapping custom tags to create gaps."""
+    tm = TagManager()
+    # Tag1: 08:00-10:00, Tag2: 09:00-11:00 → overlap 1h
+    # Tag3: 13:00-15:00, Tag4: 14:00-16:00 → overlap 1h
+    for h, name in [(8, "Early"), (9, "Late"), (13, "Afternoon1"), (14, "Afternoon2")]:
+        t = Tag(tag_type="custom", name=name,
+                start_time=QTime(h, 0), end_time=QTime(h+2, 0),
+                collection_videos=[{'path': f'/tmp/{name}.mp4', 'duration': 7200}],
+                video_count=1, randomize_videos=False)
+        tm.add_tag(t)
+    gt = Tag(tag_type="gap", name="Gap", is_gap_filler=True,
+             gap_collections=[{"path": "/home/akira/Videos/trailers/trailers.json", "type": "trailer"}],
+             gap_max_duration=14400, gap_preserve_boundaries=False,
+             gap_auto_resolve_overlaps=True, gap_shift_padding=180)
+    tm.add_tag(gt)
+
+    entries = ScheduleGenerator(tm).apply_custom_tags(use_cache=False, num_days=1)
+    custom_e = sorted([e for e in entries if e.tag_type == "custom"], key=lambda x: x.start_seconds)
+    assert len(custom_e) >= 4, f"Expected at least 4 custom entries, got {len(custom_e)}"
+    # Tag2 (Late) should start after Tag1 (Early) ends + padding
+    early_end = custom_e[0].end_seconds  # Early tag end
+    late_start = custom_e[1].start_seconds  # Late tag start
+    assert late_start >= early_end, f"Late tag ({late_start}s) starts before Early ends ({early_end}s)"
+    # Tag4 should start after Tag3 ends + padding
+    a1_end = custom_e[2].end_seconds
+    a2_start = custom_e[3].start_seconds
+    assert a2_start >= a1_end, f"Afternoon2 ({a2_start}s) starts before Afternoon1 ends ({a1_end}s)"
+    # Gap entries should exist between shifted tags
+    gap_e = [e for e in entries if e.problem == "gap" or e.tag_type == "gap_fill"]
+    assert len(gap_e) > 0, "Expected gap entries between shifted tags"
+    print(f"test_auto_resolve_shifts_overlapping_tags: {len(custom_e)} custom, {len(gap_e)} gap entries")
+    print(f"  Early ends {early_end//3600}:{(early_end%3600)//60:02d}, Late starts {late_start//3600}:{(late_start%3600)//60:02d}")
+    print("  PASS: Overlapping tags shifted, gaps filled")
+
+
+def test_auto_resolve_off_keeps_overlaps():
+    """gap_auto_resolve_overlaps=False keeps original overlapping times."""
+    tm = TagManager()
+    t1 = Tag(tag_type="custom", name="Tag1",
+             start_time=QTime(8, 0), end_time=QTime(10, 0),
+             collection_videos=[{'path': '/tmp/t1.mp4', 'duration': 7200}],
+             video_count=1, randomize_videos=False)
+    t2 = Tag(tag_type="custom", name="Tag2",
+             start_time=QTime(9, 0), end_time=QTime(11, 0),
+             collection_videos=[{'path': '/tmp/t2.mp4', 'duration': 7200}],
+             video_count=1, randomize_videos=False)
+    tm.add_tag(t1)
+    tm.add_tag(t2)
+    gt = Tag(tag_type="gap", name="Gap", is_gap_filler=True,
+             gap_collections=[{"path": "/home/akira/Videos/trailers/trailers.json", "type": "trailer"}],
+             gap_max_duration=14400, gap_preserve_boundaries=False,
+             gap_auto_resolve_overlaps=False)
+    tm.add_tag(gt)
+
+    entries = ScheduleGenerator(tm).apply_custom_tags(use_cache=False, num_days=1)
+    custom_e = sorted([e for e in entries if e.tag_type == "custom"], key=lambda x: x.start_seconds)
+    # Without auto-resolve, Tag1 ends at 10:00 and Tag2 starts at 09:00 (overlap)
+    t2_start = custom_e[1].start_seconds
+    expected = 9 * 3600  # 09:00
+    assert t2_start == expected, f"Expected Tag2 at {expected}s, got {t2_start}s"
+    print("test_auto_resolve_off_keeps_overlaps: PASS")
+
+
 if __name__ == "__main__":
     test_no_gap_tag()
     test_empty_gap_collections()
@@ -228,4 +292,6 @@ if __name__ == "__main__":
     test_preserve_boundaries()
     test_round_robin_cycling()
     test_between_only_fills_middle_gaps()
+    test_auto_resolve_shifts_overlapping_tags()
+    test_auto_resolve_off_keeps_overlaps()
     print("\nAll tests PASSED")

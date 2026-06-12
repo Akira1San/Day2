@@ -697,6 +697,19 @@ class GapTagDialog(QDialog):
             "Empty space before the first tag and after the last tag is\n"
             "left unfilled so you can see where extra content is needed."
         )
+        self.auto_resolve_cb = QCheckBox("Auto-resolve overlapping tags (push later tags forward to create gaps)")
+        self.auto_resolve_cb.setChecked(False)
+        self.auto_resolve_cb.setToolTip(
+            "If checked, overlapping custom tags are automatically shifted\n"
+            "to eliminate overlap, creating a gap that the gap filler fills."
+        )
+        self.shift_padding_combo = QComboBox()
+        self.shift_padding_combo.addItem("1 min", 60)
+        self.shift_padding_combo.addItem("2 min", 120)
+        self.shift_padding_combo.addItem("3 min", 180)
+        self.shift_padding_combo.addItem("5 min", 300)
+        self.shift_padding_combo.setCurrentIndex(2)  # default 3 min
+        self.shift_padding_combo.setToolTip("Padding added between shifted tags (creates room for gap filler videos).")
 
         self.collection_table = QTableWidget(0, 4)
         self.collection_table.setHorizontalHeaderLabels(["", "Collection File", "Type", ""])
@@ -750,6 +763,12 @@ class GapTagDialog(QDialog):
         layout.addLayout(dur_row)
         layout.addWidget(self.preserve_boundaries_cb)
         layout.addWidget(self.gap_between_only_cb)
+        layout.addWidget(self.auto_resolve_cb)
+        padding_row = QHBoxLayout()
+        padding_row.addWidget(QLabel("    Shift padding:"))
+        padding_row.addWidget(self.shift_padding_combo)
+        padding_row.addStretch()
+        layout.addLayout(padding_row)
 
         # Active days
         days_row = QHBoxLayout()
@@ -840,6 +859,13 @@ class GapTagDialog(QDialog):
         self.gap_between_only_cb.setChecked(
             getattr(tag, 'gap_fill_between_only', False)
         )
+        self.auto_resolve_cb.setChecked(
+            getattr(tag, 'gap_auto_resolve_overlaps', False)
+        )
+        padding = getattr(tag, 'gap_shift_padding', 180)
+        idx = self.shift_padding_combo.findData(padding)
+        if idx >= 0:
+            self.shift_padding_combo.setCurrentIndex(idx)
         active_days = getattr(tag, 'active_days', None)
         if active_days is not None:
             self.all_days_cb.setChecked(False)
@@ -910,5 +936,7 @@ class GapTagDialog(QDialog):
             gap_max_duration=gap_max,
             gap_preserve_boundaries=self.preserve_boundaries_cb.isChecked(),
             gap_fill_between_only=self.gap_between_only_cb.isChecked(),
+            gap_auto_resolve_overlaps=self.auto_resolve_cb.isChecked(),
+            gap_shift_padding=self.shift_padding_combo.currentData() or 180,
             active_days=active_days
         )

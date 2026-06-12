@@ -59,12 +59,48 @@ class CustomTagMergeStrategy:
         multi_series_entries = []
         fill_entries = []
 
+        # Auto-resolve overlapping custom tags if a gap tag has it enabled
+        gap_tags_inner = [t for t in all_tags if t.is_gap_filler]
+        auto_resolve_gap = next((gt for gt in gap_tags_inner if getattr(gt, 'gap_auto_resolve_overlaps', False)), None)
+        adjusted_custom_ranges = {}
+        if auto_resolve_gap and custom_tags:
+            padding = auto_resolve_gap.gap_shift_padding if auto_resolve_gap.gap_shift_padding else 180
+            ranges = []
+            for ct in custom_tags:
+                start_sec = qtime_to_seconds(ct.start_time)
+                end_sec = qtime_to_seconds(ct.end_time)
+                if end_sec <= start_sec:
+                    end_sec += 86400
+                ranges.append((ct, start_sec, end_sec))
+            ranges.sort(key=lambda x: x[1])
+            prev_end = 0
+            for ct, start, end in ranges:
+                if start < prev_end:
+                    new_start = prev_end + padding
+                    duration = end - start
+                    new_end = new_start + duration
+                    if new_end > 86400:
+                        new_end = 86400
+                    adj_sec = new_start % 86400
+                    adj_end_sec = new_end % 86400
+                    adjusted_custom_ranges[id(ct)] = (adj_sec, adj_end_sec)
+                    prev_end = new_end
+                else:
+                    prev_end = end
+
         for day_offset in range(num_days):
             day_offset_seconds = day_offset * 24 * 3600
             for ct in custom_tags:
                 if not self.sg._is_tag_active_on_day(ct, day_offset):
                     continue
-                self.sg._process_custom_tag(ct, custom_entries, occupied, day_offset_seconds)
+                adj = adjusted_custom_ranges.get(id(ct))
+                if adj:
+                    adj_start_sec, adj_end_sec = adj
+                    adj_start = QTime(adj_start_sec // 3600, (adj_start_sec % 3600) // 60)
+                    adj_end = QTime(adj_end_sec // 3600, (adj_end_sec % 3600) // 60)
+                    self.sg._process_custom_tag(ct, custom_entries, occupied, day_offset_seconds, adj_start, adj_end)
+                else:
+                    self.sg._process_custom_tag(ct, custom_entries, occupied, day_offset_seconds)
 
             for st in series_tags:
                 if not self.sg._is_tag_active_on_day(st, day_offset):

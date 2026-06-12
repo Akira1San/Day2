@@ -468,9 +468,17 @@ class ScheduleGenerator:
 
         return entries
 
-    def _process_custom_tag(self, ct: Tag, custom_entries: List[ScheduleEntry], occupied: set, start_offset: int = 0):
-        start_sec = qtime_to_seconds(ct.start_time)
-        end_sec = qtime_to_seconds(ct.end_time)
+    def _process_custom_tag(self, ct: Tag, custom_entries: List[ScheduleEntry], occupied: set, start_offset: int = 0,
+                            adjusted_start: Optional[QTime] = None,
+                            adjusted_end: Optional[QTime] = None):
+        if adjusted_start is not None:
+            start_sec = qtime_to_seconds(adjusted_start)
+        else:
+            start_sec = qtime_to_seconds(ct.start_time)
+        if adjusted_end is not None:
+            end_sec = qtime_to_seconds(adjusted_end)
+        else:
+            end_sec = qtime_to_seconds(ct.end_time)
 
         if end_sec <= start_sec:
             end_sec += 86400

@@ -48,8 +48,10 @@ class Tag:
                    is_gap_filler: bool = False,
                    gap_collections: Optional[List[dict]] = None,
                     gap_max_duration: Optional[int] = 14400,
-                    gap_preserve_boundaries: bool = False,
-                    gap_fill_between_only: bool = False):
+                     gap_preserve_boundaries: bool = False,
+                     gap_fill_between_only: bool = False,
+                     gap_auto_resolve_overlaps: bool = False,
+                     gap_shift_padding: int = 180):
         self.tag_type = tag_type
         self.name = name
         self.start_time = start_time or QTime(0, 0)
@@ -62,6 +64,8 @@ class Tag:
         self.gap_max_duration = gap_max_duration
         self.gap_preserve_boundaries = gap_preserve_boundaries
         self.gap_fill_between_only = gap_fill_between_only
+        self.gap_auto_resolve_overlaps = gap_auto_resolve_overlaps
+        self.gap_shift_padding = gap_shift_padding
         self.collection_videos = collection_videos or []
         self.collection_path = collection_path
         self.randomize_videos = randomize_videos
@@ -524,7 +528,9 @@ class TagManager:
                     gap_collections: Optional[List[dict]] = None,
                     gap_max_duration: Optional[int] = 14400,
                     gap_preserve_boundaries: bool = False,
-                    gap_fill_between_only: bool = False) -> bool:
+                    gap_fill_between_only: bool = False,
+                    gap_auto_resolve_overlaps: bool = False,
+                    gap_shift_padding: int = 180) -> bool:
         if 0 <= index < len(self.tags):
             t = self.tags[index]
             t.name = name
@@ -554,6 +560,8 @@ class TagManager:
             t.gap_max_duration = gap_max_duration
             t.gap_preserve_boundaries = gap_preserve_boundaries
             t.gap_fill_between_only = gap_fill_between_only
+            t.gap_auto_resolve_overlaps = gap_auto_resolve_overlaps
+            t.gap_shift_padding = gap_shift_padding
             # Apply blacklist filtering to collection_videos
             t.collection_videos = collection_videos or []
             if t.collection_videos and t.blacklist:
