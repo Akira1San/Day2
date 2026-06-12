@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Daypart Scheduler
+Comment=Schedule dayparted video playlists with custom tags, gap fillers, and approximate placement
+Exec=/usr/bin/python3 /home/akira/akira/day2/daypart_scheduler.py
+Path=/home/akira/akira/day2
+Icon=applications-multimedia
+Terminal=false
+Categories=AudioVideo;Video;Audio;
+StartupNotify=true
