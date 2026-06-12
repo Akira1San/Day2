@@ -1246,11 +1246,6 @@ class ScheduleGenerator:
         series_sorted = sorted(series_tags, key=lambda t: qtime_to_seconds(t.start_time))
         multi_sorted = sorted(multi_series_tags, key=lambda t: qtime_to_seconds(t.start_time))
 
-        # Sort tags by start time for chronological processing (duplicate removed)
-        custom_sorted = sorted(custom_tags, key=lambda t: qtime_to_seconds(t.start_time))
-        series_sorted = sorted(series_tags, key=lambda t: qtime_to_seconds(t.start_time))
-        multi_sorted = sorted(multi_series_tags, key=lambda t: qtime_to_seconds(t.start_time))
-
         scheduled_ranges = []
         for ct in custom_sorted:
             scheduled_ranges.append(normalize_tag_time_range(ct))
