@@ -710,6 +710,13 @@ class GapTagDialog(QDialog):
         self.shift_padding_combo.addItem("5 min", 300)
         self.shift_padding_combo.setCurrentIndex(2)  # default 3 min
         self.shift_padding_combo.setToolTip("Padding added between shifted tags (creates room for gap filler videos).")
+        self.estimate_runtime_cb = QCheckBox("Use actual video duration for overlap detection")
+        self.estimate_runtime_cb.setChecked(False)
+        self.estimate_runtime_cb.setToolTip(
+            "If checked, the overlap detector estimates each tag's actual end time\n"
+            "by summing video durations. Catches cases where a video extends past\n"
+            "the tag's end time, creating unexpected overlaps."
+        )
 
         self.collection_table = QTableWidget(0, 4)
         self.collection_table.setHorizontalHeaderLabels(["", "Collection File", "Type", ""])
@@ -769,6 +776,7 @@ class GapTagDialog(QDialog):
         padding_row.addWidget(self.shift_padding_combo)
         padding_row.addStretch()
         layout.addLayout(padding_row)
+        layout.addWidget(self.estimate_runtime_cb)
 
         # Active days
         days_row = QHBoxLayout()
@@ -866,6 +874,9 @@ class GapTagDialog(QDialog):
         idx = self.shift_padding_combo.findData(padding)
         if idx >= 0:
             self.shift_padding_combo.setCurrentIndex(idx)
+        self.estimate_runtime_cb.setChecked(
+            getattr(tag, 'gap_estimate_runtime_overlap', False)
+        )
         active_days = getattr(tag, 'active_days', None)
         if active_days is not None:
             self.all_days_cb.setChecked(False)
@@ -938,5 +949,6 @@ class GapTagDialog(QDialog):
             gap_fill_between_only=self.gap_between_only_cb.isChecked(),
             gap_auto_resolve_overlaps=self.auto_resolve_cb.isChecked(),
             gap_shift_padding=self.shift_padding_combo.currentData() or 180,
+            gap_estimate_runtime_overlap=self.estimate_runtime_cb.isChecked(),
             active_days=active_days
         )

@@ -51,7 +51,8 @@ class Tag:
                      gap_preserve_boundaries: bool = False,
                      gap_fill_between_only: bool = False,
                      gap_auto_resolve_overlaps: bool = False,
-                     gap_shift_padding: int = 180):
+                     gap_shift_padding: int = 180,
+                     gap_estimate_runtime_overlap: bool = False):
         self.tag_type = tag_type
         self.name = name
         self.start_time = start_time or QTime(0, 0)
@@ -65,6 +66,7 @@ class Tag:
         self.gap_preserve_boundaries = gap_preserve_boundaries
         self.gap_fill_between_only = gap_fill_between_only
         self.gap_auto_resolve_overlaps = gap_auto_resolve_overlaps
+        self.gap_estimate_runtime_overlap = gap_estimate_runtime_overlap
         self.gap_shift_padding = gap_shift_padding
         self.collection_videos = collection_videos or []
         self.collection_path = collection_path
@@ -530,7 +532,8 @@ class TagManager:
                     gap_preserve_boundaries: bool = False,
                     gap_fill_between_only: bool = False,
                     gap_auto_resolve_overlaps: bool = False,
-                    gap_shift_padding: int = 180) -> bool:
+                    gap_shift_padding: int = 180,
+                    gap_estimate_runtime_overlap: bool = False) -> bool:
         if 0 <= index < len(self.tags):
             t = self.tags[index]
             t.name = name
@@ -561,6 +564,7 @@ class TagManager:
             t.gap_preserve_boundaries = gap_preserve_boundaries
             t.gap_fill_between_only = gap_fill_between_only
             t.gap_auto_resolve_overlaps = gap_auto_resolve_overlaps
+            t.gap_estimate_runtime_overlap = gap_estimate_runtime_overlap
             t.gap_shift_padding = gap_shift_padding
             # Apply blacklist filtering to collection_videos
             t.collection_videos = collection_videos or []

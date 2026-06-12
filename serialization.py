@@ -57,6 +57,7 @@ def serialize_tag_to_string(tag) -> str:
         lines.append(f"gap_fill_between_only = {'true' if getattr(tag, 'gap_fill_between_only', False) else 'false'}")
         lines.append(f"gap_auto_resolve_overlaps = {'true' if getattr(tag, 'gap_auto_resolve_overlaps', False) else 'false'}")
         lines.append(f"gap_shift_padding = {getattr(tag, 'gap_shift_padding', 180)}")
+        lines.append(f"gap_estimate_runtime_overlap = {'true' if getattr(tag, 'gap_estimate_runtime_overlap', False) else 'false'}")
         active_days = getattr(tag, 'active_days', None)
         lines.append(f"active_days = {','.join(str(d) for d in active_days) if active_days else ''}")
 
@@ -212,6 +213,7 @@ def deserialize_tag_from_string(data: str, tag_class, qtime_from_string):
         gap_auto_resolve_overlaps = tag_section.get('gap_auto_resolve_overlaps', 'false') == 'true'
         gap_shift_padding_raw = tag_section.get('gap_shift_padding', '180')
         gap_shift_padding = int(gap_shift_padding_raw) if gap_shift_padding_raw.strip().isdigit() else 180
+        gap_estimate_runtime_overlap = tag_section.get('gap_estimate_runtime_overlap', 'false') == 'true'
         active_days_str = tag_section.get('active_days', '')
         active_days = [int(d) for d in active_days_str.split(',') if d.strip().isdigit()] if active_days_str.strip() else None
 
@@ -222,6 +224,7 @@ def deserialize_tag_from_string(data: str, tag_class, qtime_from_string):
                         gap_fill_between_only=gap_fill_between_only,
                         gap_auto_resolve_overlaps=gap_auto_resolve_overlaps,
                         gap_shift_padding=gap_shift_padding,
+                        gap_estimate_runtime_overlap=gap_estimate_runtime_overlap,
                         active_days=active_days)
 
     elif tag_type == 'random':

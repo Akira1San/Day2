@@ -281,6 +281,71 @@ def test_auto_resolve_off_keeps_overlaps():
     print("test_auto_resolve_off_keeps_overlaps: PASS")
 
 
+def test_runtime_overlap_detection():
+    """gap_estimate_runtime_overlap=True catches overlaps from video overflow."""
+    tm = TagManager()
+    # Tag1: 08:00-10:00 but its 2 videos of 2h each extend it to 12:00
+    t1 = Tag(tag_type="custom", name="LongMovie",
+             start_time=QTime(8, 0), end_time=QTime(10, 0),
+             collection_videos=[
+                 {'path': '/tmp/t1a.mp4', 'duration': 7200},
+                 {'path': '/tmp/t1b.mp4', 'duration': 7200},
+             ],
+             video_count=2, randomize_videos=False)
+    # Tag2: 11:00-13:00 — no defined overlap (10:00 < 11:00), but runtime overlaps
+    t2 = Tag(tag_type="custom", name="Show",
+             start_time=QTime(11, 0), end_time=QTime(13, 0),
+             collection_videos=[{'path': '/tmp/t2.mp4', 'duration': 7200}],
+             video_count=1, randomize_videos=False)
+    tm.add_tag(t1)
+    tm.add_tag(t2)
+    gt = Tag(tag_type="gap", name="Gap", is_gap_filler=True,
+             gap_collections=[{"path": "/home/akira/Videos/trailers/trailers.json", "type": "trailer"}],
+             gap_max_duration=14400, gap_preserve_boundaries=False,
+             gap_auto_resolve_overlaps=True, gap_shift_padding=180,
+             gap_estimate_runtime_overlap=True)
+    tm.add_tag(gt)
+
+    entries = ScheduleGenerator(tm).apply_custom_tags(use_cache=False, num_days=1)
+    # Find Show entry (Tag2) — don't assume index order since Tag1 may produce multiple entries
+    show_entries = sorted([e for e in entries if e.tag_type == "custom" and "Show" in e.video_name],
+                          key=lambda x: x.start_seconds)
+    assert len(show_entries) == 1, f"Expected 1 Show entry, got {len(show_entries)}"
+    show_start = show_entries[0].start_seconds
+    # With runtime estimation, Show should be shifted past Tag1's estimated end (12:00)
+    assert show_start >= 43200, f"Show should start at or after 12:00, got {show_start}s"
+    print(f"test_runtime_overlap_detection: Show starts at {show_start}s (expected ≥ 43200)")
+    print("  PASS: Runtime overlap detected, tags shifted")
+
+    # Now test with runtime estimation OFF → should stay at original positions
+    tm2 = TagManager()
+    tm2.add_tag(Tag(tag_type="custom", name="LongMovie",
+                    start_time=QTime(8, 0), end_time=QTime(10, 0),
+                    collection_videos=[
+                        {'path': '/tmp/t1a.mp4', 'duration': 7200},
+                        {'path': '/tmp/t1b.mp4', 'duration': 7200},
+                    ],
+                    video_count=2, randomize_videos=False))
+    tm2.add_tag(Tag(tag_type="custom", name="Show",
+                    start_time=QTime(11, 0), end_time=QTime(13, 0),
+                    collection_videos=[{'path': '/tmp/t2.mp4', 'duration': 7200}],
+                    video_count=1, randomize_videos=False))
+    tm2.add_tag(Tag(tag_type="gap", name="Gap", is_gap_filler=True,
+                    gap_collections=[{"path": "/home/akira/Videos/trailers/trailers.json", "type": "trailer"}],
+                    gap_max_duration=14400, gap_preserve_boundaries=False,
+                    gap_auto_resolve_overlaps=True, gap_shift_padding=180,
+                    gap_estimate_runtime_overlap=False))
+    entries2 = ScheduleGenerator(tm2).apply_custom_tags(use_cache=False, num_days=1)
+    show_entries2 = sorted([e for e in entries2 if e.tag_type == "custom" and "Show" in e.video_name],
+                           key=lambda x: x.start_seconds)
+    assert len(show_entries2) == 1, f"Expected 1 Show entry in tm2, got {len(show_entries2)}"
+    show_start_off = show_entries2[0].start_seconds
+    expected = 11 * 3600
+    assert show_start_off == expected, f"Expected Show at {expected}s with runtime off, got {show_start_off}s"
+    print(f"  Show at {show_start_off}s (unchanged) with runtime OFF")
+    print("  PASS: Runtime overlap detection disabled, no shift")
+
+
 if __name__ == "__main__":
     test_no_gap_tag()
     test_empty_gap_collections()
@@ -294,4 +359,5 @@ if __name__ == "__main__":
     test_between_only_fills_middle_gaps()
     test_auto_resolve_shifts_overlapping_tags()
     test_auto_resolve_off_keeps_overlaps()
+    test_runtime_overlap_detection()
     print("\nAll tests PASSED")

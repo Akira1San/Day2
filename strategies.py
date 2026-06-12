@@ -62,6 +62,7 @@ class CustomTagMergeStrategy:
         # Auto-resolve overlapping custom tags if a gap tag has it enabled
         gap_tags_inner = [t for t in all_tags if t.is_gap_filler]
         auto_resolve_gap = next((gt for gt in gap_tags_inner if getattr(gt, 'gap_auto_resolve_overlaps', False)), None)
+        estimate_runtime = getattr(auto_resolve_gap, 'gap_estimate_runtime_overlap', False) if auto_resolve_gap else False
         adjusted_custom_ranges = {}
         if auto_resolve_gap and custom_tags:
             padding = auto_resolve_gap.gap_shift_padding if auto_resolve_gap.gap_shift_padding else 180
@@ -71,6 +72,17 @@ class CustomTagMergeStrategy:
                 end_sec = qtime_to_seconds(ct.end_time)
                 if end_sec <= start_sec:
                     end_sec += 86400
+                if estimate_runtime and ct.collection_videos:
+                    count = min(getattr(ct, 'video_count', 1), len(ct.collection_videos))
+                    total_dur = 0
+                    for v in ct.collection_videos[:count]:
+                        d = int(v.get('duration', 90))
+                        if d < 1:
+                            d = 90
+                        total_dur += d
+                    estimated_end = start_sec + total_dur
+                    if estimated_end > end_sec:
+                        end_sec = estimated_end
                 ranges.append((ct, start_sec, end_sec))
             ranges.sort(key=lambda x: x[1])
             prev_end = 0
