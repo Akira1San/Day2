@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import (
     QApplication, QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QTableWidget, QTableWidgetItem, QHeaderView, QMessageBox
+    QTreeWidget, QTreeWidgetItem, QHeaderView, QMessageBox
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QFont
@@ -123,62 +123,120 @@ class DurationDebugDialog(QDialog):
         summary.setFont(QFont("", 12, QFont.Bold))
         layout.addWidget(summary)
 
-        self.table = QTableWidget()
+        self.table = QTreeWidget()
         self.table.setColumnCount(8)
         headers = ["#", "Day", "Time", "Video", "Scheduled", "Collection", "Status", "Continuity"]
-        self.table.setHorizontalHeaderLabels(headers)
-        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Fixed)
-        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
-        self.table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(6, QHeaderView.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeToContents)
+        self.table.setHeaderLabels(headers)
+        self.table.header().setSectionResizeMode(0, QHeaderView.Fixed)
+        self.table.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self.table.header().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        self.table.header().setSectionResizeMode(3, QHeaderView.Stretch)
+        self.table.header().setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        self.table.header().setSectionResizeMode(5, QHeaderView.ResizeToContents)
+        self.table.header().setSectionResizeMode(6, QHeaderView.ResizeToContents)
+        self.table.header().setSectionResizeMode(7, QHeaderView.ResizeToContents)
         self.table.setColumnWidth(0, 40)
-        self.table.setSelectionMode(QTableWidget.NoSelection)
-        self.table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.table.verticalHeader().setVisible(False)
+        self.table.setSelectionMode(QTreeWidget.NoSelection)
+        self.table.setEditTriggers(QTreeWidget.NoEditTriggers)
+        self.table.setRootIsDecorated(True)
+        self.table.setAnimated(True)
 
-        self.table.setRowCount(len(self.comparison_data))
-        for row, (entry, scheduled, coll_dur, status, continuity) in enumerate(self.comparison_data):
-            bg, fg = self.COLORS.get(status, (QColor("#1e1e2e"), QColor("#a0a0b0")))
-
-            start_h = (entry.start_seconds // 3600) % 24
-            start_m = (entry.start_seconds % 3600) // 60
-            end_h = (entry.end_seconds // 3600) % 24
-            end_m = (entry.end_seconds % 3600) // 60
-            time_str = f"{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d}"
-
-            coll_str = f"{int(coll_dur)}s" if coll_dur is not None else "N/A"
-            status_label = self.STATUS_LABELS.get(status, status)
-
-            continuity_label = self.STATUS_LABELS.get(continuity, continuity)
-            items_data = [
-                str(row + 1),
-                str((entry.start_seconds // 86400) + 1),
-                time_str,
-                entry.video_name,
-                f"{scheduled}s",
-                coll_str,
-                status_label,
-                continuity_label,
-            ]
-
-            for col, text in enumerate(items_data):
-                item = QTableWidgetItem(text)
-                if col == 7:
-                    cell_bg, cell_fg = self.COLORS.get(continuity, (QColor("#1e1e2e"), QColor("#a0a0b0")))
-                    item.setBackground(cell_bg)
-                    item.setForeground(cell_fg)
-                else:
-                    item.setBackground(bg)
-                    item.setForeground(fg)
+        i = 0
+        row_counter = 0
+        while i < len(self.comparison_data):
+            entry, scheduled, coll_dur, status, continuity = self.comparison_data[i]
+            gap_fill_entries = []
+            while i < len(self.comparison_data) and self.comparison_data[i][0].tag_type == "gap_fill":
+                gap_fill_entries.append(self.comparison_data[i])
+                i += 1
+            if gap_fill_entries:
+                first_entry = gap_fill_entries[0][0]
+                last_entry = gap_fill_entries[-1][0]
+                start_h = (first_entry.start_seconds // 3600) % 24
+                start_m = (first_entry.start_seconds % 3600) // 60
+                end_h = (last_entry.end_seconds // 3600) % 24
+                end_m = (last_entry.end_seconds % 3600) // 60
+                total_scheduled = sum(e.end_seconds - e.start_seconds for e, _, _, _, _ in gap_fill_entries)
+                parent = QTreeWidgetItem(self.table)
+                parent_texts = [
+                    "-",
+                    str((first_entry.start_seconds // 86400) + 1),
+                    f"{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d}",
+                    "Gap filler entries",
+                    f"{total_scheduled}s",
+                    "N/A",
+                    "GAP",
+                    "-",
+                ]
+                for col, text in enumerate(parent_texts):
+                    parent.setText(col, text)
+                    parent.setForeground(col, QColor("#f59e0b"))
+                font = parent.font(0)
+                font.setBold(True)
+                parent.setFont(0, font)
+                parent.setExpanded(False)
+                for ge, gsched, gdur, gstatus, gcont in gap_fill_entries:
+                    child = QTreeWidgetItem(parent)
+                    start_h = (ge.start_seconds // 3600) % 24
+                    start_m = (ge.start_seconds % 3600) // 60
+                    end_h = (ge.end_seconds // 3600) % 24
+                    end_m = (ge.end_seconds % 3600) // 60
+                    time_str = f"{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d}"
+                    coll_str = f"{int(gdur)}s" if gdur is not None else "N/A"
+                    status_label = self.STATUS_LABELS.get(gstatus, gstatus)
+                    continuity_label = self.STATUS_LABELS.get(gcont, gcont)
+                    child_texts = [
+                        str(row_counter + 1),
+                        str((ge.start_seconds // 86400) + 1),
+                        time_str,
+                        ge.video_name,
+                        f"{gsched}s",
+                        coll_str,
+                        status_label,
+                        continuity_label,
+                    ]
+                    child_bg, child_fg = self.COLORS.get(gstatus, (QColor("#1e1e2e"), QColor("#a0a0b0")))
+                    for col, text in enumerate(child_texts):
+                        child.setText(col, text)
+                        child.setBackground(col, child_bg)
+                        child.setForeground(col, child_fg)
+                    row_counter += 1
+            else:
+                bg, fg = self.COLORS.get(status, (QColor("#1e1e2e"), QColor("#a0a0b0")))
+                start_h = (entry.start_seconds // 3600) % 24
+                start_m = (entry.start_seconds % 3600) // 60
+                end_h = (entry.end_seconds // 3600) % 24
+                end_m = (entry.end_seconds % 3600) // 60
+                time_str = f"{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d}"
+                coll_str = f"{int(coll_dur)}s" if coll_dur is not None else "N/A"
+                status_label = self.STATUS_LABELS.get(status, status)
+                continuity_label = self.STATUS_LABELS.get(continuity, continuity)
+                item_texts = [
+                    str(row_counter + 1),
+                    str((entry.start_seconds // 86400) + 1),
+                    time_str,
+                    entry.video_name,
+                    f"{scheduled}s",
+                    coll_str,
+                    status_label,
+                    continuity_label,
+                ]
+                item = QTreeWidgetItem(self.table)
+                for col, text in enumerate(item_texts):
+                    if col == 7:
+                        cell_bg, cell_fg = self.COLORS.get(continuity, (QColor("#1e1e2e"), QColor("#a0a0b0")))
+                        item.setBackground(col, cell_bg)
+                        item.setForeground(col, cell_fg)
+                    else:
+                        item.setBackground(col, bg)
+                        item.setForeground(col, fg)
+                    item.setText(col, text)
                 if status in ("mismatch",) or continuity in ("overlap",):
-                    font = item.font()
+                    font = item.font(0)
                     font.setBold(True)
-                    item.setFont(font)
-                self.table.setItem(row, col, item)
+                    item.setFont(0, font)
+                row_counter += 1
+                i += 1
 
         layout.addWidget(self.table)
 
@@ -197,21 +255,23 @@ class DurationDebugDialog(QDialog):
         btn_layout.addWidget(close_btn)
         layout.addLayout(btn_layout)
 
+    def _collect_row_lines(self, item, lines):
+        if item.childCount() > 0:
+            for i in range(item.childCount()):
+                self._collect_row_lines(item.child(i), lines)
+        else:
+            parts = []
+            for col in range(self.table.columnCount()):
+                parts.append(item.text(col) if item.text(col) else "")
+            line = "\t".join(parts)
+            if line.strip():
+                lines.append(line)
+
     def copy_to_clipboard(self):
         lines = []
         lines.append("#\tDay\tTime\tVideo\tScheduled\tCollection\tStatus\tContinuity")
-        for row, (entry, scheduled, coll_dur, status, continuity) in enumerate(self.comparison_data):
-            start_h = (entry.start_seconds // 3600) % 24
-            start_m = (entry.start_seconds % 3600) // 60
-            end_h = (entry.end_seconds // 3600) % 24
-            end_m = (entry.end_seconds % 3600) // 60
-            time_str = f"{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d}"
-            coll_str = f"{int(coll_dur)}s" if coll_dur is not None else "N/A"
-            status_label = self.STATUS_LABELS.get(status, status)
-            continuity_label = self.STATUS_LABELS.get(continuity, continuity)
-            lines.append(
-                f"{row + 1}\t{(entry.start_seconds // 86400) + 1}\t{time_str}\t{entry.video_name}\t{scheduled}s\t{coll_str}\t{status_label}\t{continuity_label}"
-            )
+        for i in range(self.table.topLevelItemCount()):
+            self._collect_row_lines(self.table.topLevelItem(i), lines)
         QApplication.clipboard().setText("\n".join(lines))
 
     def show_help(self):
@@ -247,11 +307,11 @@ class DurationDebugDialog(QDialog):
             }
             QPushButton:hover { background-color: #3a3a4e; }
             QPushButton:pressed { background-color: #4a4a5e; }
-            QTableWidget {
+            QTreeWidget {
                 background-color: #1e1e2e;
                 border: 1px solid #3a3a4e;
                 border-radius: 4px;
-                gridline-color: #3a3a4e;
+                alternate-background-color: #252535;
             }
             QHeaderView::section {
                 background-color: #2a2a3e;
@@ -259,5 +319,8 @@ class DurationDebugDialog(QDialog):
                 border: 1px solid #3a3a4e;
                 padding: 4px;
                 font-weight: bold;
+            }
+            QTreeWidget::branch {
+                background: transparent;
             }
         """)

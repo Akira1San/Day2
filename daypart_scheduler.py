@@ -24,75 +24,17 @@ logging.getLogger().addHandler(stdout_handler)
 from typing import List, Optional
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QListWidget, QListWidgetItem, QPushButton, QDialog, QLineEdit,
+    QListWidget, QListWidgetItem, QTreeWidget, QTreeWidgetItem, QPushButton, QDialog, QLineEdit,
     QLabel, QTimeEdit, QMessageBox, QScrollArea, QCheckBox, QRadioButton, QButtonGroup,
-    QFileDialog, QSpinBox, QComboBox, QStyledItemDelegate, QStyleOptionViewItem, QStyle
+    QFileDialog, QSpinBox, QComboBox
 )
-from PySide6.QtCore import Qt, QTime, QRect, QRectF, QSize
-from PySide6.QtGui import QClipboard, QColor, QFont, QTextDocument, QPalette
+from PySide6.QtCore import Qt, QTime
+from PySide6.QtGui import QClipboard, QColor, QFont
 
 import logging
 preview_log = logging.getLogger("preview")
 preview_log.setLevel(logging.DEBUG)
 
-
-class TagNameColorDelegate(QStyledItemDelegate):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-
-    def _available_width(self, option):
-        width = option.rect.width()
-        return width if width > 0 else 240
-
-    def paint(self, painter, option, index):
-        text = index.data(Qt.DisplayRole) or ""
-        entry = index.data(Qt.UserRole)
-        color = None
-        tag_name = None
-        if hasattr(entry, "tag_color"):
-            color = entry.tag_color
-        if hasattr(entry, "video_name"):
-            video_name = entry.video_name or ""
-            if " - " in video_name:
-                tag_name = video_name.split(" - ", 1)[0]
-
-        painter.save()
-        try:
-            doc = QTextDocument()
-            plain = text.replace("\n", "<br>")
-            if color and tag_name:
-                escaped_tag = (
-                    tag_name.replace("&", "&amp;")
-                    .replace("<", "&lt;")
-                    .replace(">", "&gt;")
-                )
-                colored = f'<span style="color:{color.name()}">{escaped_tag}</span>'
-                plain = plain.replace(escaped_tag, colored, 1)
-            doc.setHtml(f'<html><body style="color:#f8f8f2">{plain}</body></html>')
-            doc.setTextWidth(self._available_width(option))
-
-            if option.state & QStyle.State_Selected:
-                painter.fillRect(option.rect, option.palette.highlight().color())
-
-            painter.save()
-            painter.translate(option.rect.topLeft())
-            doc.drawContents(painter, QRectF(0, 0, option.rect.width(), option.rect.height()))
-            painter.restore()
-        except Exception as exc:
-            preview_log.exception(f"[DELEGATE] paint failed: {exc}")
-            painter.fillRect(option.rect, QColor("#330000"))
-            painter.setPen(QColor("#ff4444"))
-            painter.drawText(option.rect, 0, f"ERR: {exc}")
-        finally:
-            painter.restore()
-
-    def sizeHint(self, option, index):
-        doc = QTextDocument()
-        text = index.data(Qt.DisplayRole) or ""
-        doc.setHtml(f"<html><body>{text.replace(chr(10), '<br>')}</body></html>")
-        doc.setTextWidth(self._available_width(option))
-        hint = QSize(int(doc.idealWidth()), int(doc.size().height()))
-        return hint
 
 from utils import (
     load_collection_json, load_blacklist_json,
@@ -217,9 +159,11 @@ class MainWindow(QMainWindow):
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        self.preview_list = QListWidget()
-        self.preview_list.setItemDelegate(TagNameColorDelegate(self.preview_list))
-        self.preview_list.setUniformItemSizes(False)
+        self.preview_list = QTreeWidget()
+        self.preview_list.setHeaderHidden(True)
+        self.preview_list.setIndentation(16)
+        self.preview_list.setRootIsDecorated(True)
+        self.preview_list.setAnimated(True)
         scroll.setWidget(self.preview_list)
         preview_layout.addWidget(scroll)
 
@@ -315,26 +259,29 @@ class MainWindow(QMainWindow):
             QMainWindow { background-color: #1e1e2e; }
             QWidget { color: #f8f8f2; }
             QLabel { color: #f8f8f2; }
-            QListWidget {
+            QTreeWidget {
                 background-color: #2a2a3e;
                 border: 1px solid #3a3a4e;
                 border-radius: 6px;
-                padding: 8px;
+                padding: 4px;
                 selection-background-color: #7c3aed;
                 show-decoration-selected: 1;
             }
-            QListWidget::item {
-                padding: 8px;
-                margin: 2px;
+            QTreeWidget::item {
+                padding: 4px;
+                margin: 1px;
                 border: 1px solid transparent;
             }
-            QListWidget::item:selected {
+            QTreeWidget::item:selected {
                 background-color: #7c3aed;
                 border: 2px solid #a78bfa;
                 color: white;
             }
-            QListWidget::item:hover {
+            QTreeWidget::item:hover {
                 background-color: #3a3a4e;
+            }
+            QTreeWidget::branch {
+                background: transparent;
             }
             QPushButton {
                 background-color: #2a2a3e;
@@ -379,10 +326,7 @@ class MainWindow(QMainWindow):
         else:
             entries = self.schedule_generator.apply_custom_tags()
         mark_continuity_problems(entries)
-        for entry in entries:
-            item = QListWidgetItem(entry.to_display_string())
-            item.setData(Qt.UserRole, entry)
-            self.preview_list.addItem(item)
+        self._add_entries_to_tree(entries)
         self.schedule_entries = entries
         self.last_generated_schedule = {
             'entries': entries,
@@ -432,36 +376,26 @@ class MainWindow(QMainWindow):
         }
         self._show_issues_in_statusbar(entries)
 
-        added = 0
         for day_offset in range(7):
             current_date = start_date + __import__('datetime').timedelta(days=day_offset)
             day_name = days[current_date.weekday()]
-            item = QListWidgetItem(f"=== {current_date} - {day_name} ===")
+            day_item = QTreeWidgetItem(self.preview_list)
+            day_item.setText(0, f"=== {current_date} - {day_name} ===")
             is_weekend = day_name in ("Saturday", "Sunday")
             bg_color = QColor("#ef4444") if is_weekend else QColor("#7c3aed")
-            item.setBackground(bg_color)
-            item.setForeground(QColor("#ffffff"))
-            font = item.font()
+            day_item.setBackground(0, bg_color)
+            day_item.setForeground(0, QColor("#ffffff"))
+            font = day_item.font(0)
             font.setBold(True)
-            item.setFont(font)
-            item.setFlags(item.flags() & ~Qt.ItemIsSelectable)
-            self.preview_list.addItem(item)
+            day_item.setFont(0, font)
+            day_item.setFlags(day_item.flags() & ~Qt.ItemIsSelectable)
             day_start_seconds = day_offset * 86400
             day_end_seconds = day_start_seconds + 86400
-            for entry in entries:
-                if entry.start_seconds >= day_start_seconds and entry.start_seconds < day_end_seconds:
-                    start_h = (entry.start_seconds // 3600) % 24
-                    start_m = (entry.start_seconds % 3600) // 60
-                    end_h = (entry.end_seconds // 3600) % 24
-                    end_m = (entry.end_seconds % 3600) // 60
-                    if entry.start_seconds == day_start_seconds:
-                        text = f"Day {day_offset + 1}\n{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {entry.video_name}"
-                    else:
-                        text = f"{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {entry.video_name}"
-                    item = QListWidgetItem(text)
-                    item.setData(Qt.UserRole, entry)
-                    self.preview_list.addItem(item)
-                    added += 1
+            day_entries = [
+                e for e in entries
+                if e.start_seconds >= day_start_seconds and e.start_seconds < day_end_seconds
+            ]
+            self._add_entries_to_tree(day_entries)
     def generate_monthly_preview(self):
         self.preview_list.clear()
         self.preview_title.setText("Calendar Schedule Preview (30 Days)")
@@ -494,31 +428,23 @@ class MainWindow(QMainWindow):
         for day_offset in range(30):
             current_date = start_date + __import__('datetime').timedelta(days=day_offset)
             day_name = days[current_date.weekday()]
-            item = QListWidgetItem(f"=== {current_date} - {day_name} ===")
+            day_item = QTreeWidgetItem(self.preview_list)
+            day_item.setText(0, f"=== {current_date} - {day_name} ===")
             is_weekend = day_name in ("Saturday", "Sunday")
             bg_color = QColor("#ef4444") if is_weekend else QColor("#7c3aed")
-            item.setBackground(bg_color)
-            item.setForeground(QColor("#ffffff"))
-            font = item.font()
+            day_item.setBackground(0, bg_color)
+            day_item.setForeground(0, QColor("#ffffff"))
+            font = day_item.font(0)
             font.setBold(True)
-            item.setFont(font)
-            item.setFlags(item.flags() & ~Qt.ItemIsSelectable)
-            self.preview_list.addItem(item)
+            day_item.setFont(0, font)
+            day_item.setFlags(day_item.flags() & ~Qt.ItemIsSelectable)
             day_start_seconds = day_offset * 86400
             day_end_seconds = day_start_seconds + 86400
-            for entry in entries:
-                if entry.start_seconds >= day_start_seconds and entry.start_seconds < day_end_seconds:
-                    start_h = (entry.start_seconds // 3600) % 24
-                    start_m = (entry.start_seconds % 3600) // 60
-                    end_h = (entry.end_seconds // 3600) % 24
-                    end_m = (entry.end_seconds % 3600) // 60
-                    if entry.start_seconds == day_start_seconds:
-                        text = f"Day {day_offset + 1}\n{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {entry.video_name}"
-                    else:
-                        text = f"{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {entry.video_name}"
-                    item = QListWidgetItem(text)
-                    item.setData(Qt.UserRole, entry)
-                    self.preview_list.addItem(item)
+            day_entries = [
+                e for e in entries
+                if e.start_seconds >= day_start_seconds and e.start_seconds < day_end_seconds
+            ]
+            self._add_entries_to_tree(day_entries)
 
     def _show_issues_in_statusbar(self, entries=None):
         if entries is None:
@@ -538,6 +464,58 @@ class MainWindow(QMainWindow):
             msg += " — check Debug for details"
         preview_log.info(f"Schedule issues: {msg}")
         self.statusBar().showMessage(msg)
+
+    @staticmethod
+    def _is_gap_entry(entry):
+        return entry.tag_type == "gap_fill" or entry.problem == "gap"
+
+    def _add_gap_group(self, gap_entries):
+        n = len(gap_entries)
+        first = gap_entries[0]
+        last = gap_entries[-1]
+        start_h = (first.start_seconds // 3600) % 24
+        start_m = (first.start_seconds % 3600) // 60
+        end_h = (last.end_seconds // 3600) % 24
+        end_m = (last.end_seconds % 3600) // 60
+        parent = QTreeWidgetItem(self.preview_list)
+        parent.setText(0, f"▶ Gap — {n} entries — {start_h:02d}:{start_m:02d}–{end_h:02d}:{end_m:02d}")
+        parent.setForeground(0, QColor("#f59e0b"))
+        font = parent.font(0)
+        font.setBold(True)
+        parent.setFont(0, font)
+        parent.setExpanded(False)
+        for gap_entry in gap_entries:
+            child = QTreeWidgetItem(parent)
+            child.setText(0, gap_entry.to_display_string())
+            child.setData(0, Qt.UserRole, gap_entry)
+
+    def _add_entries_to_tree(self, entries):
+        i = 0
+        while i < len(entries):
+            entry = entries[i]
+            if self._is_gap_entry(entry):
+                gap_entries = [entry]
+                i += 1
+                while i < len(entries) and self._is_gap_entry(entries[i]):
+                    gap_entries.append(entries[i])
+                    i += 1
+                self._add_gap_group(gap_entries)
+            else:
+                item = QTreeWidgetItem(self.preview_list)
+                item.setText(0, entry.to_display_string())
+                item.setData(0, Qt.UserRole, entry)
+                i += 1
+
+    def _collect_item_text(self, item, items):
+        if item.childCount() > 0:
+            for i in range(item.childCount()):
+                self._collect_item_text(item.child(i), items)
+        else:
+            entry = item.data(0, Qt.UserRole)
+            if entry and hasattr(entry, "to_copy_string"):
+                items.append(entry.to_copy_string())
+            else:
+                items.append(item.text(0))
 
     def debug_durations(self):
         entries = self.schedule_entries
@@ -762,13 +740,8 @@ class MainWindow(QMainWindow):
 
     def copy_preview(self):
         items = []
-        for i in range(self.preview_list.count()):
-            item = self.preview_list.item(i)
-            entry = item.data(Qt.UserRole)
-            if hasattr(entry, "to_copy_string"):
-                items.append(entry.to_copy_string())
-            else:
-                items.append(item.text())
+        for i in range(self.preview_list.topLevelItemCount()):
+            self._collect_item_text(self.preview_list.topLevelItem(i), items)
         text = "\n".join(items)
         clipboard = QApplication.instance().clipboard()
         clipboard.setText(text)
@@ -983,8 +956,7 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage("Approximate: OFF")
         self._show_issues_in_statusbar(self.schedule_entries)
         self.preview_list.clear()
-        for entry in self.schedule_entries:
-            self.preview_list.addItem(entry.to_display_string())
+        self._add_entries_to_tree(self.schedule_entries)
         # Store for save reuse
         self.last_generated_schedule = {
             'entries': self.schedule_entries,
