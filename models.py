@@ -25,6 +25,7 @@ from strategies import (
     RoundRobinApproximateStrategy,
     LinearSpanningApproximateStrategy,
     ExhaustiveApproximateStrategy,
+    GroupApproximateStrategy,
 )
 
 __all__ = [
@@ -45,4 +46,5 @@ __all__ = [
     "RoundRobinApproximateStrategy",
     "LinearSpanningApproximateStrategy",
     "ExhaustiveApproximateStrategy",
+    "GroupApproximateStrategy",
 ]
