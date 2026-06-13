@@ -467,7 +467,7 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def _is_gap_entry(entry):
-        return entry.tag_type == "gap_fill" or entry.problem == "gap"
+        return entry.tag_type == "gap_fill"
 
     def _add_gap_group(self, gap_entries):
         n = len(gap_entries)
