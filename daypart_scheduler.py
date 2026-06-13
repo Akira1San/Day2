@@ -80,6 +80,7 @@ class MainWindow(QMainWindow):
 
         self.tags_list = QListWidget()
         self.tags_list.setAlternatingRowColors(True)
+        self.tags_list.setFont(QFont("", 14))
         tags_layout.addWidget(self.tags_list)
 
         btn_layout = QHBoxLayout()
