@@ -147,6 +147,11 @@ class MainWindow(QMainWindow):
         self.config_btn.clicked.connect(self.open_config)
         save_load_layout.addWidget(self.config_btn)
 
+        self.help_btn = QPushButton("Help")
+        self.help_btn.setToolTip("Show help and usage guide")
+        self.help_btn.clicked.connect(self.show_help)
+        save_load_layout.addWidget(self.help_btn)
+
         tags_layout.addLayout(save_load_layout)
 
         main_layout.addWidget(self.tags_panel)
@@ -617,6 +622,68 @@ class MainWindow(QMainWindow):
                 self, "Empty File",
                 f"{file_path} exists but contains no tags.",
             )
+
+    def show_help(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Help — Daypart Scheduler")
+        dialog.resize(600, 500)
+        layout = QVBoxLayout(dialog)
+        text = QLabel(
+            "<h2>Daypart Scheduler</h2>"
+            "<p>Schedule dayparted video playlists with custom tags, gap fillers, and approximate placement.</p>"
+            "<hr>"
+            "<h3>Tags Panel (Left)</h3>"
+            "<p><b>Custom</b> — Add a fixed time-slot tag. Set a video, start/end time, and it appears at that position in the schedule.</p>"
+            "<p><b>Random Fill</b> — Add a video collection used to fill gaps between custom tags. Supports 24h fill mode for continuous background playback.</p>"
+            "<p><b>Series</b> — Add a series/episode tag with season/episode tracking for sequential playback.</p>"
+            "<p><b>Multi-Series</b> — Group multiple series into a single contiguous block.</p>"
+            "<p><b>Gap</b> — Add a gap-filler tag that fills empty time intervals left after scheduling.</p>"
+            "<p><b>Edit / Delete</b> — Modify or remove the selected tag.</p>"
+            "<hr>"
+            "<h3>Save/Load</h3>"
+            "<p><b>Save All / Load All</b> — Persist or restore all tags to/from an INI file.</p>"
+            "<p><b>Save Tag / Load Tag</b> — Save/load a single selected tag.</p>"
+            "<p><b>Config</b> — Global configuration settings.</p>"
+            "<hr>"
+            "<h3>Preview Panel (Right)</h3>"
+            "<p><b>Daily / Weekly / Calendar</b> — Switch between 1-day, 7-day, or 30-day schedule views.</p>"
+            "<p><b>Profile</b> — Select a saved schedule profile.</p>"
+            "<p><b>Video Order</b> — Random shuffle or Movie Sequence mode.</p>"
+            "<p><b>Copy</b> — Copy the schedule preview to clipboard.</p>"
+            "<p><b>Generate</b> — Generate the schedule preview.</p>"
+            "<p><b>Save Schedule</b> — Export the generated schedule to a JSON file.</p>"
+            "<p><b>Inspect</b> — Browse and preview a saved schedule file.</p>"
+            "<p><b>Debug</b> — Compare video durations between schedule and collection data.</p>"
+            "<hr>"
+            "<h3>Approximate Mode</h3>"
+            "<p>When <b>Approximate OFF</b> is toggled to <b>ON</b>, the scheduler applies an algorithm to integrate custom/series tags with random fill seamlessly.</p>"
+            "<p><b>Algorithm modes:</b></p>"
+            "<ul>"
+            "<li><b>Linear</b> — Place tags at exact requested times, truncating overlapping random fill.</li>"
+            "<li><b>Find-Replace</b> — Snap tags to the nearest random entry boundary; overlapping random entries get fragmented.</li>"
+            "<li><b>Shift Overlay</b> — Never removes random entries. If a random entry overlaps a tag, the tag shifts to after it and remaining entries shift forward.</li>"
+            "<li><b>Early/Late Fill</b> — Place tags early or late in the day, fill remaining space with random content.</li>"
+            "<li><b>Priority</b> — Higher-priority tags preempt lower-priority ones.</li>"
+            "<li><b>Best Fit</b> — Place each tag at the random slot closest to its desired time.</li>"
+            "<li><b>Round Robin</b> — Interleave tag videos with random fill.</li>"
+            "<li><b>Linear Spanning</b> — Like Linear but allows tags to span multiple days.</li>"
+            "<li><b>Exhaustive</b> — Try all placements and pick the best.</li>"
+            "<li><b>No Overlap</b> — Guarantee no overlaps by shifting/resizing tags.</li>"
+            "<li><b>Group Approximate</b> — Sort all tags by time and place them sequentially.</li>"
+            "</ul>"
+            "<p><b>Overlap strategy:</b> Controls how random entries that overlap tag slots are handled (fragment, skip, gap-fill, or compact).</p>"
+        )
+        text.setWordWrap(True)
+        text.setTextFormat(Qt.RichText)
+        text.setStyleSheet("font-size: 13pt;")
+        scroll = QScrollArea()
+        scroll.setWidget(text)
+        scroll.setWidgetResizable(True)
+        layout.addWidget(scroll)
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(dialog.accept)
+        layout.addWidget(close_btn)
+        dialog.exec()
 
     def open_config(self):
         dialog = ConfigDialog(self)
