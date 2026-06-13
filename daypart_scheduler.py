@@ -40,7 +40,7 @@ from utils import (
     load_collection_json, load_blacklist_json,
     parse_series_episode, parse_videos_for_series,
     get_video_display_name, format_duration, get_config_paths, filter_videos_by_blacklist,
-    get_schedule_profiles
+    get_schedule_profiles, load_gap_collections
 )
 from models import Tag, ScheduleEntry, TagManager, ScheduleGenerator, compute_schedule_issues, mark_continuity_problems
 from dialogs import TagDialog, RandomFillDialog, SeriesDialog, ConfigDialog, SchedulePreviewDialog, DurationDebugDialog, GapTagDialog
@@ -830,6 +830,22 @@ class MainWindow(QMainWindow):
                                 break
                         if matched:
                             break
+
+                if not matched:
+                    for tag in self.tag_manager.get_all_tags():
+                        if getattr(tag, 'is_gap_filler', False) and tag.gap_collections:
+                            gap_videos = load_gap_collections(tag.gap_collections)
+                            for vid in gap_videos:
+                                vid_name = get_video_display_name(vid)
+                                if vid_name in video_name or video_name in vid_name:
+                                    video_info['file'] = vid.get('path', '')
+                                    video_info['channel'] = profile_name
+                                    video_info['collection_id'] = vid.get('collection_id', '')
+                                    video_info['source'] = 'gap'
+                                    matched = True
+                                    break
+                            if matched:
+                                break
 
                 if not video_info['file'] and ' - ' in video_name:
                     parts = video_name.split(' - ')
