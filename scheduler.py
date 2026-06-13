@@ -740,25 +740,38 @@ class ScheduleGenerator:
         self._overlap_strategy = overlap_strategy
         logger.info(f"[APPROX] Using mode: {mode}, overlap_strategy={overlap_strategy}")
         if mode == "linear":
-            return LinearApproximateStrategy(self).generate(num_days)
+            entries = LinearApproximateStrategy(self).generate(num_days)
         elif mode == "find_replace":
-            return FindReplaceApproximateStrategy(self).generate(num_days)
+            entries = FindReplaceApproximateStrategy(self).generate(num_days)
         elif mode == "early_fill":
-            return EarlyFillApproximateStrategy(self).generate(num_days)
+            entries = EarlyFillApproximateStrategy(self).generate(num_days)
         elif mode == "late_fill":
-            return LateFillApproximateStrategy(self).generate(num_days)
+            entries = LateFillApproximateStrategy(self).generate(num_days)
         elif mode == "priority":
-            return PriorityApproximateStrategy(self).generate(num_days)
+            entries = PriorityApproximateStrategy(self).generate(num_days)
         elif mode == "best_fit":
-            return BestFitApproximateStrategy(self).generate(num_days)
+            entries = BestFitApproximateStrategy(self).generate(num_days)
         elif mode == "round_robin":
-            return RoundRobinApproximateStrategy(self).generate(num_days)
+            entries = RoundRobinApproximateStrategy(self).generate(num_days)
         elif mode == "linear_spanning":
-            return LinearSpanningApproximateStrategy(self).generate(num_days)
+            entries = LinearSpanningApproximateStrategy(self).generate(num_days)
         elif mode == "exhaustive":
-            return ExhaustiveApproximateStrategy(self).generate(num_days)
+            entries = ExhaustiveApproximateStrategy(self).generate(num_days)
         else:
             raise ValueError(f"Unknown approximate mode: {mode}")
+
+        # Post-process: fill remaining gaps with gap tag videos
+        gap_tags = [t for t in self.tag_manager.get_all_tags() if t.is_gap_filler]
+        if gap_tags:
+            dummy_strategy = CustomTagMergeStrategy(self)
+            gap_entries = dummy_strategy._fill_gap_fillers(
+                gap_tags, entries, [], [], [], num_days
+            )
+            if gap_entries:
+                entries = entries + gap_entries
+                entries.sort(key=lambda e: e.start_seconds)
+
+        return entries
 
     def _consume_overlapping_tail(
         self,

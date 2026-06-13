@@ -346,6 +346,164 @@ def test_runtime_overlap_detection():
     print("  PASS: Runtime overlap detection disabled, no shift")
 
 
+# ── Approximate-mode gap filler tests ──────────────────────────────────────────
+
+ALL_APPROX_MODES = [
+    "linear", "find_replace", "early_fill", "late_fill", "priority",
+    "best_fit", "round_robin", "linear_spanning", "exhaustive",
+]
+
+
+def _make_approx_tag(name: str, hour: int, tag_type: str = "custom") -> Tag:
+    return Tag(
+        tag_type=tag_type,
+        name=name,
+        start_time=QTime(hour, 0),
+        end_time=QTime(hour + 1, 0),
+        collection_videos=[{'path': f'/tmp/{name}.mp4', 'duration': 3600}],
+        video_count=1,
+        randomize_videos=False,
+        is_random_fill=False,
+        is_series=False,
+    )
+
+
+def _make_approx_rf_tag() -> Tag:
+    return Tag(
+        tag_type="random_fill", name="Fill",
+        start_time=QTime(0, 0), end_time=QTime(23, 59),
+        is_random_fill=True, fill_24h=True,
+        collection_videos=[{'path': '/tmp/rf.mp4', 'duration': 7200}],
+        video_count=12,
+    )
+
+
+def _make_approx_gap_tag(**kw) -> Tag:
+    defaults = dict(
+        tag_type="gap", name="Gap", is_gap_filler=True,
+        gap_collections=[{"path": "/home/akira/Videos/trailers/trailers.json", "type": "trailer"}],
+        gap_max_duration=14400, gap_preserve_boundaries=False,
+    )
+    defaults.update(kw)
+    return Tag(**defaults)
+
+
+def _check_no_overlaps(entries):
+    """Verify no gap entry overlaps any non-gap entry."""
+    gap_e = [e for e in entries if e.problem == "gap" or e.tag_type == "gap_fill"]
+    non_gap = [e for e in entries if e not in gap_e]
+    for g in gap_e:
+        for ng in non_gap:
+            assert not (g.start_seconds < ng.end_seconds and g.end_seconds > ng.start_seconds), \
+                f"Gap overlaps: {g.video_name} vs {ng.video_name}"
+
+
+def test_approx_gap_basic():
+    """3 custom tags + gap tag in find_replace mode → gaps filled, no overlaps."""
+    for mode in ["find_replace", "linear", "priority"]:
+        tm = TagManager()
+        for h, name in [(8, "Morning"), (12, "Midday"), (18, "Evening")]:
+            tm.add_tag(_make_approx_tag(name, h))
+        tm.add_tag(_make_approx_gap_tag(gap_max_duration=7200))
+        entries = ScheduleGenerator(tm).apply_approximate(num_days=1, mode=mode)
+        gap_e = [e for e in entries if e.problem == "gap" or e.tag_type == "gap_fill"]
+        assert len(gap_e) > 0, f"[{mode}] Expected gap entries between custom tags"
+        _check_no_overlaps(entries)
+    print(f"test_approx_gap_basic: 3 modes, gaps filled, no overlaps")
+    print("  PASS")
+
+
+def test_approx_gap_all_modes():
+    """All 9 approximate modes produce gap entries with no overlaps."""
+    for mode in ALL_APPROX_MODES:
+        tm = TagManager()
+        tm.add_tag(_make_approx_tag("Morning", 8))
+        tm.add_tag(_make_approx_tag("Evening", 18))
+        tm.add_tag(_make_approx_gap_tag(gap_max_duration=7200))
+        entries = ScheduleGenerator(tm).apply_approximate(num_days=1, mode=mode)
+        gap_e = [e for e in entries if e.problem == "gap" or e.tag_type == "gap_fill"]
+        assert len(gap_e) > 0, f"[{mode}] Expected gap entries"
+        _check_no_overlaps(entries)
+    print(f"test_approx_gap_all_modes: all 9 modes produce gap entries")
+    print("  PASS")
+
+
+def test_approx_gap_with_random_fill():
+    """Random fill + gap tag in approximate mode → gap filler fills remaining gaps."""
+    for mode in ALL_APPROX_MODES:
+        tm = TagManager()
+        tm.add_tag(_make_approx_rf_tag())
+        tm.add_tag(_make_approx_tag("Show", 12))
+        tm.add_tag(_make_approx_gap_tag(gap_max_duration=7200))
+        entries = ScheduleGenerator(tm).apply_approximate(num_days=1, mode=mode)
+        gap_e = [e for e in entries if e.problem == "gap" or e.tag_type == "gap_fill"]
+        assert len(entries) > 0, f"[{mode}] Expected some entries"
+        _check_no_overlaps(entries)
+    print("test_approx_gap_with_random_fill: random fill + gap in all modes")
+    print("  PASS")
+
+
+def test_approx_gap_max_duration():
+    """gap_max_duration respected in approximate mode."""
+    tm = TagManager()
+    tm.add_tag(_make_approx_tag("Tag", 12))
+    tm.add_tag(_make_approx_gap_tag(gap_max_duration=3600))
+    entries = ScheduleGenerator(tm).apply_approximate(num_days=1, mode="find_replace")
+    gap_e = [e for e in entries if e.problem == "gap" or e.tag_type == "gap_fill"]
+    total_fill = sum(e.end_seconds - e.start_seconds for e in gap_e)
+    assert total_fill <= 3800, f"Cap 3600 exceeded: {total_fill}s"
+    _check_no_overlaps(entries)
+    print(f"test_approx_gap_max_duration: {total_fill}s gap fill (expected ≤ 3600)")
+    print("  PASS")
+
+
+def test_approx_gap_between_only():
+    """gap_fill_between_only=True in approximate mode → only fills middle gaps."""
+    for mode in ["find_replace", "linear"]:
+        tm = TagManager()
+        tm.add_tag(_make_approx_tag("Tag1", 2))
+        tm.add_tag(_make_approx_tag("Tag2", 4))
+        tm.add_tag(_make_approx_gap_tag(
+            gap_max_duration=14400, gap_preserve_boundaries=False,
+            gap_fill_between_only=True))
+        entries = ScheduleGenerator(tm).apply_approximate(num_days=1, mode=mode)
+        gap_e = sorted([e for e in entries if e.problem == "gap" or e.tag_type == "gap_fill"],
+                       key=lambda x: x.start_seconds)
+        pre_gap = [e for e in gap_e if e.start_seconds < 7200]
+        post_gap = [e for e in gap_e if e.start_seconds >= 14400]
+        assert len(pre_gap) == 0, f"[{mode}] Expected 0 pre-first-tag entries, got {len(pre_gap)}"
+        assert len(post_gap) == 0, f"[{mode}] Expected 0 post-last-tag entries, got {len(post_gap)}"
+        _check_no_overlaps(entries)
+    print("test_approx_gap_between_only: between_only respected in approx modes")
+    print("  PASS")
+
+
+def test_approx_gap_preserve_boundaries():
+    """gap_preserve_boundaries=True in approximate mode → no video crosses midnight."""
+    tm = TagManager()
+    tm.add_tag(_make_approx_tag("Tag", 23))
+    tm.add_tag(_make_approx_gap_tag(
+        gap_max_duration=7200, gap_preserve_boundaries=True))
+    entries = ScheduleGenerator(tm).apply_approximate(num_days=1, mode="find_replace")
+    gap_e = [e for e in entries if e.problem == "gap" or e.tag_type == "gap_fill"]
+    for g in gap_e:
+        assert g.end_seconds <= 86400, f"Gap entry {g.video_name} crosses midnight (ends at {g.end_seconds}s)"
+    _check_no_overlaps(entries)
+    print(f"test_approx_gap_preserve_boundaries: {len(gap_e)} gap entries, none cross midnight")
+    print("  PASS")
+
+
+def test_approx_no_gap_tag():
+    """No gap tag in approximate mode → no gap entries."""
+    for mode in ["find_replace", "linear"]:
+        tm = TagManager()
+        tm.add_tag(_make_approx_tag("Tag", 8))
+        entries = ScheduleGenerator(tm).apply_approximate(num_days=1, mode=mode)
+        gap_e = [e for e in entries if e.problem == "gap" or e.tag_type == "gap_fill"]
+        assert len(gap_e) == 0, f"[{mode}] Expected 0 gap entries with no gap tag"
+    print("test_approx_no_gap_tag: PASS")
+
+
 if __name__ == "__main__":
     test_no_gap_tag()
     test_empty_gap_collections()
@@ -360,4 +518,11 @@ if __name__ == "__main__":
     test_auto_resolve_shifts_overlapping_tags()
     test_auto_resolve_off_keeps_overlaps()
     test_runtime_overlap_detection()
+    test_approx_gap_basic()
+    test_approx_gap_all_modes()
+    test_approx_gap_with_random_fill()
+    test_approx_gap_max_duration()
+    test_approx_gap_between_only()
+    test_approx_gap_preserve_boundaries()
+    test_approx_no_gap_tag()
     print("\nAll tests PASSED")

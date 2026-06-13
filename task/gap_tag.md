@@ -15,7 +15,7 @@ The user creates multiple video collection `.json` files from folders of filler 
 
 ## Implementation Proposal
 
-### 1. Tag Model
+### 1. Tag Model — X Done.
 In `data_models.py`, extend `Tag`:
 
 - `is_gap_filler: bool = False` — marks this tag as a gap filler.
@@ -26,12 +26,16 @@ In `data_models.py`, extend `Tag`:
       "type": "trailer"   # one of: trailer, promo, music, standby_loop
   }
   ```
-- `gap_max_duration: Optional[int] = None` — optional max fill seconds per day.
+- `gap_max_duration: Optional[int] = None` — optional max fill seconds per day. **Default now 14400 (4h)**.
 - `gap_preserve_boundaries: bool = False` — if True, don't split videos across day boundaries.
+- `gap_fill_between_only: bool = False` — if True, only fill gaps BETWEEN scheduled tags, leaving day edges empty.
+- `gap_auto_resolve_overlaps: bool = False` — if True, shift overlapping custom tags to create gaps.
+- `gap_shift_padding: int = 180` — padding (seconds) between shifted tags.
+- `gap_estimate_runtime_overlap: bool = False` — if True, use video durations to detect runtime overlaps.
 
 No separate `gap_collection_path` string; all collection references live in `gap_collections`.
 
-### 2. Display & Color
+### 2. Display & Color — X Done.
 In `to_display_string()`, a gap tag renders as:
 ```
 [Gap] My Gap (T:2, P:1, M:3, S:0)
@@ -40,7 +44,7 @@ Where T/P/M/S count the number of collections of each type.
 
 `tag_color` returns `QColor("#f59e0b")` (amber) for gap tags, consistent with the gap color used by `ScheduleEntry` for continuity problems.
 
-### 3. Scheduler Integration
+### 3. Scheduler Integration — X Done.
 In `CustomTagMergeStrategy.generate()` (used when approximation is OFF):
 - After placing all non-gap tags, check for gap tags.
 - Pool all videos from all `gap_collections` into a single flat list (load each collection path, extract videos, concatenate).
@@ -53,12 +57,12 @@ In `CustomTagMergeStrategy.generate()` (used when approximation is OFF):
   6. Set `entry.problem = "gap"` on placed gap entries for continuity marking.
   7. Add placed gap entries to final schedule; update occupied ranges for subsequent gaps.
 
-### 4. Collection Loading
+### 4. Collection Loading — X Done.
 - Gap collections are loaded at runtime when the schedule is generated (similar to lazy-loading in other tags).
 - Helper: `load_gap_collections(collections_config: List[Dict]) -> List[Dict]` — iterates the config list, calls `load_collection_videos_only(path)` for each, concatenates results.
 - Each collection's type is stored only for UI display; not used during scheduling.
 
-### 5. UI — GapTagDialog
+### 5. UI — GapTagDialog — X Done.
 A new dialog `GapTagDialog` (analogous to `RandomFillDialog` but purpose-built for gap tags).
 
 Layout:
@@ -83,7 +87,7 @@ Layout:
 
 - **Save / Cancel** buttons.
 
-### 6. Serialization
+### 6. Serialization — X Done.
 In `serialization.py`, serialize `gap_collections` as a JSON-encoded string in the INI entry:
 
 ```
@@ -96,7 +100,7 @@ gap_preserve_boundaries = false
 active_days = 1,2,3,4,5,6,7
 ```
 
-### 7. Implementation Steps
+### 7. Implementation Steps — X Done.
 1. Extend `Tag` class in `data_models.py` with `is_gap_filler`, `gap_collections`, `gap_max_duration`, `gap_preserve_boundaries`.
 2. Update `to_display_string()` and `tag_color` for gap tags.
 3. Create `GapTagDialog` in `dialogs/custom_tag_dialogs.py` (or new `dialogs/gap_dialog.py`).
@@ -110,7 +114,7 @@ active_days = 1,2,3,4,5,6,7
    - Add "Gap" button in tag list panel (or integrate into existing add flow).
 9. Ensure gap videos are treated as distinct from random fill in schedule continuity checks.
 
-### 8. Files to Modify
+### 8. Files to Modify — X Done.
 - `data_models.py` — gap attributes on `Tag`, display string, tag color.
 - `strategies.py` — `_fill_gap_fillers()` in `CustomTagMergeStrategy`.
 - `utils.py` — `load_gap_collections()` helper.
@@ -118,7 +122,7 @@ active_days = 1,2,3,4,5,6,7
 - `serialization.py` — serialize/deserialize `gap_collections`.
 - `daypart_scheduler.py` — tag list UI, edit dispatch, add gap button.
 
-### 9. Success Criteria
+### 9. Success Criteria — X Done.
 - All unoccupied intervals within a day are filled with gap content.
 - No gap video overlaps any primary tag.
 - Videos from all gap collections are cycled round-robin across gaps.
@@ -128,21 +132,18 @@ active_days = 1,2,3,4,5,6,7
 
 ---
 
-### 10. Performance: Gap fill cap & soft limit
-When there are many gap videos (e.g., trailers) and large empty intervals, the gap
-filler generates one ScheduleEntry per video, producing thousands of entries and
-slowing down generation.
+### 10. Performance: Gap fill cap & soft limit — X Done.
+Default `gap_max_duration` raised to **14400** (4h), soft cap at 14400 for
+None/0. Tooltip updated to recommend 7200–14400.
 
 **Fix:**
-1. Default `gap_max_duration` to 3600 (1 hour) in `data_models.py` `Tag.__init__()`.
+1. Default `gap_max_duration` to 14400 (4h) in `data_models.py` `Tag.__init__()`.
 2. Add a **soft internal cap** in `_fill_gap_fillers`: if `gap_max_duration` is
-   None or 0, cap at 7200s (2h) and log a warning.
-3. Update `GapTagDialog` spinbox default to 3600 with tooltip:
-   *"Max fill per day. Higher values = more entries = slower generation.
-   Recommended: 1800–3600."*
-4. Update `Tags/Gap fill 1.ini` to set `gap_max_duration = 3600`.
+   None or 0, cap at **14400s (4h)** and log a warning.
+3. Update `GapTagDialog` spinbox default to 14400 with tooltip.
+4. Update `Tags/Gap fill 1.ini` to set `gap_max_duration = 14400`.
 
-### 11. UI: Collapsible gap groups in schedule preview & debug dialog
+### 11. UI: Collapsible gap groups in schedule preview & debug dialog — X Done.
 When the gap filler generates many entries (thousands), the flat schedule
 preview list and debug table become unusable — gap entries drown out real
 content.
@@ -165,7 +166,7 @@ content.
 - Update `copy_to_clipboard()` to recurse children
 - Summary counts at top still reflect total entries (including collapsed)
 
-### 12. Integration with approximate scheduling modes
+### 12. Integration with approximate scheduling modes — X Done.
 Gap tag currently only works when approximation is OFF (`CustomTagMergeStrategy`).
 It should also work with all approximate modes (Find-Replace, Linear, Early Fill,
 Late Fill, Priority, etc.) so the schedule is continuous regardless of mode.
@@ -210,6 +211,69 @@ return entries
 - No gap video overlaps any primary or fragment entry.
 - The schedule is continuous from 00:00 to 24:00 (or until `gap_max_duration` is
   reached).
+
+### 13. Additional gap tag features — X Done.
+
+Features added to the gap tag during the Jun 12 session:
+
+**13a. Only fill between tags (`gap_fill_between_only`)**
+Checkbox on the gap dialog: when checked, gap filler only fills gaps BETWEEN
+scheduled custom tags. The pre-first-tag and post-last-tag day edges are left
+empty to visually show unfilled space. Implemented in `_fill_gap_fillers` by
+skipping gaps that touch 00:00 or 24:00.
+
+**13b. Auto-resolve overlapping tags (`gap_auto_resolve_overlaps` + `gap_shift_padding`)**
+Checkbox + padding combo (1/2/3/5 min) on the gap dialog. When enabled, the
+auto-resolve pre-processing in `CustomTagMergeStrategy.generate()` sorts
+custom tags by start time and shifts later tags forward past the previous
+tag's end + padding if they overlap. Creates gaps that the filler fills.
+
+**13c. Runtime overlap estimation (`gap_estimate_runtime_overlap`)**
+Checkbox on the gap dialog. When enabled alongside auto-resolve, the overlap
+detector sums video durations (`min(video_count, len(collection_videos))`) to
+estimate each tag's actual end time. Catches cases where a tag's videos extend
+past its defined end time, creating an overlap with the next tag that isn't
+visible by comparing start/end times alone.
+
+**Files changed (Jun 12 session):**
+- `data_models.py` — field definitions + `edit_tag` signature
+- `strategies.py` — auto-resolve pre-processing in `generate()`
+- `dialogs/custom_tag_dialogs.py` — `GapTagDialog` checkboxes + combo
+- `serialization.py` — save/load new fields
+- `Test/test_gap_filler.py` — 14 tests covering all features
+
+### 14. New approximation algorithm: No-Overlap — Planned (not yet implemented)
+
+**Concept:** Place tags at their original start times, right-shifting any that
+would overlap the previous tag. Produces a clean non-overlapping schedule with
+natural gaps ready for gap filler.
+
+**Comparison with existing modes:**
+
+| Mode | Original times respected? | Can overlap? | Gaps created? |
+|------|---------------------------|-------------|---------------|
+| Linear | No (all start at 00:00) | No (back-to-back) | Rarely |
+| Find-Replace | Partially | Yes | Sometimes |
+| Early/Late Fill | Partially | Yes | No |
+| Priority | No (by priority order) | Yes | No |
+| **No-Overlap (new)** | **Yes** | **Never** | **Always (by design)** |
+
+**Implementation steps:**
+1. `strategies.py` — Add `NoOverlapApproximateStrategy` class (~50 lines):
+   - Sort tags by `start_time` ascending
+   - Per day: track `current_pos`, place each tag at `max(tag.start, current_pos)`,
+     update `current_pos = tag.end`
+   - Fill remaining gaps with random fill
+2. `scheduler.py` — Import class + add dispatch:
+   ```python
+   elif mode == "no_overlap":
+       return NoOverlapApproximateStrategy(self).generate(num_days)
+   ```
+3. `daypart_scheduler.py` — Add `"No Overlap"` to `approx_mode_combo`
+4. Test files — Add `"no_overlap"` to mode lists in test_all_modes.py etc.
+5. (Recommended) Implement Section 12 alongside so gap filler runs as common
+   post-processing in `apply_approximate()` — making No-Overlap the ideal
+   companion for gap tags, and benefiting all other modes too.
 
 ## Notes
 - Gap Tag is independent from Group Approximation (which is an approximate-mode algorithm).
