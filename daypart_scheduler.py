@@ -302,7 +302,7 @@ class MainWindow(QMainWindow):
             }
             QDialog { background-color: #1e1e2e; }
         """)
-        self.tags_list.setSelectionMode(QListWidget.SingleSelection)
+        self.tags_list.setSelectionMode(QListWidget.ExtendedSelection)
         self.tags_list.setFocusPolicy(Qt.StrongFocus)
 
     def load_default_tags(self):
@@ -668,73 +668,75 @@ class MainWindow(QMainWindow):
             self.refresh_preview()
 
     def edit_tag(self):
-         current_row = self.tags_list.currentRow()
-         if current_row < 0:
-             QMessageBox.warning(self, "No Selection", "Please select a tag to edit.")
-             return
- 
-         tag = self.tag_manager.tags[current_row]
-         if tag.is_gap_filler:
-             dialog = GapTagDialog(self, tag)
-             if dialog.exec():
-                 self.tag_manager.tags[current_row] = dialog.get_tag()
-                 self.refresh_tags_list()
-                 self.refresh_preview()
-             return
-         if tag.is_random_fill:
-             dialog = RandomFillDialog(self, tag)
-         elif tag.is_series:
-             dialog = SeriesDialog(self, tag)
-         elif getattr(tag, 'is_multi_series', False):
-             from dialogs import MultiSeriesDialog
-             dialog = MultiSeriesDialog(self, tag)
-             if dialog.exec():
-                 new_tag = dialog.get_tag()
-                 self.tag_manager.tags[current_row] = new_tag
-                 self.refresh_tags_list()
-                 self.refresh_preview()
-             return
-         else:
-             dialog = TagDialog(self, tag)
-         
-         if dialog.exec():
-             new_tag = dialog.get_tag()
-             self.tag_manager.edit_tag(
-                 current_row, new_tag.name,
-                 new_tag.start_time, new_tag.end_time,
-                 new_tag.collection_videos,
-                 new_tag.collection_path,
-                 new_tag.video_count,
-                 new_tag.is_series,
-                 new_tag.start_season,
-                 new_tag.start_episode,
-                 new_tag.play_mode,
-                 new_tag.is_random_fill if hasattr(new_tag, 'is_random_fill') else False,
-                 new_tag.blacklist if hasattr(new_tag, 'blacklist') else [],
-                 new_tag.blacklist_path if hasattr(new_tag, 'blacklist_path') else '',
-                 new_tag.fill_24h if hasattr(new_tag, 'fill_24h') else False,
-                 new_tag.collection_profile if hasattr(new_tag, 'collection_profile') else '',
-                 new_tag.blacklist_profile if hasattr(new_tag, 'blacklist_profile') else '',
-                  new_tag.randomize_videos if hasattr(new_tag, 'randomize_videos') else False,
-                   new_tag.series_end_behavior if hasattr(new_tag, 'series_end_behavior') else 'stop',
-                   new_tag.series_repeat_season if hasattr(new_tag, 'series_repeat_season') else 0,
-                   new_tag.series_random_season if hasattr(new_tag, 'series_random_season') else 0,
-                   active_days=new_tag.active_days if hasattr(new_tag, 'active_days') else None,
-                   marathon_mode=new_tag.marathon_mode if hasattr(new_tag, 'marathon_mode') else False,
-                   marathon_tag_name=new_tag.marathon_tag_name if hasattr(new_tag, 'marathon_tag_name') else ''
-               )
-             self.refresh_tags_list()
-             self.refresh_preview()
-
-    def delete_tag(self):
-        current_row = self.tags_list.currentRow()
-        if current_row < 0:
-            QMessageBox.warning(self, "No Selection", "Please select a tag to delete.")
+        items = self.tags_list.selectedItems()
+        if not items:
+            QMessageBox.warning(self, "No Selection", "Please select at least one tag to edit.")
             return
 
-        reply = QMessageBox.question(self, "Confirm Delete", "Are you sure you want to delete this tag?")
+        for item in items:
+            current_row = self.tags_list.row(item)
+            tag = self.tag_manager.tags[current_row]
+            if tag.is_gap_filler:
+                dialog = GapTagDialog(self, tag)
+                if dialog.exec():
+                    self.tag_manager.tags[current_row] = dialog.get_tag()
+                continue
+            if tag.is_random_fill:
+                dialog = RandomFillDialog(self, tag)
+            elif tag.is_series:
+                dialog = SeriesDialog(self, tag)
+            elif getattr(tag, 'is_multi_series', False):
+                from dialogs import MultiSeriesDialog
+                dialog = MultiSeriesDialog(self, tag)
+                if dialog.exec():
+                    new_tag = dialog.get_tag()
+                    self.tag_manager.tags[current_row] = new_tag
+                continue
+            else:
+                dialog = TagDialog(self, tag)
+
+            if dialog.exec():
+                new_tag = dialog.get_tag()
+                self.tag_manager.edit_tag(
+                    current_row, new_tag.name,
+                    new_tag.start_time, new_tag.end_time,
+                    new_tag.collection_videos,
+                    new_tag.collection_path,
+                    new_tag.video_count,
+                    new_tag.is_series,
+                    new_tag.start_season,
+                    new_tag.start_episode,
+                    new_tag.play_mode,
+                    new_tag.is_random_fill if hasattr(new_tag, 'is_random_fill') else False,
+                    new_tag.blacklist if hasattr(new_tag, 'blacklist') else [],
+                    new_tag.blacklist_path if hasattr(new_tag, 'blacklist_path') else '',
+                    new_tag.fill_24h if hasattr(new_tag, 'fill_24h') else False,
+                    new_tag.collection_profile if hasattr(new_tag, 'collection_profile') else '',
+                    new_tag.blacklist_profile if hasattr(new_tag, 'blacklist_profile') else '',
+                     new_tag.randomize_videos if hasattr(new_tag, 'randomize_videos') else False,
+                    new_tag.series_end_behavior if hasattr(new_tag, 'series_end_behavior') else 'stop',
+                    new_tag.series_repeat_season if hasattr(new_tag, 'series_repeat_season') else 0,
+                    new_tag.series_random_season if hasattr(new_tag, 'series_random_season') else 0,
+                    active_days=new_tag.active_days if hasattr(new_tag, 'active_days') else None,
+                    marathon_mode=new_tag.marathon_mode if hasattr(new_tag, 'marathon_mode') else False,
+                    marathon_tag_name=new_tag.marathon_tag_name if hasattr(new_tag, 'marathon_tag_name') else ''
+                )
+        self.refresh_tags_list()
+        self.refresh_preview()
+
+    def delete_tag(self):
+        items = self.tags_list.selectedItems()
+        if not items:
+            QMessageBox.warning(self, "No Selection", "Please select at least one tag to delete.")
+            return
+
+        count = len(items)
+        msg = "Are you sure you want to delete this tag?" if count == 1 else f"Are you sure you want to delete {count} tags?"
+        reply = QMessageBox.question(self, "Confirm Delete", msg)
         if reply == QMessageBox.Yes:
-            self.tag_manager.remove_tag(current_row)
+            rows = sorted((self.tags_list.row(item) for item in items), reverse=True)
+            for row in rows:
+                self.tag_manager.remove_tag(row)
             self.refresh_tags_list()
             self.refresh_preview()
 
@@ -998,19 +1000,21 @@ class MainWindow(QMainWindow):
         self.refresh_preview()
 
     def save_single_tag(self):
-        current_row = self.tags_list.currentRow()
-        if current_row < 0:
-            QMessageBox.warning(self, "No Selection", "Please select a tag to save.")
+        items = self.tags_list.selectedItems()
+        if not items:
+            QMessageBox.warning(self, "No Selection", "Please select at least one tag to save.")
             return
 
-        tag = self.tag_manager.tags[current_row]
-        file_path, _ = QFileDialog.getSaveFileName(self, "Save Tag", "", "INI Files (*.ini);;All Files (*)")
-        if file_path:
-            if not file_path.endswith('.ini'):
-                file_path += '.ini'
-            from serialization import save_single_tag_to_ini
-            save_single_tag_to_ini(tag, file_path)
-            self.statusBar().showMessage(f"Tag saved to {file_path}")
+        from serialization import save_single_tag_to_ini
+        for item in items:
+            current_row = self.tags_list.row(item)
+            tag = self.tag_manager.tags[current_row]
+            file_path, _ = QFileDialog.getSaveFileName(self, f"Save Tag - {tag.name}", "", "INI Files (*.ini);;All Files (*)")
+            if file_path:
+                if not file_path.endswith('.ini'):
+                    file_path += '.ini'
+                save_single_tag_to_ini(tag, file_path)
+                self.statusBar().showMessage(f"Tag saved to {file_path}")
 
     def load_single_tag(self):
         file_paths, _ = QFileDialog.getOpenFileNames(self, "Load Tags", "", "INI Files (*.ini);;All Files (*)")
