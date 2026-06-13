@@ -395,7 +395,7 @@ class ScheduleEntry:
         elif start_day == end_day:
             return f"Day {start_day} {start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {self.video_name}"
         else:
-            return f"Day {start_day} {start_h:02d}:{start_m:02d} - Day {end_day} {end_h:02d}:{end_m:02d} - {self.video_name}"
+            return f"Day {start_day} {start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {self.video_name}"
 
     @property
     def tag_color(self) -> Optional[QColor]:
