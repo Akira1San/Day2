@@ -6,6 +6,7 @@ for integrating custom/series/multi-series tags with random fill.
 """
 
 from __future__ import annotations
+import copy
 import random
 import itertools
 import logging
@@ -1086,6 +1087,120 @@ class GroupApproximateStrategy:
                 random_entries, used_random, final, day_offset, day_start,
                 scheduled_slots, current_pos
             )
+
+        final.sort(key=lambda e: e.start_seconds)
+        return final
+
+
+class ShiftOverlayApproximateStrategy:
+    """Shift-overlay strategy: never consume/fragment random entries.
+
+    If a random entry overlaps a tag's desired start time, the tag is shifted
+    to start after that entry ends. All subsequent random entries for the day
+    are shifted forward by the tag's placed duration so the timeline extends
+    but nothing is removed.
+    """
+
+    def __init__(self, schedule_generator: 'ScheduleGenerator'):
+        self.sg = schedule_generator
+
+    def generate(self, num_days: int = 1) -> List[ScheduleEntry]:
+        all_tags = self.sg.tag_manager.get_all_tags()
+
+        custom_tags = [t for t in all_tags if t.tag_type == "custom" and not t.is_random_fill and not t.is_series]
+        series_tags = [t for t in all_tags if t.is_series]
+        multi_series_tags = [t for t in all_tags if getattr(t, 'is_multi_series', False)]
+        random_fill_tags = [t for t in all_tags if t.is_random_fill]
+
+        rf_24h_tags = [t for t in random_fill_tags if getattr(t, 'fill_24h', False)]
+        if rf_24h_tags and not custom_tags and not series_tags and not multi_series_tags:
+            if not any(getattr(rf, 'marathon_mode', False) for rf in rf_24h_tags):
+                return self.sg.generate_random_fill(24 * 3600 * num_days)
+
+        if not custom_tags and not series_tags and not multi_series_tags and not random_fill_tags:
+            return []
+
+        rf_sorted = sorted(random_fill_tags, key=lambda t: qtime_to_seconds(t.start_time))
+        if not rf_sorted:
+            return LinearApproximateStrategy(self.sg).generate(num_days)
+
+        rf = rf_sorted[0]
+        if getattr(rf, 'marathon_mode', False):
+            rf_videos = self.sg._get_marathon_videos(rf, 0)
+        else:
+            rf_videos = rf.collection_videos.copy() if rf.collection_videos else []
+        if rf_videos:
+            random.shuffle(rf_videos)
+        total_seconds = num_days * 24 * 3600
+        random_entries = self.sg._build_random_entries(rf_videos, 0, total_seconds, rf.name)
+
+        final = []
+
+        for day_offset in range(num_days):
+            day_start = day_offset * 86400
+            day_end = day_start + 86400
+
+            day_random = [copy.copy(e) for e in random_entries
+                          if e.start_seconds < day_end and e.end_seconds > day_start]
+            day_random.sort(key=lambda e: e.start_seconds)
+
+            day_tags = []
+            for t in custom_tags + series_tags + multi_series_tags:
+                if not self.sg._is_tag_active_on_day(t, day_offset):
+                    continue
+                orig_start, orig_end = normalize_tag_time_range(t)
+                abs_start = orig_start + day_start
+                abs_end = orig_end + day_start
+                duration = orig_end - orig_start
+                if duration <= 0:
+                    continue
+                day_tags.append((t, abs_start, abs_end, duration))
+            day_tags.sort(key=lambda x: x[1])
+
+            cursor = day_start
+            random_idx = 0
+
+            for tag, abs_start, abs_end, duration in day_tags:
+                # Emit entries that end at or before the tag's desired start
+                while random_idx < len(day_random):
+                    e = day_random[random_idx]
+                    if e.end_seconds <= abs_start:
+                        if e.start_seconds >= cursor:
+                            final.append(e)
+                            cursor = e.end_seconds
+                        random_idx += 1
+                    else:
+                        break
+
+                # Check if first remaining entry overlaps the tag's desired start
+                if random_idx < len(day_random):
+                    e = day_random[random_idx]
+                    if e.start_seconds < abs_start < e.end_seconds:
+                        final.append(e)
+                        cursor = e.end_seconds
+                        random_idx += 1
+
+                # Place tag at cursor (may be shifted forward due to overlap)
+                slot_start = max(abs_start, cursor)
+                slot_end = slot_start + duration
+                actual_end = self.sg._place_tag_videos(tag, slot_start, slot_end, final, day_offset)
+
+                # Shift remaining entries forward by the placed duration
+                placed_duration = actual_end - slot_start
+                if placed_duration > 0:
+                    for j in range(random_idx, len(day_random)):
+                        day_random[j].start_seconds += placed_duration
+                        day_random[j].end_seconds += placed_duration
+
+                cursor = actual_end
+
+            # Emit remaining random entries
+            while random_idx < len(day_random):
+                e = day_random[random_idx]
+                if e.start_seconds >= cursor:
+                    final.append(e)
+                    cursor = e.end_seconds
+                random_idx += 1
 
         final.sort(key=lambda e: e.start_seconds)
         return final

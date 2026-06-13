@@ -36,6 +36,7 @@ from strategies import (
     ExhaustiveApproximateStrategy,
     NoOverlapApproximateStrategy,
     GroupApproximateStrategy,
+    ShiftOverlayApproximateStrategy,
 )
 
 logger = logging.getLogger(__name__)
@@ -763,6 +764,8 @@ class ScheduleGenerator:
             entries = NoOverlapApproximateStrategy(self).generate(num_days)
         elif mode == "group_approximate":
             entries = GroupApproximateStrategy(self).generate(num_days)
+        elif mode == "shift_overlay":
+            entries = ShiftOverlayApproximateStrategy(self).generate(num_days)
         else:
             raise ValueError(f"Unknown approximate mode: {mode}")
 
