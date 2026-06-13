@@ -13,7 +13,7 @@ def make_video(name, dur_min):
 
 MODES = [
     "find_replace", "linear", "early_fill", "late_fill",
-    "priority", "best_fit", "round_robin", "linear_spanning", "exhaustive",
+    "priority", "best_fit", "round_robin", "linear_spanning", "exhaustive", "no_overlap",
 ]
 
 def run_test(mode, num_days=2):

@@ -350,7 +350,7 @@ def test_runtime_overlap_detection():
 
 ALL_APPROX_MODES = [
     "linear", "find_replace", "early_fill", "late_fill", "priority",
-    "best_fit", "round_robin", "linear_spanning", "exhaustive",
+    "best_fit", "round_robin", "linear_spanning", "exhaustive", "no_overlap",
 ]
 
 

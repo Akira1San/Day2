@@ -173,7 +173,7 @@ class MainWindow(QMainWindow):
         self.load_schedule_profiles()
 
         self.approx_mode_combo = QComboBox()
-        self.approx_mode_combo.addItems(["Linear", "Find-Replace", "Early Fill", "Late Fill", "Priority", "Best Fit", "Round Robin", "Linear Spanning", "Exhaustive"])
+        self.approx_mode_combo.addItems(["Linear", "Find-Replace", "Early Fill", "Late Fill", "Priority", "Best Fit", "Round Robin", "Linear Spanning", "Exhaustive", "No Overlap"])
         self.approx_mode_combo.setToolTip("Approximate algorithm mode")
         self.approx_mode_combo.setFixedWidth(120)
 

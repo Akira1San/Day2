@@ -941,3 +941,57 @@ class ExhaustiveApproximateStrategy:
 
         final.sort(key=lambda e: e.start_seconds)
         return final
+
+
+class NoOverlapApproximateStrategy:
+    """Places tags at original start times, right-shifting to avoid overlaps.
+
+    Creates natural gaps between tags that the gap filler post-processing step
+    (in apply_approximate) fills with gap tag videos.  Ideal companion for
+    gap tags because it preserves original times while guaranteeing zero overlap.
+    """
+
+    def __init__(self, schedule_generator):
+        self.sg = schedule_generator
+
+    def generate(self, num_days: int = 1) -> List[ScheduleEntry]:
+        all_tags = self.sg.tag_manager.get_all_tags()
+
+        custom_tags = [t for t in all_tags if t.tag_type == "custom" and not t.is_random_fill and not t.is_series]
+        series_tags = [t for t in all_tags if t.is_series]
+        multi_series_tags = [t for t in all_tags if getattr(t, 'is_multi_series', False)]
+
+        if not custom_tags and not series_tags and not multi_series_tags:
+            return []
+
+        final = []
+        for day_offset in range(num_days):
+            day_start = day_offset * 86400
+            day_tags = []
+
+            for tag_list in (custom_tags, series_tags, multi_series_tags):
+                for t in tag_list:
+                    if not self.sg._is_tag_active_on_day(t, day_offset):
+                        continue
+                    orig_start, orig_end = normalize_tag_time_range(t)
+                    duration = orig_end - orig_start
+                    if duration <= 0:
+                        continue
+                    day_tags.append((t, orig_start + day_start, duration))
+
+            day_tags.sort(key=lambda x: x[1])
+
+            current_pos = day_start
+            for tag, abs_start, duration in day_tags:
+                slot_start = max(abs_start, current_pos)
+                slot_end = slot_start + duration
+                if slot_start >= day_start + 86400:
+                    continue
+                if slot_end > day_start + 86400:
+                    slot_end = day_start + 86400
+                actual_end = self.sg._place_tag_videos(tag, slot_start, slot_end, final, day_offset)
+                if actual_end > current_pos:
+                    current_pos = actual_end
+
+        final.sort(key=lambda e: e.start_seconds)
+        return final

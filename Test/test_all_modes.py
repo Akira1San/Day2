@@ -72,7 +72,7 @@ def check_overlaps(entries, tag_ranges):
 
 tg = create_test_data()
 sg = ScheduleGenerator(tg)
-modes = ["find_replace", "linear", "early_fill", "late_fill", "priority", "best_fit", "round_robin", "linear_spanning", "exhaustive"]
+modes = ["find_replace", "linear", "early_fill", "late_fill", "priority", "best_fit", "round_robin", "linear_spanning", "exhaustive", "no_overlap"]
 tag_ranges = get_tag_ranges(7)
 for mode in modes:
     try:

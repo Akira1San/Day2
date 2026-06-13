@@ -34,7 +34,7 @@ tm.add_tag(custom)
 from models import ScheduleGenerator
 sg = ScheduleGenerator(tm)
 
-modes = ["find_replace", "linear", "early_fill", "late_fill", "priority", "best_fit", "round_robin", "linear_spanning", "exhaustive"]
+modes = ["find_replace", "linear", "early_fill", "late_fill", "priority", "best_fit", "round_robin", "linear_spanning", "exhaustive", "no_overlap"]
 for m in modes:
     try:
         entries = sg.apply_approximate(num_days=1, mode=m)
