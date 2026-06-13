@@ -494,6 +494,9 @@ class MainWindow(QMainWindow):
             child = QTreeWidgetItem(parent)
             child.setText(0, gap_entry.to_display_string())
             child.setData(0, Qt.UserRole, gap_entry)
+            color = gap_entry.tag_color
+            if color:
+                child.setForeground(0, color)
 
     def _add_entries_to_tree(self, entries):
         i = 0
@@ -510,6 +513,9 @@ class MainWindow(QMainWindow):
                 item = QTreeWidgetItem(self.preview_list)
                 item.setText(0, entry.to_display_string())
                 item.setData(0, Qt.UserRole, entry)
+                color = entry.tag_color
+                if color:
+                    item.setForeground(0, color)
                 i += 1
 
     def _collect_item_text(self, item, items):
