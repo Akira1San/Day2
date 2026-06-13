@@ -391,9 +391,9 @@ class ScheduleEntry:
         end_h = (self.end_seconds // 3600) % 24
         end_m = (self.end_seconds % 3600) // 60
         if self.start_seconds < 24 * 3600:
-            return f"Day {start_day}\n{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {self.video_name}"
+            return f"Day {start_day} {start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {self.video_name}"
         elif start_day == end_day:
-            return f"Day {start_day}\n{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {self.video_name}"
+            return f"Day {start_day} {start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d} - {self.video_name}"
         else:
             return f"Day {start_day} {start_h:02d}:{start_m:02d} - Day {end_day} {end_h:02d}:{end_m:02d} - {self.video_name}"
 
