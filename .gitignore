@@ -5,3 +5,5 @@ test.ini
 venv/
 logs/
 *.log
+.kilo/
+Tags/
