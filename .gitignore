@@ -8,3 +8,5 @@ Tags/
 *.json
 *.ini
 !config.ini
+SPEC.md
+task.md
