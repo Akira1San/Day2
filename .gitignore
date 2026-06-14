@@ -1,10 +1,10 @@
 __pycache__/
 *.pyc
-tags.ini
-test.ini
 venv/
 logs/
 *.log
 .kilo/
 Tags/
 *.json
+*.ini
+!config.ini
