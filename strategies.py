@@ -128,6 +128,7 @@ class CustomTagMergeStrategy:
         rf_sorted = sorted(random_fill_tags, key=lambda t: qtime_to_seconds(t.start_time))
 
         if rf_sorted and any(getattr(rf, 'fill_24h', False) for rf in rf_sorted):
+            vid_idx = 0
             for day_offset in range(num_days):
                 day_offset_seconds = day_offset * 24 * 3600
                 for rf in rf_sorted:
@@ -137,7 +138,7 @@ class CustomTagMergeStrategy:
                         merged = [(e.start_seconds - day_offset_seconds, e.end_seconds - day_offset_seconds)
                                    for e in custom_entries + series_entries + multi_series_entries
                                    if e.start_seconds < day_end and e.end_seconds > day_start]
-                        self.sg._process_random_fill_tag(rf, fill_entries, merged, 0, day_offset_seconds)
+                        vid_idx = self.sg._process_random_fill_tag(rf, fill_entries, merged, vid_idx, day_offset_seconds)
         elif rf_sorted:
             rf_first = rf_sorted[0]
             if getattr(rf_first, 'marathon_mode', False):
@@ -149,26 +150,6 @@ class CustomTagMergeStrategy:
                 random.shuffle(rf_videos)
             total_seconds = num_days * 24 * 3600
             fill_entries.extend(self.sg._build_random_entries(rf_videos, rf_start, total_seconds, rf_first.name))
-
-        rf_24h_tags = [rf for rf in rf_sorted if getattr(rf, 'fill_24h', False)]
-        if fill_entries and rf_24h_tags:
-            fill_entries.sort(key=lambda e: e.start_seconds)
-            total_duration = sum(e.end_seconds - e.start_seconds for e in fill_entries)
-            rf_videos = rf_sorted[0].collection_videos.copy() if rf_sorted else []
-            if rf_videos:
-                total_secs = sum(int(v.get('duration', 90)) for v in rf_videos)
-                avg_duration = total_secs // len(rf_videos) if rf_videos else 0
-                if avg_duration > 0:
-                    start_vid_idx = (total_duration // avg_duration) % len(rf_videos)
-                    for day_offset in range(1, num_days):
-                        day_offset_seconds = day_offset * 24 * 3600
-                        for rf in rf_sorted[1:]:
-                            day_start = day_offset_seconds
-                            day_end = day_offset_seconds + 24 * 3600
-                            merged = [(e.start_seconds - day_offset_seconds, e.end_seconds - day_offset_seconds)
-                                       for e in custom_entries + series_entries + multi_series_entries
-                                       if e.start_seconds < day_end and e.end_seconds > day_start]
-                            self.sg._process_random_fill_tag(rf, fill_entries, merged, start_vid_idx, day_offset_seconds)
 
         # Gap filler: fill remaining empty intervals with gap tag videos
         gap_tags = [t for t in all_tags if t.is_gap_filler]

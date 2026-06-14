@@ -195,9 +195,11 @@ class ScheduleGenerator:
 
         total_eligible = len(eligible)
         if total_eligible == 0:
+            logger.debug(f"[SERIES_SEL] {_get('name','?')} day_offset={day_offset} total_eligible=0 -> empty")
             return []
 
         effective_idx = day_offset * video_count
+        logger.debug(f"[SERIES_SEL] {_get('name','?')} day_offset={day_offset} video_count={video_count} total_eligible={total_eligible} effective_idx={effective_idx} end_behavior={end_behavior!r}")
 
         # Random end-behavior: shuffle pool, cycle without repeats
         if end_behavior == 'random':
@@ -215,12 +217,16 @@ class ScheduleGenerator:
             rng = random.Random(f"{seed_str}_cycle_{cycle_num}")
             shuffled_idx = list(pool_idx)
             rng.shuffle(shuffled_idx)
-            selected_idx = shuffled_idx[local_idx : local_idx + video_count]
-            return [eligible[i] for i in selected_idx]
+            take = min(video_count, pool_size)
+            selected_idx = shuffled_idx[local_idx : local_idx + take]
+            result = [eligible[i] for i in selected_idx]
+            logger.debug(f"[SERIES_SEL] random branch: pool_size={pool_size} take={take} returning {len(result)} videos")
+            return result
 
         # Check if past the eligible range
         if effective_idx + video_count > total_eligible:
             if end_behavior == 'stop':
+                logger.debug(f"[SERIES_SEL] stop branch: returning [] (past eligible range)")
                 return []
             if end_behavior == 'repeat':
                 if repeat_season == 0:
@@ -235,15 +241,19 @@ class ScheduleGenerator:
                 wrap_range = total_eligible - wrap_idx
                 if wrap_range <= 0:
                     return []
+                take = min(video_count, total_eligible)
                 idx_in_range = (effective_idx - wrap_idx) % wrap_range
                 selected = []
-                for i in range(video_count):
+                for i in range(take):
                     selected.append(eligible[wrap_idx + (idx_in_range + i) % wrap_range])
+                logger.debug(f"[SERIES_SEL] repeat branch: take={take} idx_in_range={idx_in_range} wrap_range={wrap_range} returning {len(selected)} videos")
                 return selected
 
         # Normal: within eligible range
         take = min(video_count, total_eligible - effective_idx)
-        return eligible[effective_idx : effective_idx + take]
+        result = eligible[effective_idx : effective_idx + take]
+        logger.debug(f"[SERIES_SEL] normal branch: take={take} returning {len(result)} videos")
+        return result
 
     def _get_videos_for_day(self, videos: List[dict], day_offset: int) -> List[dict]:
         """Select videos according to global video_order_mode for a given day.
@@ -326,7 +336,17 @@ class ScheduleGenerator:
                 logger.debug(f"[PLACE]   -> using _select_series_videos")
                 videos_to_use = self._select_series_videos(ct, day_offset)
                 ordered_videos = [v['video'] for v in videos_to_use]
-                logger.debug(f"[PLACE]   selected {len(videos_to_use)} videos")
+                logger.debug(f"[PLACE]   selected {len(videos_to_use)} videos from _select_series_videos")
+                seen = set()
+                unique = []
+                for v in ordered_videos:
+                    key = v.get('path', v.get('name', ''))
+                    if key not in seen:
+                        seen.add(key)
+                        unique.append(v)
+                if len(unique) != len(ordered_videos):
+                    logger.debug(f"[PLACE]   dedup removed {len(ordered_videos) - len(unique)} duplicates -> {len(unique)} unique")
+                ordered_videos = unique
             else:
                 # For non-series custom tags: use day-aware selection
                 day_offset = start // 86400  # start is absolute seconds
@@ -336,6 +356,7 @@ class ScheduleGenerator:
 
             pos = start
             vid_idx = 0
+            logger.debug(f"[PLACE]   loop start: pos={pos} end={end} video_count={video_count} ordered_len={len(ordered_videos)}")
             while pos <= end and vid_idx < video_count and vid_idx < len(ordered_videos):
                 video = ordered_videos[vid_idx]
                 video_name = get_video_display_name(video)
@@ -343,10 +364,12 @@ class ScheduleGenerator:
                 if duration < 1:
                     duration = 90
                 if pos + duration > end:
+                    logger.debug(f"[PLACE]   extend end: {end} -> {pos + duration}")
                     end = pos + duration
                 final.append(self._create_video_entry(pos, duration, video_name, ct.name, "custom"))
                 pos += duration
                 vid_idx += 1
+            logger.debug(f"[PLACE]   loop end: placed {vid_idx} videos, final pos={pos}")
             return pos
         else:
             final.append(ScheduleEntry(1, start, end, ct.name, ct.tag_type))
@@ -563,6 +586,7 @@ class ScheduleGenerator:
                 occupied.add(s)
 
             videos_to_use = self._select_series_videos(st, day_offset)
+            logger.debug(f"[PROCESS_SERIES] {st.name} day_offset={day_offset} videos_to_use={len(videos_to_use)}")
 
             pos = start_sec
             placed = 0
@@ -581,6 +605,7 @@ class ScheduleGenerator:
                 series_entries.append(self._create_video_entry(pos, duration, video_name, st.name, "series"))
                 pos += duration
                 placed += 1
+            logger.debug(f"[PROCESS_SERIES] {st.name} day_offset={day_offset} placed={placed} end_sec={end_sec}")
 
             # The soft-hint logic above now handles per-video overflow by
             # extending the occupied window as needed. The old fallback for
@@ -640,7 +665,7 @@ class ScheduleGenerator:
             else:
                 rf_videos_base = rf.collection_videos.copy() if rf.collection_videos else []
             if not rf_videos_base:
-                return
+                return start_vid_idx
             day_offset = start_offset // 86400
             rf_videos = self._get_videos_for_day(rf_videos_base, day_offset)
             gaps = []
@@ -677,6 +702,7 @@ class ScheduleGenerator:
                     pos += duration
                     skips_since_progress = 0
                     vid_idx += 1
+            return vid_idx
         else:
             rf_start = qtime_to_seconds(rf.start_time)
             rf_end = qtime_to_seconds(rf.end_time)
@@ -1306,6 +1332,8 @@ class ScheduleGenerator:
         series_sorted = sorted(series_tags, key=lambda t: qtime_to_seconds(t.start_time))
         multi_sorted = sorted(multi_series_tags, key=lambda t: qtime_to_seconds(t.start_time))
 
+        per_day_end_pos = [0] * num_days
+
         if not has_24h_fill:
             for day_offset in range(num_days):
                 day_offset_seconds = day_offset * 24 * 3600
@@ -1352,12 +1380,14 @@ class ScheduleGenerator:
                         current_pos = custom_end
 
                 next_custom_pos = current_pos
+                per_day_end_pos[day_offset] = current_pos
                 while rand_idx < len(base_entries) and base_entries[rand_idx].start_seconds < current_pos:
                     rand_idx += 1
         else:
             # Process custom tags for 24h fill mode
             for day_offset in range(num_days):
                 day_offset_seconds = day_offset * 24 * 3600
+                day_end_pos = 0
                 for ct in custom_sorted:
                     if not self._is_tag_active_on_day(ct, day_offset):
                         continue
@@ -1377,24 +1407,33 @@ class ScheduleGenerator:
                         pos = custom_start
                         vid_idx = 0
                         actual_end = custom_start
-                    while pos <= custom_end and vid_idx < video_count and vid_idx < len(videos):
-                        video = videos[vid_idx % len(videos)]
-                        video_name = get_video_display_name(video)
-                        duration = int(video.get('duration', 90))
-                        if duration < 1:
-                            duration = 90
-                        if pos + duration > custom_end:
-                            custom_end = pos + duration
-                        final.append(self._create_video_entry(pos, duration, video_name, ct.name, "custom"))
-                        actual_end = pos + duration
-                        pos += duration
-                        vid_idx += 1
-                        actual_placed_ranges.append((custom_start, custom_end))
+                        while pos <= custom_end and vid_idx < video_count and vid_idx < len(videos):
+                            video = videos[vid_idx % len(videos)]
+                            video_name = get_video_display_name(video)
+                            duration = int(video.get('duration', 90))
+                            if duration < 1:
+                                duration = 90
+                            if pos + duration > custom_end:
+                                custom_end = pos + duration
+                            final.append(self._create_video_entry(pos, duration, video_name, ct.name, "custom"))
+                            actual_end = pos + duration
+                            pos += duration
+                            vid_idx += 1
+                            actual_placed_ranges.append((custom_start, custom_end))
+                        if actual_end > day_end_pos:
+                            day_end_pos = actual_end
                     else:
                         final.append(ScheduleEntry(1, custom_start, custom_end, ct.name))
                         actual_placed_ranges.append((custom_start, custom_end))
+                        if custom_end > day_end_pos:
+                            day_end_pos = custom_end
+                per_day_end_pos[day_offset] = day_end_pos
 
         # Series tags processing (outside if/else to handle both cases)
+        # Reset next_custom_pos to 0 so it does not carry the accumulated
+        # position from the custom-tag loop (which would push all series
+        # content to the very end of the schedule).
+        next_custom_pos = 0
         for day_offset in range(num_days):
             day_offset_seconds = day_offset * 24 * 3600
             for st in series_sorted:
@@ -1402,11 +1441,12 @@ class ScheduleGenerator:
                     continue
                 original_start, original_end = normalize_tag_time_range(st)
 
-                # next_custom_pos is in absolute seconds; normalize to
-                # within-day offset so a previous day's extended end time
-                # doesn't cascade into the next day's start time.
-                next_custom_within_day = next_custom_pos - day_offset_seconds
-                series_start = max(original_start, next_custom_within_day) + day_offset_seconds
+                # Use max of per-day custom tag end and series-tracked position
+                # so series starts after custom tags AND after any previous
+                # series tags on the same day.
+                effective_pos = max(per_day_end_pos[day_offset], next_custom_pos)
+                day_end_within = effective_pos - day_offset_seconds
+                series_start = max(original_start, day_end_within) + day_offset_seconds
                 series_end = series_start + (original_end - original_start)
 
                 if st.collection_videos:
@@ -1414,8 +1454,10 @@ class ScheduleGenerator:
                         occupied.add(s)
 
                     videos_to_use = self._select_series_videos(st, day_offset)
+                    logger.debug(f"[APPROX_SERIES] {st.name} day_offset={day_offset} videos_to_use={len(videos_to_use)}")
 
                     pos = series_start
+                    placed = 0
                     actual_end = series_start
                     for v in videos_to_use:
                         video = v['video']
@@ -1428,6 +1470,8 @@ class ScheduleGenerator:
                         final.append(self._create_video_entry(pos, duration, video_name, st.name, "series"))
                         actual_end = pos + duration
                         pos += duration
+                        placed += 1
+                    logger.debug(f"[APPROX_SERIES] {st.name} day_offset={day_offset} placed={placed} series_start={series_start} series_end={series_end}")
                     current_pos = actual_end
                     next_custom_pos = actual_end
                     if has_24h_fill:
