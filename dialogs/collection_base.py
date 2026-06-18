@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 from PySide6.QtWidgets import QWidget, QLabel, QHBoxLayout, QVBoxLayout, QComboBox, QLineEdit, QPushButton, QMessageBox, QListWidgetItem
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 
 from .base import BaseTagDialog
 from .profile_mixin import SeriesProfileMixin
@@ -90,7 +91,8 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
             on_remove=self.remove_selected_added,
             on_remove_all=self.remove_all_added,
             on_clear_selection=self.clear_added_selection,
-            on_add_to_blacklist=self.add_to_blacklist
+            on_add_to_blacklist=self.add_to_blacklist,
+            on_check_missing=self.check_missing_videos
         )
         self.blacklist_section = create_blacklist_section(
             on_video_selected=self.on_blacklist_video_selected,
@@ -218,6 +220,23 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
         self.collection_section.count_label.setText(f"Count: {len(self.collection_videos)}")
         self.added_section.count_label.setText(f"Count: {len(self.added_videos)}")
         self.blacklist_section.count_label.setText(f"Count: {len(self.blacklist)}")
+
+    def check_missing_videos(self):
+        """Check which added videos still exist on disk and mark missing ones in red."""
+        missing_count = 0
+        for i in range(self.added_list.count()):
+            item = self.added_list.item(i)
+            path = item.data(Qt.UserRole)
+            if not path or not Path(path).exists():
+                item.setForeground(QColor("red"))
+                missing_count += 1
+        total = self.added_list.count()
+        if missing_count:
+            self.added_section.count_label.setText(f"Count: {total}  ({missing_count} missing)")
+            QMessageBox.information(self, "Missing Videos",
+                f"{missing_count} of {total} added videos are missing on disk.")
+        else:
+            self.added_section.count_label.setText(f"Count: {total}")
 
     # --- Collection loading ---
     def load_collection(self, file_path: str, load_blacklist: bool = True):

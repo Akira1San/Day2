@@ -37,7 +37,8 @@ def create_video_section(
     on_remove: Optional[Callable] = None,
     on_remove_all: Optional[Callable] = None,
     on_clear_selection: Optional[Callable] = None,
-    on_add_to_blacklist: Optional[Callable] = None
+    on_add_to_blacklist: Optional[Callable] = None,
+    on_check_missing: Optional[Callable] = None
 ) -> VideoSection:
     """
     Create a video list section with optional buttons.
@@ -101,6 +102,10 @@ def create_video_section(
             blacklist_btn = QPushButton("Add to Blacklist >>")
             blacklist_btn.clicked.connect(on_add_to_blacklist)
             btn_layout.addWidget(blacklist_btn)
+        if on_check_missing:
+            check_btn = QPushButton("Check Missing")
+            check_btn.clicked.connect(on_check_missing)
+            btn_layout.addWidget(check_btn)
 
     vbox.addLayout(btn_layout)
 

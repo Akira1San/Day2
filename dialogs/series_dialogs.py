@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QCheckBox
 )
 from PySide6.QtCore import QTime
+from PySide6.QtGui import QColor
 
 from .base import BaseTagDialog
 from .profile_mixin import SeriesProfileMixin
@@ -106,6 +107,11 @@ class SeriesDialog(BaseTagDialog, SeriesProfileMixin):
         self.videos_list.setMinimumHeight(150)
         self.videos_list.itemSelectionChanged.connect(self._on_video_selection_changed)
         right_layout.addWidget(self.videos_list)
+
+        # Check Missing button
+        check_missing_btn = QPushButton("Check Missing")
+        check_missing_btn.clicked.connect(self.check_missing_videos)
+        right_layout.addWidget(check_missing_btn)
 
         # Series options
         series_layout = QHBoxLayout()
@@ -251,14 +257,18 @@ class SeriesDialog(BaseTagDialog, SeriesProfileMixin):
                     path = video.get('path', '')
                     duration = video.get('duration', 0)
                     display_name = get_video_display_name(video)
-                    self.videos_list.addItem(f"{display_name} ({format_duration(duration)})")
+                    item = QListWidgetItem(f"{display_name} ({format_duration(duration)})")
+                    item.setData(Qt.UserRole, path)
+                    self.videos_list.addItem(item)
         elif tag.collection_videos:
             self.collection_videos = tag.collection_videos.copy()
             for video in self.collection_videos:
                 path = video.get('path', '')
                 duration = video.get('duration', 0)
                 display_name = get_video_display_name(video)
-                self.videos_list.addItem(f"{display_name} ({format_duration(duration)})")
+                item = QListWidgetItem(f"{display_name} ({format_duration(duration)})")
+                item.setData(Qt.UserRole, path)
+                self.videos_list.addItem(item)
 
         collection_profile = getattr(tag, 'collection_profile', '')
         if collection_profile:
@@ -315,7 +325,9 @@ class SeriesDialog(BaseTagDialog, SeriesProfileMixin):
             path = video.get('path', '')
             duration = video.get('duration', 0)
             display_name = get_video_display_name(video)
-            self.videos_list.addItem(f"{display_name} ({format_duration(duration)})")
+            item = QListWidgetItem(f"{display_name} ({format_duration(duration)})")
+            item.setData(Qt.UserRole, path)
+            self.videos_list.addItem(item)
         self._on_collection_loaded()
 
     def auto_calc_end_time(self):
@@ -349,6 +361,19 @@ class SeriesDialog(BaseTagDialog, SeriesProfileMixin):
         if not file_path:
             return
         self.blacklist = load_blacklist_json(file_path)
+
+    def check_missing_videos(self):
+        """Check which collection videos still exist on disk and mark missing ones in red."""
+        missing_count = 0
+        for i in range(self.videos_list.count()):
+            item = self.videos_list.item(i)
+            path = item.data(Qt.UserRole)
+            if not path or not Path(path).exists():
+                item.setForeground(QColor("red"))
+                missing_count += 1
+        if missing_count:
+            QMessageBox.information(self, "Missing Videos",
+                f"{missing_count} of {self.videos_list.count()} videos are missing on disk.")
 
     def get_tag(self) -> Tag:
         """Construct Tag from current state."""
