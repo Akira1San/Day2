@@ -2,15 +2,17 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
 from PySide6.QtCore import Qt, QTime
 from PySide6.QtGui import QPixmap
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 
 class CollectionInfoPanel(QWidget):
     """Widget displaying collection information and cover image."""
     
-    def __init__(self, parent=None, covers_root: Optional[Path] = None):
+    def __init__(self, parent=None, covers_root: Optional[Path] = None,
+                 fallback_dirs: Optional[List[Path]] = None):
         super().__init__(parent)
         self.covers_root = covers_root or Path('.')
+        self.fallback_dirs = fallback_dirs or []
         self.setup_ui()
     
     def setup_ui(self):
@@ -54,6 +56,13 @@ class CollectionInfoPanel(QWidget):
         cover_full = Path(cover_path)
         if not cover_full.is_absolute():
             cover_full = self.covers_root / cover_path
+        
+        if not cover_full.exists():
+            for alt_dir in self.fallback_dirs:
+                candidate = alt_dir / Path(cover_path).name
+                if candidate.exists():
+                    cover_full = candidate
+                    break
         
         if cover_full.exists():
             pixmap = QPixmap(str(cover_full))

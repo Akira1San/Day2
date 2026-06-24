@@ -45,7 +45,12 @@ class SeriesDialog(BaseTagDialog, SeriesProfileMixin):
         except Exception:
             self.covers_root = Path('.')
 
-        self.info_panel = CollectionInfoPanel(parent=self, covers_root=self.covers_root)
+        fallback = [
+            self.covers_root / 'user' / 'collections' / 'covers' / 'tatkotv' / 'images',
+            self.covers_root / 'user' / 'covers' / 'tatkotv',
+        ]
+        self.info_panel = CollectionInfoPanel(parent=self, covers_root=self.covers_root,
+                                              fallback_dirs=fallback)
         self.video_info = VideoInfoDisplay()
 
         self.setup_ui()

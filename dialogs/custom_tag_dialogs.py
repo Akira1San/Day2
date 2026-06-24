@@ -44,7 +44,12 @@ class TagDialog(CollectionDialogBase):
         except Exception:
             self.covers_root = Path('.')
 
-        self.info_panel = CollectionInfoPanel(parent=self, covers_root=self.covers_root)
+        fallback = [
+            self.covers_root / 'user' / 'collections' / 'covers' / 'tatkotv' / 'images',
+            self.covers_root / 'user' / 'covers' / 'tatkotv',
+        ]
+        self.info_panel = CollectionInfoPanel(parent=self, covers_root=self.covers_root,
+                                              fallback_dirs=fallback)
         self.video_info = VideoInfoDisplay()
 
         # Build UI using common components
@@ -207,7 +212,14 @@ class TagDialog(CollectionDialogBase):
         """Handle selection in collection list: update video info and cover."""
         self.video_info.set_video_info(video)
         coll_id = video.get('collection_id', '')
+        if not coll_id:
+            path = video.get('path', '')
+            for v in self.collection_videos:
+                if v.get('path', '') == path:
+                    coll_id = v.get('collection_id', '')
+                    break
         coll_info = self.collection_info_dict.get(coll_id, {})
+        self.info_panel.set_collection_info(coll_info)
         cover_path = coll_info.get('cover', '')
         self.info_panel.set_cover_image(cover_path)
 
@@ -224,6 +236,7 @@ class TagDialog(CollectionDialogBase):
                         coll_id = v.get('collection_id', '')
                         break
             coll_info = self.collection_info_dict.get(coll_id, {})
+            self.info_panel.set_collection_info(coll_info)
             cover_path = coll_info.get('cover', '')
             self.info_panel.set_cover_image(cover_path)
 
@@ -240,6 +253,7 @@ class TagDialog(CollectionDialogBase):
                         coll_id = v.get('collection_id', '')
                         break
             coll_info = self.collection_info_dict.get(coll_id, {})
+            self.info_panel.set_collection_info(coll_info)
             cover_path = coll_info.get('cover', '')
             self.info_panel.set_cover_image(cover_path)
 
@@ -325,7 +339,12 @@ class RandomFillDialog(CollectionDialogBase):
             self.covers_root = Path('.')
 
         # Custom widgets
-        self.info_panel = CollectionInfoPanel(parent=self, covers_root=self.covers_root)
+        fallback = [
+            self.covers_root / 'user' / 'collections' / 'covers' / 'tatkotv' / 'images',
+            self.covers_root / 'user' / 'covers' / 'tatkotv',
+        ]
+        self.info_panel = CollectionInfoPanel(parent=self, covers_root=self.covers_root,
+                                              fallback_dirs=fallback)
         self.video_info = VideoInfoDisplay()
 
         # Build UI (arranges common widgets plus custom info panel)
@@ -536,6 +555,21 @@ class RandomFillDialog(CollectionDialogBase):
             self.marathon_tag_combo.setCurrentIndex(idx)
         self.marathon_tag_combo.blockSignals(False)
 
+    def _on_video_selected(self, video: dict):
+        """Handle selection in collection list: update video info and cover."""
+        self.video_info.set_video_info(video)
+        coll_id = video.get('collection_id', '')
+        if not coll_id:
+            path = video.get('path', '')
+            for v in self.collection_videos:
+                if v.get('path', '') == path:
+                    coll_id = v.get('collection_id', '')
+                    break
+        coll_info = self.collection_info_dict.get(coll_id, {})
+        self.info_panel.set_collection_info(coll_info)
+        cover_path = coll_info.get('cover', '')
+        self.info_panel.set_cover_image(cover_path)
+
     def _on_marathon_toggled(self, checked: bool):
         """Auto-check fill_24h when marathon mode is enabled."""
         if checked:
@@ -561,14 +595,6 @@ class RandomFillDialog(CollectionDialogBase):
             for cb in self.marathon_day_checkboxes:
                 cb.setEnabled(False)
 
-    def _on_video_selected(self, video: dict):
-        """Handle selection in collection list: update video info and cover."""
-        self.video_info.set_video_info(video)
-        coll_id = video.get('collection_id', '')
-        coll_info = self.collection_info_dict.get(coll_id, {})
-        cover_path = coll_info.get('cover', '')
-        self.info_panel.set_cover_image(cover_path)
-
     def on_added_video_selected(self, item):
         """Handle selection in added videos list."""
         path = item.data(Qt.UserRole)
@@ -582,6 +608,7 @@ class RandomFillDialog(CollectionDialogBase):
                         coll_id = v.get('collection_id', '')
                         break
             coll_info = self.collection_info_dict.get(coll_id, {})
+            self.info_panel.set_collection_info(coll_info)
             cover_path = coll_info.get('cover', '')
             self.info_panel.set_cover_image(cover_path)
 
@@ -598,6 +625,7 @@ class RandomFillDialog(CollectionDialogBase):
                         coll_id = v.get('collection_id', '')
                         break
             coll_info = self.collection_info_dict.get(coll_id, {})
+            self.info_panel.set_collection_info(coll_info)
             cover_path = coll_info.get('cover', '')
             self.info_panel.set_cover_image(cover_path)
 
