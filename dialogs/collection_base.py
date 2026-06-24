@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from PySide6.QtWidgets import QWidget, QLabel, QHBoxLayout, QVBoxLayout, QComboBox, QLineEdit, QPushButton, QMessageBox, QListWidgetItem
@@ -12,7 +13,8 @@ from .widgets.video_list import create_video_section, create_blacklist_section
 from utils import (
     load_collection_json, load_blacklist_json,
     get_video_display_name, format_duration,
-    filter_videos_by_blacklist, get_randomfill_config
+    filter_videos_by_blacklist, is_video_in_blacklist,
+    get_randomfill_config
 )
 
 logger = logging.getLogger(__name__)
@@ -157,8 +159,7 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
                 video_name = text.split(' (')[0]
                 video = {'name': video_name}
             if video not in self.added_videos:
-                is_blacklisted = any(b.get('path') == video.get('path') for b in self.blacklist)
-                if not is_blacklisted:
+                if not is_video_in_blacklist(video, self.blacklist):
                     self.added_videos.append(video.copy())
         self.refresh_added_list()
 
@@ -177,7 +178,7 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
             video_name = item.text().split(' (')[0]
             for v in self.collection_videos:
                 if v.get('name', '') == video_name or v.get('path', '').split('/')[-1] == video_name:
-                    if not any(b.get('path') == v.get('path') for b in self.blacklist):
+                    if not is_video_in_blacklist(v, self.blacklist):
                         self.blacklist.append(v.copy())
                     break
         self.added_videos = filter_videos_by_blacklist(self.added_videos, self.blacklist)
@@ -279,7 +280,7 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
                 video_data['name'] = get_video_display_name(video)
             self.collection_videos.append(video_data)
             self.videos_list.addItem(f"{video_data['name']} ({format_duration(duration)})")
-            if load_blacklist and any(b.get('path') == path for b in blacklist_data):
+            if load_blacklist and any(b.get('path') == path or (b.get('path') and os.path.basename(b.get('path', '')) == video_data['name']) for b in blacklist_data):
                 self.blacklist.append(video_data)
 
         self.refresh_blacklist_list()
@@ -288,7 +289,7 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
         if load_blacklist and self._should_auto_add():
             for video in self.collection_videos:
                 path = video.get('path', '')
-                if not any(b.get('path') == path for b in self.blacklist) and video not in self.added_videos:
+                if not is_video_in_blacklist(video, self.blacklist) and video not in self.added_videos:
                     self.added_videos.append(video.copy())
             self.refresh_added_list()
 

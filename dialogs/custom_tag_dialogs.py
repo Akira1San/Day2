@@ -168,11 +168,15 @@ class TagDialog(CollectionDialogBase):
         # Set profile combo boxes (triggers may load additional data)
         collection_profile = getattr(tag, 'collection_profile', '')
         if collection_profile:
+            self.collection_profile_combo.blockSignals(True)
             idx = self.collection_profile_combo.findText(collection_profile)
             if idx >= 0:
                 self.collection_profile_combo.setCurrentIndex(idx)
+            self.collection_profile_combo.blockSignals(False)
         else:
+            self.collection_profile_combo.blockSignals(True)
             self.collection_profile_combo.setCurrentIndex(0)
+            self.collection_profile_combo.blockSignals(False)
 
         blacklist_profile = getattr(tag, 'blacklist_profile', '')
         if blacklist_profile:

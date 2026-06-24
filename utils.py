@@ -1,4 +1,5 @@
 import json
+import os
 import re
 import configparser
 from pathlib import Path
@@ -266,9 +267,27 @@ def get_schedule_profiles(config_file: str = "config.ini") -> List[str]:
     return []
 
 
+def is_video_in_blacklist(video: Dict[str, Any], blacklist: List[Dict[str, Any]]) -> bool:
+    """Check if a video matches any blacklist entry by path or basename.
+
+    Matches by exact path first. If that fails, matches by basename (filename)
+    to catch cases where files were moved between directories.
+    """
+    vpath = video.get('path', '')
+    if not vpath:
+        return False
+    vname = os.path.basename(vpath)
+    for b in blacklist:
+        bpath = b.get('path', '')
+        if bpath == vpath:
+            return True
+        if bpath and os.path.basename(bpath) == vname:
+            return True
+    return False
+
+
 def filter_videos_by_blacklist(videos: List[Dict[str, Any]], blacklist: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    blacklist_paths = {b.get('path', '') for b in blacklist}
-    return [v for v in videos if v.get('path', '') not in blacklist_paths]
+    return [v for v in videos if not is_video_in_blacklist(v, blacklist)]
 
 
 def get_randomfill_config(config_file: str = "config.ini") -> bool:
