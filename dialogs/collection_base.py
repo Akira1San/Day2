@@ -258,8 +258,8 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
         if load_blacklist:
             collection_stem = Path(file_path).stem
             blacklist_patterns = [
-                f"{collection_stem}_blacklist.*",
-                f"{collection_stem.replace('collections_', '')}_blacklist.*"
+                f"{collection_stem}_blacklist.json",
+                f"{collection_stem.replace('collections_', '')}_blacklist.json"
             ]
             for search_dir in [self.collection_dir, Path.cwd()]:
                 for pattern in blacklist_patterns:
@@ -280,7 +280,7 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
                 video_data['name'] = get_video_display_name(video)
             self.collection_videos.append(video_data)
             self.videos_list.addItem(f"{video_data['name']} ({format_duration(duration)})")
-            if load_blacklist and any(b.get('path') == path or (b.get('path') and os.path.basename(b.get('path', '')) == video_data['name']) for b in blacklist_data):
+            if load_blacklist and is_video_in_blacklist(video_data, blacklist_data):
                 self.blacklist.append(video_data)
 
         self.refresh_blacklist_list()
@@ -311,7 +311,19 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
         if not self.collection_path.text():
             return
         blacklist_path = self.collection_path.text().replace('.json', '_blacklist.json')
-        blacklist_data = {'blacklist': self.blacklist}
+        stripped = []
+        for e in self.blacklist:
+            entry = {'path': e.get('path', '')}
+            cid = e.get('collection_id', '')
+            if cid:
+                entry['collection_id'] = cid
+            elif self.collection_videos:
+                for cv in self.collection_videos:
+                    if cv.get('path') == entry['path'] and cv.get('collection_id'):
+                        entry['collection_id'] = cv['collection_id']
+                        break
+            stripped.append(entry)
+        blacklist_data = {'blacklist': stripped}
         try:
             with open(blacklist_path, 'w') as f:
                 json.dump(blacklist_data, f, indent=2)

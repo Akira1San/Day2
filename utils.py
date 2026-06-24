@@ -193,28 +193,13 @@ def parse_videos_for_series(videos: List[Dict[str, Any]], start_season: int = 1,
 
 
 def load_blacklist_json(file_path: str) -> List[Dict[str, Any]]:
-    blacklist = []
-    
     if not file_path or not Path(file_path).exists():
-        return blacklist
-    
+        return []
     try:
-        if file_path.endswith('.ini'):
-            bc = configparser.ConfigParser()
-            bc.read(file_path)
-            if 'Blacklist' in bc:
-                for key in bc['Blacklist']:
-                    value = bc['Blacklist'][key]
-                    paths = [p.strip() for p in value.split('\n') if p.strip()]
-                    for path in paths:
-                        blacklist.append({'path': path})
-        else:
-            with open(file_path, 'r') as f:
-                blacklist = json.load(f).get('blacklist', [])
+        with open(file_path, 'r') as f:
+            return json.load(f).get('blacklist', [])
     except Exception:
-        pass
-    
-    return blacklist
+        return []
 
 
 def qtime_to_minutes(qtime: QTime) -> int:
@@ -268,17 +253,21 @@ def get_schedule_profiles(config_file: str = "config.ini") -> List[str]:
 
 
 def is_video_in_blacklist(video: Dict[str, Any], blacklist: List[Dict[str, Any]]) -> bool:
-    """Check if a video matches any blacklist entry by path or basename.
+    """Check if a video matches any blacklist entry.
 
-    Matches by exact path first. If that fails, matches by basename (filename)
-    to catch cases where files were moved between directories.
+    Matches by collection_id first (stable across file moves), then by
+    exact path, then by basename (catches files moved between directories).
     """
+    v_coll_id = video.get('collection_id', '')
     vpath = video.get('path', '')
     if not vpath:
         return False
     vname = os.path.basename(vpath)
     for b in blacklist:
-        bpath = b.get('path', '')
+        b_coll_id = b.get('collection_id', '') if isinstance(b, dict) else ''
+        if b_coll_id and v_coll_id and b_coll_id == v_coll_id:
+            return True
+        bpath = b.get('path', '') if isinstance(b, dict) else ''
         if bpath == vpath:
             return True
         if bpath and os.path.basename(bpath) == vname:

@@ -29,12 +29,6 @@ def make_blacklist_json(path, video_paths):
         json.dump(data, f, indent=2)
 
 
-def make_blacklist_ini(path, video_paths):
-    with open(path, 'w') as f:
-        f.write("[Blacklist]\n")
-        f.write("videos = " + "\n\t".join(video_paths) + "\n")
-
-
 def make_tag_ini(path, collection_path, blacklist_path):
     tag = Tag(
         tag_type="random",
@@ -135,29 +129,6 @@ def test_populate_dialog_state():
         print(f"  PASS: Dialog state correct: {len(added_videos)} added, {len(blacklist)} blacklisted")
 
 
-def test_blacklist_in_ini_format():
-    """Test with INI-format blacklist (like collections_TatkoTV.ini)."""
-    with tempfile.TemporaryDirectory() as tmp:
-        videos = [make_video(f"m_{i}", 3600) for i in range(4)]
-        coll_path = os.path.join(tmp, "collection.json")
-        make_collection_json(coll_path, videos)
-
-        bl_path = os.path.join(tmp, "blacklist.ini")
-        make_blacklist_ini(bl_path, ["/videos/m_1.mp4", "/videos/m_3.mp4"])
-
-        tag_ini = os.path.join(tmp, "tag.ini")
-        make_tag_ini(tag_ini, coll_path, bl_path)
-        tag = load_single_tag_from_ini(tag_ini, Tag, QTime.fromString)
-        assert tag is not None
-
-        added_paths = {v.get('path', '') for v in tag.collection_videos}
-        bl_paths = {b.get('path', '') for b in tag.blacklist}
-        overlap = added_paths & bl_paths
-        assert len(overlap) == 0, f"BUG with INI blacklist: {overlap}"
-
-        print(f"  PASS: INI blacklist: {len(tag.collection_videos)} added, {len(tag.blacklist)} blacklisted")
-
-
 def test_filter_by_basename_after_move():
     """Video moved to different dir: same basename, different path."""
     videos = [
@@ -200,6 +171,31 @@ def test_is_video_in_blacklist_no_match():
     blacklist = [{"path": "/videos/different.mp4"}]
     assert not is_video_in_blacklist(video, blacklist), "Should not match"
     print("  PASS: is_video_in_blacklist no false positive")
+
+
+def test_is_video_in_blacklist_by_collection_id():
+    """Match by collection_id instead of path."""
+    video = {"path": "/videos/new/path.mp4", "collection_id": "my_movie", "duration": 3600}
+    blacklist = [{"path": "/videos/old/path.mp4", "collection_id": "my_movie"}]
+    assert is_video_in_blacklist(video, blacklist), "Should match by collection_id"
+    print("  PASS: is_video_in_blacklist matches by collection_id")
+
+
+def test_is_video_in_blacklist_collection_id_no_match():
+    """Different collection_ids should not match."""
+    video = {"path": "/videos/movie_a.mp4", "collection_id": "movie_a", "duration": 3600}
+    blacklist = [{"path": "/videos/movie_b.mp4", "collection_id": "movie_b"}]
+    assert not is_video_in_blacklist(video, blacklist), "Different collection_ids should not match"
+    print("  PASS: is_video_in_blacklist respects non-matching collection_ids")
+
+
+def test_is_video_in_blacklist_collection_id_as_extra_identifier():
+    """collection_id matched first, path matched as fallback."""
+    video = {"path": "/videos/clash.mp4", "collection_id": "alpha", "duration": 3600}
+    blacklist = [{"path": "/videos/clash.mp4", "collection_id": "beta"}]
+    # Different collection_ids but same path -- still a match via path fallback
+    assert is_video_in_blacklist(video, blacklist), "Same path should still match"
+    print("  PASS: is_video_in_blacklist uses collection_id first, path as fallback")
 
 
 def test_blacklist_profile_triggers_match_randomfill():
@@ -251,11 +247,13 @@ if __name__ == "__main__":
     test_tag_init_filters_blacklist()
     test_load_tag_from_ini_filters_blacklist()
     test_populate_dialog_state()
-    test_blacklist_in_ini_format()
     test_filter_by_basename_after_move()
     test_is_video_in_blacklist_by_basename()
     test_is_video_in_blacklist_by_path()
     test_is_video_in_blacklist_no_match()
+    test_is_video_in_blacklist_by_collection_id()
+    test_is_video_in_blacklist_collection_id_no_match()
+    test_is_video_in_blacklist_collection_id_as_extra_identifier()
 
     print("\n--- GUI-layer test (requires display) ---")
     # GUI test uses TagDialog which needs QApplication

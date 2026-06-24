@@ -60,16 +60,11 @@ class SeriesProfileMixin:
         logger.debug(f"load_available_profiles: blacklist dir={blck_path}, exists={blck_path.exists()}")
         blacklist_files = {}
         if blck_path.exists():
-            for pattern in ["*_blacklist.ini", "*blacklist*.ini", "**/*_blacklist.ini", "**/*blacklist*.ini"]:
-                for ini_file in blck_path.glob(pattern):
-                    name = ini_file.name
-                    if name not in blacklist_files:
-                        blacklist_files[name] = str(ini_file.resolve())
+            for json_file in blck_path.glob("*_blacklist.json"):
+                blacklist_files[json_file.name] = str(json_file.resolve())
         # Also search current directory
-        for ini_file in Path('.').glob("*blacklist*.ini"):
-            name = ini_file.name
-            if name not in blacklist_files:
-                blacklist_files[name] = str(ini_file.resolve())
+        for json_file in Path('.').glob("*_blacklist.json"):
+            blacklist_files[json_file.name] = str(json_file.resolve())
 
         logger.debug(f"blacklist_files found: {sorted(blacklist_files)}")
         for name in sorted(blacklist_files):
@@ -122,7 +117,7 @@ class SeriesProfileMixin:
         """Load blacklist from given file or open file dialog."""
         if not file_path:
             file_path, _ = QFileDialog.getOpenFileName(
-                self, "Select Blacklist File", "", "INI Files (*.ini);;JSON Files (*.json);;All Files (*)"
+                self, "Select Blacklist File", "", "JSON Files (*.json);;All Files (*)"
             )
         if not file_path:
             return
