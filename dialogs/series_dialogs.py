@@ -115,6 +115,7 @@ class SeriesDialog(BaseTagDialog, SeriesProfileMixin):
 
         # Check Missing button
         check_missing_btn = QPushButton("Check Missing")
+        check_missing_btn.setToolTip("Check which videos no longer exist on disk")
         check_missing_btn.clicked.connect(self.check_missing_videos)
         right_layout.addWidget(check_missing_btn)
 

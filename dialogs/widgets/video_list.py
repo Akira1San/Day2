@@ -67,6 +67,7 @@ def create_video_section(
 
     if on_check_missing:
         check_missing_btn = QPushButton("Check Missing")
+        check_missing_btn.setToolTip("Check which added videos no longer exist on disk")
         check_missing_btn.clicked.connect(on_check_missing)
         vbox.addWidget(check_missing_btn)
 
@@ -80,31 +81,38 @@ def create_video_section(
     if with_buttons:
         if on_select_all:
             select_all_btn = QPushButton("Select All")
+            select_all_btn.setToolTip("Select all videos in this list")
             select_all_btn.clicked.connect(on_select_all)
             btn_layout.addWidget(select_all_btn)
         if on_clear:
             clear_btn = QPushButton("Clear")
+            clear_btn.setToolTip("Clear all selections")
             clear_btn.clicked.connect(on_clear)
             btn_layout.addWidget(clear_btn)
         if on_add:
             add_btn = QPushButton("Add >>")
+            add_btn.setToolTip("Add selected collection videos to the tag")
             add_btn.clicked.connect(on_add)
             btn_layout.addWidget(add_btn)
     else:
         if on_remove:
             remove_btn = QPushButton("<< Remove")
+            remove_btn.setToolTip("Remove selected videos from this list")
             remove_btn.clicked.connect(on_remove)
             btn_layout.addWidget(remove_btn)
         if on_remove_all:
             remove_all_btn = QPushButton("Remove All")
+            remove_all_btn.setToolTip("Remove all videos from this list")
             remove_all_btn.clicked.connect(on_remove_all)
             btn_layout.addWidget(remove_all_btn)
         if on_clear_selection:
             clear_sel_btn = QPushButton("Clear Selection")
+            clear_sel_btn.setToolTip("Deselect all selected items")
             clear_sel_btn.clicked.connect(on_clear_selection)
             btn_layout.addWidget(clear_sel_btn)
         if on_add_to_blacklist:
             blacklist_btn = QPushButton("Add to Blacklist >>")
+            blacklist_btn.setToolTip("Move selected added videos to the blacklist")
             blacklist_btn.clicked.connect(on_add_to_blacklist)
             btn_layout.addWidget(blacklist_btn)
     vbox.addLayout(btn_layout)
@@ -148,18 +156,22 @@ def create_blacklist_section(
     btn_layout = QHBoxLayout()
     if on_remove:
         remove_btn = QPushButton("<< Remove")
+        remove_btn.setToolTip("Remove selected videos from the blacklist")
         remove_btn.clicked.connect(on_remove)
         btn_layout.addWidget(remove_btn)
     if on_clear_selection:
         clear_btn = QPushButton("Clear Selection")
+        clear_btn.setToolTip("Deselect all selected items")
         clear_btn.clicked.connect(on_clear_selection)
         btn_layout.addWidget(clear_btn)
     if on_load:
         load_btn = QPushButton("Load")
+        load_btn.setToolTip("Load a blacklist from file")
         load_btn.clicked.connect(on_load)
         btn_layout.addWidget(load_btn)
     if on_save:
         save_btn = QPushButton("Save")
+        save_btn.setToolTip("Save blacklist to file")
         save_btn.clicked.connect(on_save)
         btn_layout.addWidget(save_btn)
 
