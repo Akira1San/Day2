@@ -100,17 +100,36 @@ class CollectionInfoPanel(QWidget):
         self.info_cover.setPixmap(QPixmap())
 
 
-class VideoInfoDisplay(QLabel):
-    """Simple widget to display selected video details."""
+class VideoInfoDisplay(QWidget):
+    """Widget to display selected video details."""
     
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWordWrap(True)
-        self.setText("Select a video to see details")
+        self.setup_ui()
+    
+    def setup_ui(self):
+        self.setFixedWidth(250)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        frame = QFrame()
+        frame.setFrameStyle(QFrame.StyledPanel | QFrame.Raised)
+        frame_layout = QVBoxLayout(frame)
+
+        self.info_label = QLabel("Select a video to see details")
+        self.info_label.setWordWrap(True)
+        frame_layout.addWidget(self.info_label)
+
+        layout.addWidget(frame)
     
     def set_video_info(self, video: Dict[str, Any]):
         """Display video information."""
         name = video.get('name', '-')
         path = video.get('path', '-')
         duration = int(video.get('duration', 0))
-        self.setText(f"Name: {name}\nPath: {path}\nDuration: {duration}s")
+        self.info_label.setText(f"Name: {name}\nPath: {path}\nDuration: {duration}s")
+    
+    def setText(self, text: str):
+        """Maintain compatibility with setText() calls (used in series_dialogs)."""
+        self.info_label.setText(text)
