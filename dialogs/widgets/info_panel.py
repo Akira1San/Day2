@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QFrame
 from PySide6.QtCore import Qt, QTime
 from PySide6.QtGui import QPixmap
 from pathlib import Path
@@ -16,28 +16,42 @@ class CollectionInfoPanel(QWidget):
         self.setup_ui()
     
     def setup_ui(self):
+        self.setFixedWidth(250)
+
         layout = QVBoxLayout(self)
+        layout.setSpacing(8)
         layout.addWidget(QLabel("<b>Collection Info</b>"))
         
-        # Cover image first, fixed size
+        # Cover image in a framed box
+        cover_frame = QFrame()
+        cover_frame.setFrameStyle(QFrame.StyledPanel | QFrame.Raised)
+        cover_layout = QVBoxLayout(cover_frame)
         self.info_cover = QLabel("Cover:")
         self.info_cover.setFixedSize(200, 280)
         self.info_cover.setAlignment(Qt.AlignCenter)
-        self.info_cover.setStyleSheet("border: 1px solid gray;")
-        layout.addWidget(self.info_cover)
+        cover_layout.addWidget(self.info_cover)
+        layout.addWidget(cover_frame)
         
+        # Info fields in a framed box
+        info_frame = QFrame()
+        info_frame.setFrameStyle(QFrame.StyledPanel | QFrame.Raised)
+        info_layout = QVBoxLayout(info_frame)
         self.info_name = QLabel("Name: -")
-        layout.addWidget(self.info_name)
+        self.info_name.setWordWrap(True)
+        info_layout.addWidget(self.info_name)
         
         self.info_desc = QLabel("Description:")
         self.info_desc.setWordWrap(True)
-        layout.addWidget(self.info_desc)
+        info_layout.addWidget(self.info_desc)
         
         self.info_genre = QLabel("Genre: -")
-        layout.addWidget(self.info_genre)
+        info_layout.addWidget(self.info_genre)
         
         self.info_year = QLabel("Year: -")
-        layout.addWidget(self.info_year)
+        info_layout.addWidget(self.info_year)
+        layout.addWidget(info_frame)
+
+        layout.addStretch()
     
     def set_collection_info(self, info: Dict[str, Any]):
         """Update displayed collection information."""
