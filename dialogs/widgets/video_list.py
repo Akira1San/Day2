@@ -65,6 +65,11 @@ def create_video_section(
     count_label = QLabel("Count: 0")
     vbox.addWidget(count_label)
 
+    if on_check_missing:
+        check_missing_btn = QPushButton("Check Missing")
+        check_missing_btn.clicked.connect(on_check_missing)
+        vbox.addWidget(check_missing_btn)
+
     videos_list = VideoListWidget()
     videos_list.setMinimumHeight(200)
     if on_video_selected:
@@ -102,11 +107,6 @@ def create_video_section(
             blacklist_btn = QPushButton("Add to Blacklist >>")
             blacklist_btn.clicked.connect(on_add_to_blacklist)
             btn_layout.addWidget(blacklist_btn)
-        if on_check_missing:
-            check_btn = QPushButton("Check Missing")
-            check_btn.clicked.connect(on_check_missing)
-            btn_layout.addWidget(check_btn)
-
     vbox.addLayout(btn_layout)
 
     return VideoSection(widget=widget, videos_list=videos_list, count_label=count_label)
