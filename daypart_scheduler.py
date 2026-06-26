@@ -307,6 +307,12 @@ class MainWindow(QMainWindow):
                 padding: 8px;
             }
             QDialog { background-color: #1e1e2e; }
+            QToolTip {
+                font-size: 13px;
+                padding: 4px 8px;
+                border: 1px solid #3a3a4e;
+                border-radius: 4px;
+            }
         """)
         self.tags_list.setSelectionMode(QListWidget.ExtendedSelection)
         self.tags_list.setFocusPolicy(Qt.StrongFocus)
