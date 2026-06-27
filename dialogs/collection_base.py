@@ -203,7 +203,9 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
         self.added_list.clear()
         sorted_added = sorted(self.added_videos, key=lambda v: v.get('path', '').split('/')[-1])
         for video in sorted_added:
-            item = QListWidgetItem(f"{get_video_display_name(video)} ({format_duration(video.get('duration', 0))})")
+            src = video.get('_source_name', '')
+            prefix = f"{src}: " if src else ""
+            item = QListWidgetItem(f"{prefix}{get_video_display_name(video)} ({format_duration(video.get('duration', 0))})")
             item.setData(Qt.UserRole, video.get('path', ''))
             self.added_list.addItem(item)
         self.update_counts()
@@ -212,7 +214,9 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
         self.blacklist_list.clear()
         sorted_blacklist = sorted(self.blacklist, key=lambda v: v.get('path', '').split('/')[-1])
         for video in sorted_blacklist:
-            item = QListWidgetItem(get_video_display_name(video))
+            src = video.get('_source_name', '')
+            prefix = f"{src}: " if src else ""
+            item = QListWidgetItem(f"{prefix}{get_video_display_name(video)}")
             item.setData(Qt.UserRole, video.get('path', ''))
             self.blacklist_list.addItem(item)
         self.update_counts()

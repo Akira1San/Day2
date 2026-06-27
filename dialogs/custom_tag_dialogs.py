@@ -629,13 +629,17 @@ class RandomFillDialog(CollectionDialogBase):
             path_widget = self.collection_table.cellWidget(row, 0)
             path = path_widget.text() if path_widget else ""
             if path and Path(path).exists():
+                coll_name = Path(path).stem
+                if coll_name.startswith('collections_'):
+                    coll_name = coll_name.replace('collections_', '')
                 videos, info = load_collection_json(path)
                 for video in videos:
                     v = video.copy()
+                    v['_source_name'] = coll_name
                     if 'name' not in v:
                         v['name'] = get_video_display_name(v)
                     self.collection_videos.append(v)
-                    self.videos_list.addItem(f"{v['name']} ({format_duration(v.get('duration', 0))})")
+                    self.videos_list.addItem(f"{coll_name}: {v['name']} ({format_duration(v.get('duration', 0))})")
                 self.collection_info_dict.update(info)
 
         # Keep self.collection_path in sync with the first row
