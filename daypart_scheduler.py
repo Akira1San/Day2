@@ -549,12 +549,21 @@ class MainWindow(QMainWindow):
         all_videos = []
 
         seen_paths = set()
-        def _load_from(file_path):
+        def _load_from(file_path, source_name=None):
             fp = str(file_path)
             if fp in seen_paths:
                 return
             seen_paths.add(fp)
-            all_videos.extend(load_collection_videos_only(fp))
+            videos = load_collection_videos_only(fp)
+            if source_name is None:
+                stem = Path(fp).stem
+                if stem.startswith('collections_'):
+                    source_name = stem.replace('collections_', '')
+                else:
+                    source_name = stem
+            for v in videos:
+                v['_source_name'] = source_name
+            all_videos.extend(videos)
 
         coll_dir = Path(collection_path)
         if coll_dir.exists():
@@ -565,6 +574,8 @@ class MainWindow(QMainWindow):
             tag_path = getattr(tag, 'collection_path', '') or ''
             if tag_path:
                 _load_from(tag_path)
+            for extra_path in getattr(tag, 'extra_collections', []):
+                _load_from(extra_path)
 
         dialog = DurationDebugDialog(self, entries, all_videos)
         dialog.exec()

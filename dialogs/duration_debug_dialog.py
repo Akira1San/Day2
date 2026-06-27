@@ -41,11 +41,15 @@ class DurationDebugDialog(QDialog):
 
     def _build_comparison(self, entries, collection_videos):
         lookup = {}
+        source_lookup = {}
         for v in collection_videos:
             name = get_video_display_name(v)
             dur = v.get('duration', 90)
             had = 'duration' in v
             lookup.setdefault(name, []).append((dur, had))
+            src = v.get('_source_name', '')
+            if src:
+                source_lookup[name] = src
 
         sorted_entries = sorted(entries, key=lambda e: (e.day, e.start_seconds))
         prev_end = None
@@ -80,6 +84,10 @@ class DurationDebugDialog(QDialog):
                     status = "mismatch"
                     coll_dur = info_list[0][0]
 
+            source = source_lookup.get(video_key, '')
+            if not source:
+                source = source_lookup.get(video_key.split("/")[-1], '')
+
             if prev_end is None:
                 continuity = "ok"
             elif entry.start_seconds == prev_end:
@@ -90,7 +98,7 @@ class DurationDebugDialog(QDialog):
                 continuity = "overlap"
             prev_end = entry.end_seconds
 
-            results.append((entry, scheduled, coll_dur, status, continuity))
+            results.append((entry, scheduled, coll_dur, status, continuity, source))
 
         return results
 
@@ -99,12 +107,12 @@ class DurationDebugDialog(QDialog):
 
         summary = QLabel()
         total = len(self.comparison_data)
-        ok_count = sum(1 for _, _, _, s, _ in self.comparison_data if s == "ok")
-        mismatch_count = sum(1 for _, _, _, s, _ in self.comparison_data if s == "mismatch")
-        default_count = sum(1 for _, _, _, s, _ in self.comparison_data if s == "default")
-        unknown_count = sum(1 for _, _, _, s, _ in self.comparison_data if s == "unknown")
-        gap_count = sum(1 for _, _, _, _, c in self.comparison_data if c == "gap")
-        overlap_count = sum(1 for _, _, _, _, c in self.comparison_data if c == "overlap")
+        ok_count = sum(1 for _, _, _, s, _, _ in self.comparison_data if s == "ok")
+        mismatch_count = sum(1 for _, _, _, s, _, _ in self.comparison_data if s == "mismatch")
+        default_count = sum(1 for _, _, _, s, _, _ in self.comparison_data if s == "default")
+        unknown_count = sum(1 for _, _, _, s, _, _ in self.comparison_data if s == "unknown")
+        gap_count = sum(1 for _, _, _, _, _, c in self.comparison_data if c == "gap")
+        overlap_count = sum(1 for _, _, _, _, _, c in self.comparison_data if c == "overlap")
 
         parts = [f"{total} entries"]
         if ok_count:
@@ -124,8 +132,8 @@ class DurationDebugDialog(QDialog):
         layout.addWidget(summary)
 
         self.table = QTreeWidget()
-        self.table.setColumnCount(8)
-        headers = ["#", "Day", "Time", "Video", "Scheduled", "Collection", "Status", "Continuity"]
+        self.table.setColumnCount(9)
+        headers = ["#", "Day", "Time", "Video", "Source", "Scheduled", "Collection", "Status", "Continuity"]
         self.table.setHeaderLabels(headers)
         self.table.header().setSectionResizeMode(0, QHeaderView.Fixed)
         self.table.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
@@ -135,6 +143,7 @@ class DurationDebugDialog(QDialog):
         self.table.header().setSectionResizeMode(5, QHeaderView.ResizeToContents)
         self.table.header().setSectionResizeMode(6, QHeaderView.ResizeToContents)
         self.table.header().setSectionResizeMode(7, QHeaderView.ResizeToContents)
+        self.table.header().setSectionResizeMode(8, QHeaderView.ResizeToContents)
         self.table.setColumnWidth(0, 40)
         self.table.setSelectionMode(QTreeWidget.NoSelection)
         self.table.setEditTriggers(QTreeWidget.NoEditTriggers)
@@ -144,7 +153,7 @@ class DurationDebugDialog(QDialog):
         i = 0
         row_counter = 0
         while i < len(self.comparison_data):
-            entry, scheduled, coll_dur, status, continuity = self.comparison_data[i]
+            entry, scheduled, coll_dur, status, continuity, source = self.comparison_data[i]
             gap_fill_entries = []
             while i < len(self.comparison_data) and self.comparison_data[i][0].tag_type == "gap_fill":
                 gap_fill_entries.append(self.comparison_data[i])
@@ -156,13 +165,14 @@ class DurationDebugDialog(QDialog):
                 start_m = (first_entry.start_seconds % 3600) // 60
                 end_h = (last_entry.end_seconds // 3600) % 24
                 end_m = (last_entry.end_seconds % 3600) // 60
-                total_scheduled = sum(e.end_seconds - e.start_seconds for e, _, _, _, _ in gap_fill_entries)
+                total_scheduled = sum(e.end_seconds - e.start_seconds for e, _, _, _, _, _ in gap_fill_entries)
                 parent = QTreeWidgetItem(self.table)
                 parent_texts = [
                     "-",
                     str((first_entry.start_seconds // 86400) + 1),
                     f"{start_h:02d}:{start_m:02d} - {end_h:02d}:{end_m:02d}",
                     "Gap filler entries",
+                    "-",
                     f"{total_scheduled}s",
                     "N/A",
                     "GAP",
@@ -175,7 +185,7 @@ class DurationDebugDialog(QDialog):
                 font.setBold(True)
                 parent.setFont(0, font)
                 parent.setExpanded(False)
-                for ge, gsched, gdur, gstatus, gcont in gap_fill_entries:
+                for ge, gsched, gdur, gstatus, gcont, gsrc in gap_fill_entries:
                     child = QTreeWidgetItem(parent)
                     start_h = (ge.start_seconds // 3600) % 24
                     start_m = (ge.start_seconds % 3600) // 60
@@ -190,6 +200,7 @@ class DurationDebugDialog(QDialog):
                         str((ge.start_seconds // 86400) + 1),
                         time_str,
                         ge.video_name,
+                        gsrc,
                         f"{gsched}s",
                         coll_str,
                         status_label,
@@ -216,6 +227,7 @@ class DurationDebugDialog(QDialog):
                     str((entry.start_seconds // 86400) + 1),
                     time_str,
                     entry.video_name,
+                    source,
                     f"{scheduled}s",
                     coll_str,
                     status_label,
@@ -223,7 +235,7 @@ class DurationDebugDialog(QDialog):
                 ]
                 item = QTreeWidgetItem(self.table)
                 for col, text in enumerate(item_texts):
-                    if col == 7:
+                    if col == 8:
                         cell_bg, cell_fg = self.COLORS.get(continuity, (QColor("#1e1e2e"), QColor("#a0a0b0")))
                         item.setBackground(col, cell_bg)
                         item.setForeground(col, cell_fg)
@@ -269,7 +281,7 @@ class DurationDebugDialog(QDialog):
 
     def copy_to_clipboard(self):
         lines = []
-        lines.append("#\tDay\tTime\tVideo\tScheduled\tCollection\tStatus\tContinuity")
+        lines.append("#\tDay\tTime\tVideo\tSource\tScheduled\tCollection\tStatus\tContinuity")
         for i in range(self.table.topLevelItemCount()):
             self._collect_row_lines(self.table.topLevelItem(i), lines)
         QApplication.clipboard().setText("\n".join(lines))
