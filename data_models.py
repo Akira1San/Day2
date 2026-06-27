@@ -535,7 +535,8 @@ class TagManager:
                     gap_fill_between_only: bool = False,
                     gap_auto_resolve_overlaps: bool = False,
                     gap_shift_padding: int = 180,
-                    gap_estimate_runtime_overlap: bool = False) -> bool:
+                    gap_estimate_runtime_overlap: bool = False,
+                    extra_collections: Optional[List[str]] = None) -> bool:
         if 0 <= index < len(self.tags):
             t = self.tags[index]
             t.name = name
@@ -568,6 +569,7 @@ class TagManager:
             t.gap_auto_resolve_overlaps = gap_auto_resolve_overlaps
             t.gap_estimate_runtime_overlap = gap_estimate_runtime_overlap
             t.gap_shift_padding = gap_shift_padding
+            t.extra_collections = extra_collections or []
             # Apply blacklist filtering to collection_videos
             t.collection_videos = collection_videos or []
             if t.collection_videos and t.blacklist:

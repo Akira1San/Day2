@@ -799,7 +799,8 @@ class MainWindow(QMainWindow):
                     new_tag.series_random_season if hasattr(new_tag, 'series_random_season') else 0,
                     active_days=new_tag.active_days if hasattr(new_tag, 'active_days') else None,
                     marathon_mode=new_tag.marathon_mode if hasattr(new_tag, 'marathon_mode') else False,
-                    marathon_tag_name=new_tag.marathon_tag_name if hasattr(new_tag, 'marathon_tag_name') else ''
+                    marathon_tag_name=new_tag.marathon_tag_name if hasattr(new_tag, 'marathon_tag_name') else '',
+                    extra_collections=getattr(new_tag, 'extra_collections', [])
                 )
         self.refresh_tags_list()
         self.refresh_preview()
