@@ -893,7 +893,7 @@ class MainWindow(QMainWindow):
 
                 video_name = entry.video_name
 
-                video_info = {'time': time_str, 'file': '', 'collection_id': '', 'channel': '', 'source': 'random'}
+                video_info = {'time': time_str, 'collection_id': '', 'channel': '', 'source': 'random'}
 
                 matched = False
                 for tag in self.tag_manager.get_all_tags():
@@ -905,7 +905,6 @@ class MainWindow(QMainWindow):
                         for vid in tag.collection_videos:
                             vid_name = get_video_display_name(vid)
                             if vid_name in video_name or video_name in vid_name:
-                                video_info['file'] = vid.get('path', '')
                                 video_info['channel'] = profile_name
                                 video_info['collection_id'] = vid.get('collection_id', '')
                                 matched = True
@@ -920,7 +919,6 @@ class MainWindow(QMainWindow):
                             for vid in gap_videos:
                                 vid_name = get_video_display_name(vid)
                                 if vid_name in video_name or video_name in vid_name:
-                                    video_info['file'] = vid.get('path', '')
                                     video_info['channel'] = profile_name
                                     video_info['collection_id'] = vid.get('collection_id', '')
                                     video_info['source'] = 'gap'
@@ -928,12 +926,6 @@ class MainWindow(QMainWindow):
                                     break
                             if matched:
                                 break
-
-                if not video_info['file'] and ' - ' in video_name:
-                    parts = video_name.split(' - ')
-                    video_info['file'] = f"/home/akira/Videos/Akiratv/{parts[-1].strip()}"
-                    video_info['channel'] = profile_name
-                    video_info['collection_id'] = profile_name
 
                 schedule_entries.append(video_info)
             return schedule_entries
@@ -999,6 +991,17 @@ class MainWindow(QMainWindow):
             }
 
         file_path = f"schedule_{profile_name}.json"
+
+        reply = QMessageBox.question(
+            self,
+            "Save Schedule",
+            f"Save schedule to {file_path}?",
+            QMessageBox.Ok | QMessageBox.Cancel,
+            QMessageBox.Cancel
+        )
+        if reply != QMessageBox.Ok:
+            return
+
         with open(file_path, 'w') as f:
             json.dump(schedule_data, f, indent=2)
 
