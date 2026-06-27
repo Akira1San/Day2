@@ -919,6 +919,12 @@ class MainWindow(QMainWindow):
                             if vid_name in video_name or video_name in vid_name:
                                 video_info['channel'] = profile_name
                                 video_info['collection_id'] = vid.get('collection_id', '')
+                                primary_src = Path(collection_path).stem
+                                if primary_src.startswith('collections_'):
+                                    primary_src = primary_src.replace('collections_', '')
+                                vid_src = vid.get('_source_name', '')
+                                if vid_src and vid_src != primary_src:
+                                    video_info['collection_source'] = vid_src
                                 matched = True
                                 break
                         if matched:

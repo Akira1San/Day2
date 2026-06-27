@@ -132,6 +132,11 @@ def deserialize_tag_from_string(data: str, tag_class, qtime_from_string):
     
     if collection_path:
         collection_videos = load_collection_videos_only(collection_path)
+        stem = Path(collection_path).stem
+        if stem.startswith('collections_'):
+            stem = stem.replace('collections_', '')
+        for v in collection_videos:
+            v['_source_name'] = stem
     
     if tag_type == 'series':
         start_season = int(tag_section.get('start_season', 1))
@@ -247,6 +252,11 @@ def deserialize_tag_from_string(data: str, tag_class, qtime_from_string):
         for extra_path in extra_collections:
             if extra_path:
                 extra_videos = load_collection_videos_only(extra_path)
+                stem = Path(extra_path).stem
+                if stem.startswith('collections_'):
+                    stem = stem.replace('collections_', '')
+                for v in extra_videos:
+                    v['_source_name'] = stem
                 collection_videos.extend(extra_videos)
         
         blacklist = []
