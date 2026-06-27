@@ -52,7 +52,8 @@ class Tag:
                      gap_fill_between_only: bool = False,
                      gap_auto_resolve_overlaps: bool = False,
                      gap_shift_padding: int = 180,
-                     gap_estimate_runtime_overlap: bool = False):
+                      gap_estimate_runtime_overlap: bool = False,
+                      extra_collections: Optional[List[str]] = None):
         self.tag_type = tag_type
         self.name = name
         self.start_time = start_time or QTime(0, 0)
@@ -85,6 +86,7 @@ class Tag:
         self.series_repeat_season = series_repeat_season
         self.series_random_season = series_random_season
         self.active_days = active_days
+        self.extra_collections = extra_collections or []
         
         # Apply blacklist filtering if both collection_videos and blacklist are present
         if self.collection_videos and self.blacklist:

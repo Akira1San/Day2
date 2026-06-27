@@ -14,7 +14,8 @@ from .widgets.info_panel import CollectionInfoPanel, VideoInfoDisplay
 from models import Tag
 from utils import (
     filter_videos_by_blacklist, get_video_display_name, format_duration,
-    qtime_to_minutes, get_config_paths, get_covers_path, get_randomfill_config
+    qtime_to_minutes, get_config_paths, get_covers_path, get_randomfill_config,
+    load_collection_json
 )
 
 logger = logging.getLogger(__name__)
@@ -395,14 +396,23 @@ class RandomFillDialog(CollectionDialogBase):
         profile_layout.addStretch()
         right_layout.addWidget(profile_widget)
 
-        # Collection browse row
-        coll_widget = QWidget()
-        coll_layout = QHBoxLayout(coll_widget)
-        coll_layout.addWidget(QLabel("Collection:"))
-        coll_layout.addWidget(self.collection_path)
-        coll_layout.addWidget(self.browse_button)
-        coll_layout.addStretch()
-        right_layout.addWidget(coll_widget)
+        # Collection files table
+        coll_label = QLabel("Collection Files:")
+        right_layout.addWidget(coll_label)
+
+        self.collection_table = QTableWidget(0, 3)
+        self.collection_table.setHorizontalHeaderLabels(["Path", "", ""])
+        self.collection_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.collection_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Fixed)
+        self.collection_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Fixed)
+        self.collection_table.setColumnWidth(1, 80)
+        self.collection_table.setColumnWidth(2, 80)
+        self.collection_table.verticalHeader().setVisible(False)
+        right_layout.addWidget(self.collection_table)
+
+        add_coll_btn = QPushButton("Add Collection")
+        add_coll_btn.clicked.connect(lambda: self._add_collection_row())
+        right_layout.addWidget(add_coll_btn)
 
         # Video sections container
         video_container = QWidget()
@@ -477,10 +487,16 @@ class RandomFillDialog(CollectionDialogBase):
         fill_24h = getattr(tag, 'fill_24h', False)
         self.fill_24h_check.setChecked(fill_24h)
 
+        # Load primary + extra collections
+        all_paths = []
         if tag.collection_path:
-            # Load collection without auto-loading blacklist to preserve tag's blacklist initially
-            self.load_collection(tag.collection_path, load_blacklist=False)
-            self.added_videos = tag.collection_videos.copy()
+            all_paths.append(tag.collection_path)
+        all_paths.extend(getattr(tag, 'extra_collections', []))
+        for path in all_paths:
+            self._add_collection_row(path)
+        if all_paths:
+            self._reload_all_collections()
+            self.added_videos = self.collection_videos.copy()
 
         collection_profile = getattr(tag, 'collection_profile', '')
         if collection_profile:
@@ -558,6 +574,80 @@ class RandomFillDialog(CollectionDialogBase):
         if idx >= 0:
             self.marathon_tag_combo.setCurrentIndex(idx)
         self.marathon_tag_combo.blockSignals(False)
+
+    def _add_collection_row(self, path: str = ""):
+        """Add a row to the collection table, optionally with a pre-set path."""
+        row = self.collection_table.rowCount()
+        self.collection_table.insertRow(row)
+
+        path_widget = QLineEdit(path)
+        path_widget.setReadOnly(True)
+        path_widget.setPlaceholderText("Select collection JSON...")
+        self.collection_table.setCellWidget(row, 0, path_widget)
+
+        browse_btn = QPushButton("Browse")
+        browse_btn.clicked.connect(lambda: self._browse_collection_row(row))
+        self.collection_table.setCellWidget(row, 1, browse_btn)
+
+        remove_btn = QPushButton("Remove")
+        remove_btn.clicked.connect(lambda: self._remove_collection_row(row))
+        self.collection_table.setCellWidget(row, 2, remove_btn)
+
+    def _browse_collection_row(self, row: int):
+        """Open file dialog to select a collection JSON for the given row."""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Select Collection File", "",
+            "JSON Files (*.json);;All Files (*)"
+        )
+        if file_path:
+            path_widget = self.collection_table.cellWidget(row, 0)
+            if path_widget:
+                path_widget.setText(file_path)
+            self._reload_all_collections()
+
+    def _remove_collection_row(self, row: int):
+        """Remove a collection row and reload remaining collections."""
+        self.collection_table.removeRow(row)
+        # Reconnect browse/remove buttons since row indices shifted
+        for r in range(self.collection_table.rowCount()):
+            browse_btn = self.collection_table.cellWidget(r, 1)
+            browse_btn.clicked.disconnect()
+            browse_btn.clicked.connect(lambda checked, row=r: self._browse_collection_row(row))
+            remove_btn = self.collection_table.cellWidget(r, 2)
+            if remove_btn:
+                remove_btn.clicked.disconnect()
+                remove_btn.clicked.connect(lambda checked, row=r: self._remove_collection_row(row))
+        self._reload_all_collections()
+
+    def _reload_all_collections(self):
+        """Load videos from all collection paths in the table, merging into collection_videos."""
+        self.collection_videos = []
+        self.videos_list.clear()
+        self.collection_info_dict = {}
+
+        for row in range(self.collection_table.rowCount()):
+            path_widget = self.collection_table.cellWidget(row, 0)
+            path = path_widget.text() if path_widget else ""
+            if path and Path(path).exists():
+                videos, info = load_collection_json(path)
+                for video in videos:
+                    v = video.copy()
+                    if 'name' not in v:
+                        v['name'] = get_video_display_name(v)
+                    self.collection_videos.append(v)
+                    self.videos_list.addItem(f"{v['name']} ({format_duration(v.get('duration', 0))})")
+                self.collection_info_dict.update(info)
+
+        # Keep self.collection_path in sync with the first row
+        first_path = ""
+        if self.collection_table.rowCount() > 0:
+            first_widget = self.collection_table.cellWidget(0, 0)
+            if first_widget:
+                first_path = first_widget.text()
+        self.collection_path.setText(first_path)
+
+        self.update_counts()
+        self._on_collection_loaded()
 
     def _on_video_selected(self, video: dict):
         """Handle selection in collection list: update video info and cover."""
@@ -673,13 +763,23 @@ class RandomFillDialog(CollectionDialogBase):
             else:
                 active_days = [i + 1 for i, cb in enumerate(self.marathon_day_checkboxes) if cb.isChecked()]
 
+        # Collect all paths from the table
+        all_paths = []
+        for row in range(self.collection_table.rowCount()):
+            w = self.collection_table.cellWidget(row, 0)
+            if w and w.text():
+                all_paths.append(w.text())
+        collection_path = all_paths[0] if all_paths else ""
+        extra_collections = all_paths[1:] if len(all_paths) > 1 else []
+
         return Tag(
             tag_type="random",
             name=self.name_input.text() or "Random Fill",
             start_time=self.start_time_edit.time(),
             end_time=self.end_time_edit.time(),
             collection_videos=self.added_videos.copy(),
-            collection_path=self.collection_path.text(),
+            collection_path=collection_path,
+            extra_collections=extra_collections,
             blacklist=self.blacklist.copy(),
             blacklist_path=self.blacklist_path,
             is_random_fill=True,

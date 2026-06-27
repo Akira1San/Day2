@@ -71,6 +71,10 @@ def serialize_tag_to_string(tag) -> str:
         lines.append(f"fill_24h = {'true' if getattr(tag, 'fill_24h', False) else 'false'}")
         lines.append(f"collection_profile = {getattr(tag, 'collection_profile', '')}")
         lines.append(f"blacklist_profile = {getattr(tag, 'blacklist_profile', '')}")
+        extra = getattr(tag, 'extra_collections', [])
+        if extra:
+            lines.append(f"extra_collections = {json.dumps(extra)}")
+
         marathon_mode = getattr(tag, 'marathon_mode', False)
         if marathon_mode:
             lines.append(f"marathon_mode = true")
@@ -235,6 +239,16 @@ def deserialize_tag_from_string(data: str, tag_class, qtime_from_string):
         marathon_mode = tag_section.get('marathon_mode', 'false') == 'true'
         marathon_tag_name = tag_section.get('marathon_tag_name', '')
         
+        extra_collections_str = tag_section.get('extra_collections', '[]')
+        try:
+            extra_collections = json.loads(extra_collections_str)
+        except Exception:
+            extra_collections = []
+        for extra_path in extra_collections:
+            if extra_path:
+                extra_videos = load_collection_videos_only(extra_path)
+                collection_videos.extend(extra_videos)
+        
         blacklist = []
         if blacklist_path:
             blacklist = load_blacklist_json(blacklist_path)
@@ -243,7 +257,8 @@ def deserialize_tag_from_string(data: str, tag_class, qtime_from_string):
                         collection_videos, collection_path, is_random_fill=True,
                         blacklist=blacklist, blacklist_path=blacklist_path, fill_24h=fill_24h,
                         collection_profile=collection_profile, blacklist_profile=blacklist_profile,
-                        marathon_mode=marathon_mode, marathon_tag_name=marathon_tag_name)
+                        marathon_mode=marathon_mode, marathon_tag_name=marathon_tag_name,
+                        extra_collections=extra_collections)
     
     else:
         is_random_videos = tag_section.get('randomize_videos', 'false') == 'true'
