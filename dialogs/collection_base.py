@@ -164,10 +164,26 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
         self.refresh_added_list()
 
     def remove_selected_added(self):
+        scroll_bar = self.added_list.verticalScrollBar()
+        scroll_pos = scroll_bar.value() if scroll_bar else 0
+        selected_rows = sorted(
+            self.added_list.row(item) for item in self.added_list.selectedItems()
+        )
+        first_row = selected_rows[0] if selected_rows else None
+
         for item in self.added_list.selectedItems():
             path = item.data(Qt.UserRole)
             self.added_videos = [v for v in self.added_videos if v.get('path', '') != path]
         self.refresh_added_list()
+
+        if first_row is not None and self.added_list.count() > 0:
+            restore_row = min(first_row, self.added_list.count() - 1)
+            item = self.added_list.item(restore_row)
+            if item:
+                self.added_list.setCurrentRow(restore_row)
+                self.added_list.scrollToItem(item)
+        elif scroll_bar:
+            scroll_bar.setValue(min(scroll_pos, scroll_bar.maximum()))
 
     def remove_all_added(self):
         self.added_videos = []
@@ -181,9 +197,26 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
                     if not is_video_in_blacklist(v, self.blacklist):
                         self.blacklist.append(v.copy())
                     break
+
+        scroll_bar = self.added_list.verticalScrollBar()
+        scroll_pos = scroll_bar.value() if scroll_bar else 0
+        selected_rows = sorted(
+            self.added_list.row(item) for item in self.added_list.selectedItems()
+        )
+        first_row = selected_rows[0] if selected_rows else None
+
         self.added_videos = filter_videos_by_blacklist(self.added_videos, self.blacklist)
         self.refresh_added_list()
         self.refresh_blacklist_list()
+
+        if first_row is not None and self.added_list.count() > 0:
+            restore_row = min(first_row, self.added_list.count() - 1)
+            item = self.added_list.item(restore_row)
+            if item:
+                self.added_list.setCurrentRow(restore_row)
+                self.added_list.scrollToItem(item)
+        elif scroll_bar:
+            scroll_bar.setValue(min(scroll_pos, scroll_bar.maximum()))
 
     def remove_from_blacklist(self):
         selected_items = self.blacklist_list.selectedItems()
