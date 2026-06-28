@@ -165,8 +165,8 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
 
     def remove_selected_added(self):
         for item in self.added_list.selectedItems():
-            video_name = item.text().split(' (')[0]
-            self.added_videos = [v for v in self.added_videos if v.get('name', '') != video_name]
+            path = item.data(Qt.UserRole)
+            self.added_videos = [v for v in self.added_videos if v.get('path', '') != path]
         self.refresh_added_list()
 
     def remove_all_added(self):
@@ -175,9 +175,9 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
 
     def add_to_blacklist(self):
         for item in self.added_list.selectedItems():
-            video_name = item.text().split(' (')[0]
+            path = item.data(Qt.UserRole)
             for v in self.collection_videos:
-                if v.get('name', '') == video_name or v.get('path', '').split('/')[-1] == video_name:
+                if v.get('path', '') == path:
                     if not is_video_in_blacklist(v, self.blacklist):
                         self.blacklist.append(v.copy())
                     break
