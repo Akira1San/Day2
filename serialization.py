@@ -6,6 +6,28 @@ from pathlib import Path
 from utils import load_collection_videos_only, load_blacklist_json, get_config_paths
 
 
+def _resolve_blacklist_path(blacklist_profile: str, collection_path: str = "") -> str:
+    """Resolve a blacklist profile filename to an actual file path.
+
+    Tries the collection file's directory first, then falls back to
+    the config's blacklist_path.
+    """
+    if not blacklist_profile:
+        return ""
+    # Try collection directory first
+    if collection_path:
+        coll_dir = Path(collection_path).parent
+        candidate = coll_dir / blacklist_profile
+        if candidate.exists():
+            return str(candidate.resolve())
+    # Fall back to config blacklist_path
+    _, bl_dir = get_config_paths()
+    candidate = Path(bl_dir) / blacklist_profile
+    if candidate.exists():
+        return str(candidate.resolve())
+    return ""
+
+
 def serialize_tag_to_string(tag) -> str:
     lines = ["[Tag]"]
     
@@ -149,10 +171,9 @@ def deserialize_tag_from_string(data: str, tag_class, qtime_from_string):
         # Load blacklist based on blacklist_profile
         blacklist = []
         if blacklist_profile:
-            _, blacklist_path_dir = get_config_paths()
-            blacklist_file = Path(blacklist_path_dir) / blacklist_profile
-            if blacklist_file.exists():
-                blacklist = load_blacklist_json(str(blacklist_file))
+            bl_path = _resolve_blacklist_path(blacklist_profile, collection_path)
+            if bl_path:
+                blacklist = load_blacklist_json(bl_path)
         
         series_end_behavior = tag_section.get('series_end_behavior', 'stop')
         series_repeat_season = int(tag_section.get('series_repeat_season', 0))
@@ -279,10 +300,9 @@ def deserialize_tag_from_string(data: str, tag_class, qtime_from_string):
         # Load blacklist based on blacklist_profile
         blacklist = []
         if blacklist_profile:
-            _, blacklist_path_dir = get_config_paths()
-            blacklist_file = Path(blacklist_path_dir) / blacklist_profile
-            if blacklist_file.exists():
-                blacklist = load_blacklist_json(str(blacklist_file))
+            bl_path = _resolve_blacklist_path(blacklist_profile, collection_path)
+            if bl_path:
+                blacklist = load_blacklist_json(bl_path)
         
         active_days_str = tag_section.get('active_days', '')
         active_days = [int(d) for d in active_days_str.split(',') if d.strip().isdigit()] if active_days_str.strip() else None

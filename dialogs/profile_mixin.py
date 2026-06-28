@@ -56,15 +56,13 @@ class SeriesProfileMixin:
             for json_file in sorted(coll_path.glob("*.json")):
                 self.collection_profile_combo.addItem(json_file.name)
 
-        blck_path = Path(blacklist_path)
-        logger.debug(f"load_available_profiles: blacklist dir={blck_path}, exists={blck_path.exists()}")
+        # Scan for blacklist files in collection dir, blacklist dir, and current directory
         blacklist_files = {}
-        if blck_path.exists():
-            for json_file in blck_path.glob("*_blacklist.json"):
-                blacklist_files[json_file.name] = str(json_file.resolve())
-        # Also search current directory
-        for json_file in Path('.').glob("*_blacklist.json"):
-            blacklist_files[json_file.name] = str(json_file.resolve())
+        for scan_dir in set([Path(collection_path), Path(blacklist_path), Path('.')]):
+            logger.debug(f"load_available_profiles: scanning {scan_dir} for blacklist files")
+            if scan_dir.exists():
+                for json_file in scan_dir.glob("*_blacklist.json"):
+                    blacklist_files[json_file.name] = str(json_file.resolve())
 
         logger.debug(f"blacklist_files found: {sorted(blacklist_files)}")
         for name in sorted(blacklist_files):
@@ -94,8 +92,17 @@ class SeriesProfileMixin:
                 if bl_path and Path(bl_path).exists():
                     self.load_blacklist_file(bl_path)
                 else:
-                    bl_file = Path(blacklist_path) / bl_name
-                    if bl_file.exists():
+                    # Try collection directory first, then config blacklist path
+                    bl_file = None
+                    if hasattr(self, 'collection_dir') and self.collection_dir:
+                        bl_candidate = self.collection_dir / bl_name
+                        if bl_candidate.exists():
+                            bl_file = bl_candidate
+                    if bl_file is None:
+                        bl_candidate = Path(blacklist_path) / bl_name
+                        if bl_candidate.exists():
+                            bl_file = bl_candidate
+                    if bl_file is not None:
                         self.load_blacklist_file(str(bl_file))
                 break
 
@@ -108,6 +115,12 @@ class SeriesProfileMixin:
         if bl_path and Path(bl_path).exists():
             self.load_blacklist_file(bl_path)
             return
+        # Try collection directory first, then config blacklist path
+        if hasattr(self, 'collection_dir') and self.collection_dir:
+            bl_candidate = self.collection_dir / file_name
+            if bl_candidate.exists():
+                self.load_blacklist_file(str(bl_candidate))
+                return
         _, blacklist_path = get_config_paths()
         file_path = Path(blacklist_path) / file_name
         if file_path.exists():
