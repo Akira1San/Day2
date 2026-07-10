@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from PySide6.QtCore import QTime
 from models import Tag
-from serialization import load_single_tag_from_ini, save_single_tag_to_ini
+from serialization import load_single_tag_from_file, save_single_tag_to_file
 from utils import filter_videos_by_blacklist, is_video_in_blacklist, load_collection_videos_only, load_blacklist_json
 
 
@@ -29,7 +29,7 @@ def make_blacklist_json(path, video_paths):
         json.dump(data, f, indent=2)
 
 
-def make_tag_ini(path, collection_path, blacklist_path):
+def make_tag_file(path, collection_path, blacklist_path):
     tag = Tag(
         tag_type="random",
         name="Test Random Fill",
@@ -40,7 +40,7 @@ def make_tag_ini(path, collection_path, blacklist_path):
         is_random_fill=True,
         fill_24h=True,
     )
-    save_single_tag_to_ini(tag, path)
+    save_single_tag_to_file(tag, path)
 
 
 # ── Tests ─────────────────────────────────────────────────────────────
@@ -69,7 +69,7 @@ def test_tag_init_filters_blacklist():
     print("  PASS: Tag.__init__ filters blacklisted videos")
 
 
-def test_load_tag_from_ini_filters_blacklist():
+def test_load_tag_from_file_filters_blacklist():
     with tempfile.TemporaryDirectory() as tmp:
         videos = [make_video(f"movie_{c}", 7200) for c in "abc"]
         coll_path = os.path.join(tmp, "collection.json")
@@ -78,10 +78,10 @@ def test_load_tag_from_ini_filters_blacklist():
         bl_path = os.path.join(tmp, "collection_blacklist.json")
         make_blacklist_json(bl_path, ["/videos/movie_b.mp4"])
 
-        tag_ini = os.path.join(tmp, "tag.ini")
-        make_tag_ini(tag_ini, coll_path, bl_path)
+        tag_file = os.path.join(tmp, "tag.tag")
+        make_tag_file(tag_file, coll_path, bl_path)
 
-        tag = load_single_tag_from_ini(tag_ini, Tag, QTime.fromString)
+        tag = load_single_tag_from_file(tag_file, Tag, QTime.fromString)
         assert tag is not None, "Tag should load successfully"
         assert len(tag.blacklist) == 1, f"Expected 1 blacklist entry, got {len(tag.blacklist)}"
 
@@ -105,9 +105,9 @@ def test_populate_dialog_state():
         bl_path = os.path.join(tmp, "collection_blacklist.json")
         make_blacklist_json(bl_path, ["/videos/vid_1.mp4", "/videos/vid_3.mp4"])
 
-        tag_ini = os.path.join(tmp, "tag.ini")
-        make_tag_ini(tag_ini, coll_path, bl_path)
-        tag = load_single_tag_from_ini(tag_ini, Tag, QTime.fromString)
+        tag_file = os.path.join(tmp, "tag.tag")
+        make_tag_file(tag_file, coll_path, bl_path)
+        tag = load_single_tag_from_file(tag_file, Tag, QTime.fromString)
 
         # Simulate _populate_from_tag:
         blacklist = tag.blacklist.copy()
@@ -245,7 +245,7 @@ if __name__ == "__main__":
     # Data-layer tests (no QApp needed)
     test_filter_videos_by_blacklist()
     test_tag_init_filters_blacklist()
-    test_load_tag_from_ini_filters_blacklist()
+    test_load_tag_from_file_filters_blacklist()
     test_populate_dialog_state()
     test_filter_by_basename_after_move()
     test_is_video_in_blacklist_by_basename()

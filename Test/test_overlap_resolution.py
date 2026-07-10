@@ -2,8 +2,8 @@
 """
 Test the overlap resolution combobox strategies (fragment/skip/gap-fill/compact).
 
-Reproduces the bug scenario: custom tag (Custom test.ini: 09:00-23:19)
-+ random fill (Movies 3.ini: 00:00-23:59, fill_24h) in approximate find-replace mode.
+Reproduces the bug scenario: custom tag (Custom test.tag: 09:00-23:19)
++ random fill (Movies 3.tag: 00:00-23:59, fill_24h) in approximate find-replace mode.
 
 Expected behavior for each strategy:
   fragment:  head/tail fragments (FRAGMENT_TAG_TYPE), full 24h coverage
@@ -17,16 +17,16 @@ random.seed(42)
 from PySide6.QtCore import QTime
 from models import ScheduleGenerator, TagManager, Tag
 from data_models import FRAGMENT_TAG_TYPE
-from serialization import load_single_tag_from_ini
+from serialization import load_single_tag_from_file
 
 
 def make_video(name: str, dur_min: int) -> dict:
     return {"path": f"/p/{name}.mp4", "duration": dur_min * 60}
 
 
-def load_tags_from_ini(ini_path: str) -> Tag:
-    """Load a tag from an .ini file using the serialization loader."""
-    return load_single_tag_from_ini(ini_path, Tag, QTime.fromString)
+def load_tag_file(file_path: str) -> Tag:
+    """Load a tag from a .tag file using the serialization loader."""
+    return load_single_tag_from_file(file_path, Tag, QTime.fromString)
 
 
 def build_tag_manager(use_real_files: bool = False) -> TagManager:
@@ -34,8 +34,8 @@ def build_tag_manager(use_real_files: bool = False) -> TagManager:
 
     if use_real_files:
         base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        rf = load_tags_from_ini(os.path.join(base, "Tags", "Movies 3.ini"))
-        ct = load_tags_from_ini(os.path.join(base, "Tags", "Custom test.ini"))
+        rf = load_tag_file(os.path.join(base, "Tags", "Movies 3.tag"))
+        ct = load_tag_file(os.path.join(base, "Tags", "Custom test.tag"))
         rf.is_random_fill = True
         rf.fill_24h = True
         ct.randomize_videos = True
@@ -54,7 +54,7 @@ def build_tag_manager(use_real_files: bool = False) -> TagManager:
             is_random_fill=True, fill_24h=True,
             collection_videos=[make_video(f"video_{c}", 90) for c in "ABCDEF"],
         ))
-        # Custom tag — 09:00-23:19, 6 videos (same as Custom test.ini)
+        # Custom tag — 09:00-23:19, 6 videos (same as Custom test.tag)
         tg.add_tag(Tag(
             name="Custom Test", tag_type="custom",
             start_time=QTime(9, 0), end_time=QTime(23, 19),
@@ -125,7 +125,7 @@ def run_tests():
     modes = ["find_replace", "early_fill", "late_fill", "priority", "best_fit", "linear_spanning"]
     strategies = ["fragment", "skip", "compact"]
 
-    for label, use_real in [("Synthetic data", False), ("Real .ini files", True)]:
+    for label, use_real in [("Synthetic data", False), ("Real tag files", True)]:
         print(f"\n{'='*70}")
         print(f"  {label}")
         print(f"{'='*70}")
@@ -142,9 +142,9 @@ def run_tests():
                 print(f"  {strat:>10}: {len(entries):2d} entries, {frags:2d} fragments, "
                       f"{cov_h:2d}h{cov_m:02d}m coverage, {gaps} gaps, {overlaps} overlaps")
 
-    # Detailed output for find_replace with real files
+    # Detailed output for find_replace with real tag files
     print(f"\n{'='*70}")
-    print("Detailed — find_replace with Real .ini files")
+    print("Detailed — find_replace with Real tag files")
     print(f"{'='*70}")
     for strat in strategies:
         entries, frags, total_sec, gaps, overlaps = test_strategy("find_replace", strat, True)

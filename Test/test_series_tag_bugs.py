@@ -306,7 +306,7 @@ def test_bug2_cold_load_series_tag_shows_only_tag_name():
         tm = TagManager()
         # Cold-load state: collection_videos is empty, but collection_path
         # points to a real collection file (this matches what the user
-        # has when the series tag is loaded from an .ini file).
+        # has when the series tag is loaded from a .tag file).
         tm.add_tag(Tag(
             name="Sandokan 1976",
             tag_type="series",
@@ -527,7 +527,7 @@ def test_bug2_saved_series_tag_uses_collection_profile():
             series_repeat_season=1,
             collection_profile="collections_Sandokan_1976.json",
             # collection_path is intentionally NOT set (matches the
-            # old .ini file format where the field wasn't serialized)
+            # old .tag file format where the field wasn't serialized)
         ))
 
         sg = ScheduleGenerator(tm)

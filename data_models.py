@@ -493,13 +493,13 @@ class TagManager:
     def clear_cache(self):
         self._cached_random_entries = None
 
-    def save_tags(self, filepath: str = "tags.ini"):
-        from serialization import save_tags_to_ini
-        save_tags_to_ini(self.tags, filepath)
+    def save_tags(self, filepath: str = "tags.tag"):
+        from serialization import save_tags_to_file
+        save_tags_to_file(self.tags, filepath)
 
-    def load_tags(self, filepath: str = "tags.ini") -> bool:
-        from serialization import load_tags_from_ini
-        loaded = load_tags_from_ini(filepath, Tag, QTime.fromString)
+    def load_tags(self, filepath: str = "tags.tag") -> bool:
+        from serialization import load_tags_from_file
+        loaded = load_tags_from_file(filepath, Tag, QTime.fromString)
         if loaded:
             self.tags = loaded
             return True

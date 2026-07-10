@@ -67,8 +67,8 @@ class ScheduleGenerator:
           2. st.collection_profile (a bare file name in the collections
              directory; this is what's saved for series tags by
              serialize_tag_to_string)
-          3. The first existing matching .json file in the collections
-             directory (handles the "old .ini" case where neither field
+           3. The first existing matching .json file in the collections
+              directory (handles the "old .tag" case where neither field
              is set but the user expects a known collection to be used)
 
         Returns the path string if a resolvable file exists, or '' if

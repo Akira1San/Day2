@@ -123,12 +123,12 @@ class MainWindow(QMainWindow):
 
         save_load_layout = QHBoxLayout()
         self.save_btn = QPushButton("Save All")
-        self.save_btn.setToolTip("Save all tags to an INI file (default: tags.ini)")
+        self.save_btn.setToolTip("Save all tags to a tag file (default: tags.tag)")
         self.save_btn.clicked.connect(self.save_tags)
         save_load_layout.addWidget(self.save_btn)
 
         self.load_btn = QPushButton("Load All")
-        self.load_btn.setToolTip("Load all tags from an INI file (default: tags.ini)")
+        self.load_btn.setToolTip("Load all tags from a tag file (default: tags.tag)")
         self.load_btn.clicked.connect(self.load_tags)
         save_load_layout.addWidget(self.load_btn)
 
@@ -582,13 +582,13 @@ class MainWindow(QMainWindow):
 
     def save_tags(self):
         file_path, _ = QFileDialog.getSaveFileName(
-            self, "Save All Tags", "tags.ini",
-            "INI Files (*.ini);;All Files (*)",
+            self, "Save All Tags", "tags.tag",
+            "Tag Files (*.tag);;All Files (*)",
         )
         if not file_path:
             return
-        if not file_path.endswith('.ini'):
-            file_path += '.ini'
+        if not file_path.endswith('.tag'):
+            file_path += '.tag'
         if os.path.exists(file_path):
             reply = QMessageBox.question(
                 self, "Overwrite?",
@@ -610,8 +610,8 @@ class MainWindow(QMainWindow):
 
     def load_tags(self):
         file_path, _ = QFileDialog.getOpenFileName(
-            self, "Load All Tags", "tags.ini",
-            "INI Files (*.ini);;All Files (*)",
+            self, "Load All Tags", "tags.tag",
+            "Tag Files (*.tag);;All Files (*)",
         )
         if not file_path:
             return
@@ -664,7 +664,7 @@ class MainWindow(QMainWindow):
             "<p><b>Edit / Delete</b> — Modify or remove the selected tag.</p>"
             "<hr>"
             "<h3>Save/Load</h3>"
-            "<p><b>Save All / Load All</b> — Persist or restore all tags to/from an INI file.</p>"
+            "<p><b>Save All / Load All</b> — Persist or restore all tags to/from a tag file.</p>"
             "<p><b>Save Tag / Load Tag</b> — Save/load a single selected tag.</p>"
             "<p><b>Config</b> — Global configuration settings.</p>"
             "<hr>"
@@ -1106,26 +1106,26 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "No Selection", "Please select at least one tag to save.")
             return
 
-        from serialization import save_single_tag_to_ini
+        from serialization import save_single_tag_to_file
         for item in items:
             current_row = self.tags_list.row(item)
             tag = self.tag_manager.tags[current_row]
-            file_path, _ = QFileDialog.getSaveFileName(self, f"Save Tag - {tag.name}", "", "INI Files (*.ini);;All Files (*)")
+            file_path, _ = QFileDialog.getSaveFileName(self, f"Save Tag - {tag.name}", "", "Tag Files (*.tag);;All Files (*)")
             if file_path:
-                if not file_path.endswith('.ini'):
-                    file_path += '.ini'
-                save_single_tag_to_ini(tag, file_path)
+                if not file_path.endswith('.tag'):
+                    file_path += '.tag'
+                save_single_tag_to_file(tag, file_path)
                 self.statusBar().showMessage(f"Tag saved to {file_path}")
 
     def load_single_tag(self):
-        file_paths, _ = QFileDialog.getOpenFileNames(self, "Load Tags", "", "INI Files (*.ini);;All Files (*)")
+        file_paths, _ = QFileDialog.getOpenFileNames(self, "Load Tags", "", "Tag Files (*.tag);;All Files (*)")
         if not file_paths:
             return
 
-        from serialization import load_single_tag_from_ini
+        from serialization import load_single_tag_from_file
         loaded_count = 0
         for file_path in file_paths:
-            tag = load_single_tag_from_ini(file_path, Tag, QTime.fromString)
+            tag = load_single_tag_from_file(file_path, Tag, QTime.fromString)
             if tag:
                 self.tag_manager.add_tag(tag)
                 loaded_count += 1

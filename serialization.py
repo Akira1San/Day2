@@ -120,7 +120,7 @@ def serialize_tag_to_string(tag) -> str:
     return '\n'.join(lines)
 
 
-def save_tags_to_ini(tags: List[Any], filepath: str = "tags.ini"):
+def save_tags_to_file(tags: List[Any], filepath: str = "tags.tag"):
     config = configparser.ConfigParser()
     config['Tags'] = {}
     
@@ -390,7 +390,7 @@ def deserialize_tag_legacy(data: str, tag_class, qtime_from_string):
                         collection_profile=collection_profile, blacklist_profile=blacklist_profile)
 
 
-def load_tags_from_ini(filepath: str, tag_class, qtime_from_string) -> List[Any]:
+def load_tags_from_file(filepath: str, tag_class, qtime_from_string) -> List[Any]:
     if not Path(filepath).exists():
         return []
     
@@ -409,7 +409,7 @@ def load_tags_from_ini(filepath: str, tag_class, qtime_from_string) -> List[Any]
     return tags
 
 
-def save_single_tag_to_ini(tag, filepath: str):
+def save_single_tag_to_file(tag, filepath: str):
     config = configparser.ConfigParser()
     config['Tag'] = {'data': serialize_tag_to_string(tag)}
     
@@ -417,7 +417,7 @@ def save_single_tag_to_ini(tag, filepath: str):
         config.write(f)
 
 
-def load_single_tag_from_ini(filepath: str, tag_class, qtime_from_string) -> Optional[Any]:
+def load_single_tag_from_file(filepath: str, tag_class, qtime_from_string) -> Optional[Any]:
     if not Path(filepath).exists():
         return None
     
