@@ -574,7 +574,8 @@ class MainWindow(QMainWindow):
             tag_path = getattr(tag, 'collection_path', '') or ''
             if tag_path:
                 _load_from(tag_path)
-            for extra_path in getattr(tag, 'extra_collections', []):
+            for extra_entry in getattr(tag, 'extra_collections', []):
+                extra_path = extra_entry["path"] if isinstance(extra_entry, dict) else extra_entry
                 _load_from(extra_path)
 
         dialog = DurationDebugDialog(self, entries, all_videos)

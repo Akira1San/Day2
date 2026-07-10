@@ -3,7 +3,24 @@ import configparser
 from typing import List, Any, Optional, Dict
 from pathlib import Path
 
-from utils import load_collection_videos_only, load_blacklist_json, get_config_paths
+from utils import load_collection_videos_only, load_blacklist_json, filter_videos_by_blacklist, get_config_paths
+
+
+def _find_blacklist_for_collection(collection_path: str) -> str:
+    """Auto-detect blacklist file next to a collection JSON."""
+    if not collection_path:
+        return ""
+    coll_stem = Path(collection_path).stem
+    coll_dir = Path(collection_path).parent
+    patterns = [
+        f"{coll_stem}_blacklist.json",
+        f"{coll_stem.replace('collections_', '')}_blacklist.json",
+    ]
+    for pattern in patterns:
+        candidate = coll_dir / pattern
+        if candidate.exists():
+            return str(candidate.resolve())
+    return ""
 
 
 def _resolve_blacklist_path(blacklist_profile: str, collection_path: str = "") -> str:
@@ -95,7 +112,14 @@ def serialize_tag_to_string(tag) -> str:
         lines.append(f"blacklist_profile = {getattr(tag, 'blacklist_profile', '')}")
         extra = getattr(tag, 'extra_collections', [])
         if extra:
-            lines.append(f"extra_collections = {json.dumps(extra)}")
+            # Serialize as list of dicts; old format used plain strings
+            serialized = []
+            for e in extra:
+                if isinstance(e, dict):
+                    serialized.append(e)
+                else:
+                    serialized.append({"path": e, "blacklist_enabled": True})
+            lines.append(f"extra_collections = {json.dumps(serialized)}")
 
         marathon_mode = getattr(tag, 'marathon_mode', False)
         if marathon_mode:
@@ -267,13 +291,29 @@ def deserialize_tag_from_string(data: str, tag_class, qtime_from_string):
         
         extra_collections_str = tag_section.get('extra_collections', '[]')
         try:
-            extra_collections = json.loads(extra_collections_str)
+            extra_collections_raw = json.loads(extra_collections_str)
         except Exception:
-            extra_collections = []
-        for extra_path in extra_collections:
-            if extra_path:
-                extra_videos = load_collection_videos_only(extra_path)
-                stem = Path(extra_path).stem
+            extra_collections_raw = []
+        extra_collections = []
+        for entry in extra_collections_raw:
+            if isinstance(entry, dict):
+                path = entry.get("path", "")
+                bl_enabled = entry.get("blacklist_enabled", True)
+                extra_collections.append({"path": path, "blacklist_enabled": bl_enabled})
+            elif isinstance(entry, str):
+                path = entry
+                extra_collections.append({"path": path, "blacklist_enabled": True})
+            else:
+                continue
+            if path:
+                extra_videos = load_collection_videos_only(path)
+                # Apply blacklist if enabled
+                if isinstance(entry, dict) and entry.get("blacklist_enabled", True):
+                    bl_path = _find_blacklist_for_collection(path)
+                    if bl_path:
+                        bl_data = load_blacklist_json(bl_path)
+                        extra_videos = filter_videos_by_blacklist(extra_videos, bl_data)
+                stem = Path(path).stem
                 if stem.startswith('collections_'):
                     stem = stem.replace('collections_', '')
                 for v in extra_videos:

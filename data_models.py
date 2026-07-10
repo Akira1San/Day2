@@ -53,7 +53,7 @@ class Tag:
                      gap_auto_resolve_overlaps: bool = False,
                      gap_shift_padding: int = 180,
                       gap_estimate_runtime_overlap: bool = False,
-                      extra_collections: Optional[List[str]] = None):
+                       extra_collections: Optional[List] = None):
         self.tag_type = tag_type
         self.name = name
         self.start_time = start_time or QTime(0, 0)
@@ -536,7 +536,7 @@ class TagManager:
                     gap_auto_resolve_overlaps: bool = False,
                     gap_shift_padding: int = 180,
                     gap_estimate_runtime_overlap: bool = False,
-                    extra_collections: Optional[List[str]] = None) -> bool:
+                    extra_collections: Optional[List] = None) -> bool:
         if 0 <= index < len(self.tags):
             t = self.tags[index]
             t.name = name
