@@ -773,7 +773,7 @@ class RandomFillDialog(CollectionDialogBase):
             w = self.collection_table.cellWidget(row, 0)
             if w and w.text():
                 all_paths.append(w.text())
-        collection_path = all_paths[0] if all_paths else ""
+        collection_path = all_paths[0] if all_paths else self.collection_path.text()
         extra_collections = all_paths[1:] if len(all_paths) > 1 else []
 
         return Tag(
