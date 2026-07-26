@@ -40,7 +40,7 @@ from utils import (
     load_collection_json, load_blacklist_json,
     parse_series_episode, parse_videos_for_series,
     get_video_display_name, format_duration, get_config_paths, filter_videos_by_blacklist,
-    get_schedule_profiles, load_gap_collections
+    get_schedule_profiles, load_gap_collections, get_font_config
 )
 from models import Tag, ScheduleEntry, TagManager, ScheduleGenerator, compute_schedule_issues, mark_continuity_problems
 from dialogs import TagDialog, RandomFillDialog, SeriesDialog, ConfigDialog, SchedulePreviewDialog, DurationDebugDialog, GapTagDialog
@@ -66,6 +66,7 @@ class MainWindow(QMainWindow):
         self.refresh_preview()
 
     def setup_ui(self):
+        self._fonts = get_font_config()
         central = QWidget()
         self.setCentralWidget(central)
         main_layout = QHBoxLayout(central)
@@ -75,12 +76,12 @@ class MainWindow(QMainWindow):
         tags_layout = QVBoxLayout(self.tags_panel)
 
         tags_title = QLabel("Daypart Tags")
-        tags_title.setFont(QFont("", 16, QFont.Bold))
+        tags_title.setFont(QFont("", self._fonts['title_size'], QFont.Bold))
         tags_layout.addWidget(tags_title)
 
         self.tags_list = QListWidget()
         self.tags_list.setAlternatingRowColors(True)
-        self.tags_list.setFont(QFont("", 14))
+        self.tags_list.setFont(QFont("", self._fonts['body_size']))
         tags_layout.addWidget(self.tags_list)
 
         btn_layout = QHBoxLayout()
@@ -160,7 +161,7 @@ class MainWindow(QMainWindow):
         preview_layout = QVBoxLayout(self.preview_panel)
 
         self.preview_title = QLabel("24-Hour Schedule Preview")
-        self.preview_title.setFont(QFont("", 16, QFont.Bold))
+        self.preview_title.setFont(QFont("", self._fonts['title_size'], QFont.Bold))
         preview_layout.addWidget(self.preview_title)
 
         scroll = QScrollArea()
@@ -261,58 +262,59 @@ class MainWindow(QMainWindow):
         self.apply_styles()
 
     def apply_styles(self):
-        self.setStyleSheet("""
-            QMainWindow { background-color: #1e1e2e; }
-            QWidget { color: #f8f8f2; }
-            QLabel { color: #f8f8f2; }
-            QTreeWidget {
+        f = self._fonts
+        self.setStyleSheet(f"""
+            QMainWindow {{ background-color: #1e1e2e; }}
+            QWidget {{ color: #f8f8f2; }}
+            QLabel {{ color: #f8f8f2; }}
+            QTreeWidget {{
                 background-color: #2a2a3e;
                 border: 1px solid #3a3a4e;
                 border-radius: 6px;
                 padding: 4px;
                 selection-background-color: #7c3aed;
                 show-decoration-selected: 1;
-            }
-            QTreeWidget::item {
+            }}
+            QTreeWidget::item {{
                 padding: 4px;
                 margin: 1px;
                 border: 1px solid transparent;
-            }
-            QTreeWidget::item:selected {
+            }}
+            QTreeWidget::item:selected {{
                 background-color: #7c3aed;
                 border: 2px solid #a78bfa;
                 color: white;
-            }
-            QTreeWidget::item:hover {
+            }}
+            QTreeWidget::item:hover {{
                 background-color: #3a3a4e;
-            }
-            QTreeWidget::branch {
+            }}
+            QTreeWidget::branch {{
                 background: transparent;
-            }
-            QPushButton {
+            }}
+            QPushButton {{
                 background-color: #2a2a3e;
                 color: #f8f8f2;
                 border: 1px solid #3a3a4e;
                 border-radius: 6px;
                 padding: 6px 12px;
-                font-size: 11px;
-            }
-            QPushButton:hover { background-color: #3a3a4e; }
-            QPushButton:pressed { background-color: #4a4a5e; }
-            QLineEdit, QTimeEdit {
+                font-size: {f['button_size']}px;
+            }}
+            QPushButton:hover {{ background-color: #3a3a4e; }}
+            QPushButton:pressed {{ background-color: #4a4a5e; }}
+            QLineEdit, QTimeEdit {{
                 background-color: #2a2a3e;
                 color: #f8f8f2;
                 border: 1px solid #3a3a4e;
                 border-radius: 4px;
                 padding: 8px;
-            }
-            QDialog { background-color: #1e1e2e; }
-            QToolTip {
-                font-size: 13px;
+            }}
+            QDialog {{ background-color: #1e1e2e; }}
+            QToolTip {{
+                font-size: {f['tooltip_size']}px;
                 padding: 4px 8px;
                 border: 1px solid #3a3a4e;
                 border-radius: 4px;
-            }
+            }}
         """)
         self.tags_list.setSelectionMode(QListWidget.ExtendedSelection)
         self.tags_list.setFocusPolicy(Qt.StrongFocus)
@@ -699,7 +701,7 @@ class MainWindow(QMainWindow):
         )
         text.setWordWrap(True)
         text.setTextFormat(Qt.RichText)
-        text.setStyleSheet("font-size: 13pt;")
+        text.setStyleSheet(f"font-size: {self._fonts['help_size']}pt;")
         scroll = QScrollArea()
         scroll.setWidget(text)
         scroll.setWidgetResizable(True)

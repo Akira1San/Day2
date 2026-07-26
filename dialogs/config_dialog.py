@@ -1,7 +1,7 @@
 import configparser
 from pathlib import Path
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QCheckBox, QFileDialog, QMessageBox
+    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QCheckBox, QFileDialog, QMessageBox, QSpinBox
 )
 
 from utils import get_config_paths
@@ -69,6 +69,34 @@ class ConfigDialog(QDialog):
         )
         layout.addWidget(self.auto_add_check)
 
+        # Font settings
+        font_group = QVBoxLayout()
+        font_label = QLabel("Font Settings (requires restart):")
+        font_label.setStyleSheet("font-weight: bold; margin-top: 8px;")
+        font_group.addWidget(font_label)
+
+        font_keys = [
+            ("title_size", "Title Size:"),
+            ("body_size", "Body Size:"),
+            ("button_size", "Button Size:"),
+            ("tooltip_size", "Tooltip Size:"),
+            ("help_size", "Help Size:"),
+            ("debug_size", "Debug Size:"),
+        ]
+        self.font_spinboxes = {}
+        for key, label_text in font_keys:
+            row = QHBoxLayout()
+            row.addWidget(QLabel(label_text))
+            spin = QSpinBox()
+            spin.setRange(6, 40)
+            setattr(self, f"{key}_spin", spin)
+            self.font_spinboxes[key] = spin
+            row.addWidget(spin)
+            row.addStretch()
+            font_group.addLayout(row)
+
+        layout.addLayout(font_group)
+
         # Buttons
         btn_layout = QHBoxLayout()
         save_btn = QPushButton("Save")
@@ -107,6 +135,11 @@ class ConfigDialog(QDialog):
             if 'RandomFill' in config:
                 auto_add = config['RandomFill'].get('auto_add', 'false').lower()
                 self.auto_add_check.setChecked(auto_add in ('true', '1', 'yes', 'on'))
+            if 'Font' in config:
+                for key in self.font_spinboxes:
+                    val = config['Font'].getint(key, fallback=None)
+                    if val is not None:
+                        self.font_spinboxes[key].setValue(val)
 
     def save_config(self):
         config = configparser.ConfigParser()
@@ -121,6 +154,7 @@ class ConfigDialog(QDialog):
         config['RandomFill'] = {
             'auto_add': 'true' if self.auto_add_check.isChecked() else 'false'
         }
+        config['Font'] = {key: str(self.font_spinboxes[key].value()) for key in self.font_spinboxes}
         with open(self.config_path, 'w') as f:
             config.write(f)
         self.accept()

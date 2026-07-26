@@ -292,6 +292,31 @@ def get_randomfill_config(config_file: str = "config.ini") -> bool:
     return False
 
 
+def get_font_config(config_file: str = "config.ini") -> dict:
+    try:
+        config = configparser.ConfigParser()
+        config.read(config_file)
+        if 'Font' in config:
+            return {
+                'title_size': config['Font'].getint('title_size', fallback=16),
+                'body_size': config['Font'].getint('body_size', fallback=14),
+                'button_size': config['Font'].getint('button_size', fallback=11),
+                'tooltip_size': config['Font'].getint('tooltip_size', fallback=13),
+                'help_size': config['Font'].getint('help_size', fallback=13),
+                'debug_size': config['Font'].getint('debug_size', fallback=12),
+            }
+    except Exception:
+        pass
+    return {
+        'title_size': 16,
+        'body_size': 14,
+        'button_size': 11,
+        'tooltip_size': 13,
+        'help_size': 13,
+        'debug_size': 12,
+    }
+
+
 def get_covers_path(config_file: str = "config.ini") -> Optional[Path]:
     """Read covers_path from [Paths] section. Returns None if not set."""
     try:

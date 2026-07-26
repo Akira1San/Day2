@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QFont
 
-from utils import get_video_display_name
+from utils import get_video_display_name, get_font_config
 from data_models import FRAGMENT_TAG_TYPE
 
 
@@ -32,6 +32,7 @@ class DurationDebugDialog(QDialog):
     }
     def __init__(self, parent, schedule_entries, collection_videos):
         super().__init__(parent)
+        self._fonts = get_font_config()
         self.setWindowTitle("Duration Debug — Schedule Preview")
         self.setModal(True)
         self.resize(950, 550)
@@ -128,7 +129,7 @@ class DurationDebugDialog(QDialog):
         if overlap_count:
             parts.append(f"{overlap_count} OVERLAP")
         summary.setText(" | ".join(parts))
-        summary.setFont(QFont("", 12, QFont.Bold))
+        summary.setFont(QFont("", self._fonts['debug_size'], QFont.Bold))
         layout.addWidget(summary)
 
         self.table = QTreeWidget()
@@ -306,33 +307,34 @@ class DurationDebugDialog(QDialog):
             "Shows <b>N/A</b> for fragments (duration comparison not applicable).")
 
     def apply_styles(self):
-        self.setStyleSheet("""
-            QDialog { background-color: #1e1e2e; }
-            QLabel { color: #f8f8f2; }
-            QPushButton {
+        f = self._fonts
+        self.setStyleSheet(f"""
+            QDialog {{ background-color: #1e1e2e; }}
+            QLabel {{ color: #f8f8f2; }}
+            QPushButton {{
                 background-color: #2a2a3e;
                 color: #f8f8f2;
                 border: 1px solid #3a3a4e;
                 border-radius: 6px;
                 padding: 8px 16px;
-                font-size: 11px;
-            }
-            QPushButton:hover { background-color: #3a3a4e; }
-            QPushButton:pressed { background-color: #4a4a5e; }
-            QTreeWidget {
+                font-size: {f['button_size']}px;
+            }}
+            QPushButton:hover {{ background-color: #3a3a4e; }}
+            QPushButton:pressed {{ background-color: #4a4a5e; }}
+            QTreeWidget {{
                 background-color: #1e1e2e;
                 border: 1px solid #3a3a4e;
                 border-radius: 4px;
                 alternate-background-color: #252535;
-            }
-            QHeaderView::section {
+            }}
+            QHeaderView::section {{
                 background-color: #2a2a3e;
                 color: #f8f8f2;
                 border: 1px solid #3a3a4e;
                 padding: 4px;
                 font-weight: bold;
-            }
-            QTreeWidget::branch {
+            }}
+            QTreeWidget::branch {{
                 background: transparent;
-            }
+            }}
         """)

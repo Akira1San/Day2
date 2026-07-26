@@ -3,12 +3,15 @@ from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QScroll
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 
+from utils import get_font_config
+
 
 class SchedulePreviewDialog(QDialog):
     """Modal dialog to preview a saved schedule (30-day calendar) with horizontal scrolling."""
 
     def __init__(self, parent=None, profile_name: str = "", calendar_data: dict = None):
         super().__init__(parent)
+        self._fonts = get_font_config()
         self.profile_name = profile_name
         self.calendar_data = calendar_data or {}
         self.setWindowTitle(f"Schedule Preview - {profile_name}")
@@ -23,7 +26,7 @@ class SchedulePreviewDialog(QDialog):
 
         # Title label with profile name
         title_label = QLabel(f"Schedule Preview - {self.profile_name}")
-        title_label.setFont(QFont("", 16, QFont.Bold))
+        title_label.setFont(QFont("", self._fonts['title_size'], QFont.Bold))
         layout.addWidget(title_label)
 
         # Scroll area with horizontal scrolling
@@ -50,27 +53,28 @@ class SchedulePreviewDialog(QDialog):
         layout.addLayout(btn_layout)
 
     def apply_styles(self):
-        self.setStyleSheet("""
-            QDialog { background-color: #1e1e2e; }
-            QLabel { color: #f8f8f2; }
-            QPushButton {
+        f = self._fonts
+        self.setStyleSheet(f"""
+            QDialog {{ background-color: #1e1e2e; }}
+            QLabel {{ color: #f8f8f2; }}
+            QPushButton {{
                 background-color: #2a2a3e;
                 color: #f8f8f2;
                 border: 1px solid #3a3a4e;
                 border-radius: 6px;
                 padding: 8px 16px;
-                font-size: 11px;
-            }
-            QPushButton:hover { background-color: #3a3a4e; }
-            QPushButton:pressed { background-color: #4a4a5e; }
-            QScrollArea {
+                font-size: {f['button_size']}px;
+            }}
+            QPushButton:hover {{ background-color: #3a3a4e; }}
+            QPushButton:pressed {{ background-color: #4a4a5e; }}
+            QScrollArea {{
                 background-color: #2a2a3e;
                 border: 1px solid #3a3a4e;
                 border-radius: 6px;
-            }
-            QWidget {
+            }}
+            QWidget {{
                 background-color: #2a2a3e;
-            }
+            }}
         """)
 
     def populate_schedule(self):
@@ -90,7 +94,7 @@ class SchedulePreviewDialog(QDialog):
 
             # Day header (vertical orientation)
             header = QLabel(f"{date_str}\n{day_name}")
-            header.setFont(QFont("", 11, QFont.Bold))
+            header.setFont(QFont("", self._fonts['button_size'], QFont.Bold))
             is_weekend = day_name.lower() in ("saturday", "sunday")
             header_color = "#ef4444" if is_weekend else "#7c3aed"
             header.setStyleSheet(f"color: {header_color};")
