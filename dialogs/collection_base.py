@@ -59,6 +59,8 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
         self.collection_info_dict = {}
         self.collection_dir = Path('.')
         self.covers_root = Path('.')
+        self.sort_mode = "name_asc"
+        self.search_text = ""
         self.setup_common_ui()
 
     def setup_common_ui(self):
@@ -94,7 +96,9 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
             on_remove_all=self.remove_all_added,
             on_clear_selection=self.clear_added_selection,
             on_add_to_blacklist=self.add_to_blacklist,
-            on_check_missing=self.check_missing_videos
+            on_check_missing=self.check_missing_videos,
+            on_sort_changed=self._on_added_sort_changed,
+            on_search_changed=self._on_added_search_changed
         )
         self.blacklist_section = create_blacklist_section(
             on_video_selected=self.on_blacklist_video_selected,
@@ -232,10 +236,40 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
         self.refresh_added_list()
         self.refresh_blacklist_list()
 
+    def _on_added_sort_changed(self, index):
+        combo = self.added_section.sort_combo
+        if combo:
+            self.sort_mode = combo.itemData(index)
+            self.refresh_added_list()
+
+    def _on_added_search_changed(self, text):
+        self.search_text = text
+        self.refresh_added_list()
+
     def refresh_added_list(self):
         self.added_list.clear()
-        sorted_added = sorted(self.added_videos, key=lambda v: v.get('path', '').split('/')[-1])
-        for video in sorted_added:
+
+        # Apply sort
+        if self.sort_mode == "added_asc":
+            sorted_videos = list(self.added_videos)
+        elif self.sort_mode == "added_desc":
+            sorted_videos = list(reversed(self.added_videos))
+        elif self.sort_mode == "name_asc":
+            sorted_videos = sorted(self.added_videos, key=lambda v: v.get('path', '').split('/')[-1])
+        elif self.sort_mode == "name_desc":
+            sorted_videos = sorted(self.added_videos, key=lambda v: v.get('path', '').split('/')[-1], reverse=True)
+        else:
+            sorted_videos = sorted(self.added_videos, key=lambda v: v.get('path', '').split('/')[-1])
+
+        # Apply search filter (case-insensitive on display name)
+        if self.search_text:
+            search_lower = self.search_text.lower()
+            sorted_videos = [
+                v for v in sorted_videos
+                if search_lower in get_video_display_name(v).lower()
+            ]
+
+        for video in sorted_videos:
             src = video.get('_source_name', '')
             prefix = f"{src}: " if src else ""
             item = QListWidgetItem(f"{prefix}{get_video_display_name(video)} ({format_duration(video.get('duration', 0))})")

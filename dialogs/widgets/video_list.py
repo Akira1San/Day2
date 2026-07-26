@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QListWidget, QWidget, QVBoxLayout, QLabel, QPushButton, QHBoxLayout
+from PySide6.QtWidgets import QListWidget, QWidget, QVBoxLayout, QLabel, QPushButton, QHBoxLayout, QComboBox, QLineEdit
 from PySide6.QtCore import Qt
 from dataclasses import dataclass
 from typing import List, Dict, Any, Optional, Callable
@@ -17,6 +17,8 @@ class VideoSection:
     widget: QWidget
     videos_list: VideoListWidget
     count_label: QLabel
+    sort_combo: Optional[QComboBox] = None
+    search_input: Optional[QLineEdit] = None
 
 
 @dataclass
@@ -38,7 +40,9 @@ def create_video_section(
     on_remove_all: Optional[Callable] = None,
     on_clear_selection: Optional[Callable] = None,
     on_add_to_blacklist: Optional[Callable] = None,
-    on_check_missing: Optional[Callable] = None
+    on_check_missing: Optional[Callable] = None,
+    on_sort_changed: Optional[Callable] = None,
+    on_search_changed: Optional[Callable] = None
 ) -> VideoSection:
     """
     Create a video list section with optional buttons.
@@ -70,6 +74,25 @@ def create_video_section(
         check_missing_btn.setToolTip("Check which added videos no longer exist on disk")
         check_missing_btn.clicked.connect(on_check_missing)
         vbox.addWidget(check_missing_btn)
+
+    sort_combo = None
+    search_input = None
+    if on_sort_changed or on_search_changed:
+        filter_layout = QHBoxLayout()
+        if on_sort_changed:
+            sort_combo = QComboBox()
+            sort_combo.addItem("Added Order", "added_asc")
+            sort_combo.addItem("Newest First", "added_desc")
+            sort_combo.addItem("Name (A-Z)", "name_asc")
+            sort_combo.addItem("Name (Z-A)", "name_desc")
+            sort_combo.currentIndexChanged.connect(on_sort_changed)
+            filter_layout.addWidget(sort_combo)
+        if on_search_changed:
+            search_input = QLineEdit()
+            search_input.setPlaceholderText("Search...")
+            search_input.textChanged.connect(on_search_changed)
+            filter_layout.addWidget(search_input)
+        vbox.addLayout(filter_layout)
 
     videos_list = VideoListWidget()
     videos_list.setMinimumHeight(200)
@@ -117,7 +140,7 @@ def create_video_section(
             btn_layout.addWidget(blacklist_btn)
     vbox.addLayout(btn_layout)
 
-    return VideoSection(widget=widget, videos_list=videos_list, count_label=count_label)
+    return VideoSection(widget=widget, videos_list=videos_list, count_label=count_label, sort_combo=sort_combo, search_input=search_input)
 
 
 def create_blacklist_section(
