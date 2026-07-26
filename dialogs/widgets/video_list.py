@@ -19,6 +19,7 @@ class VideoSection:
     count_label: QLabel
     sort_combo: Optional[QComboBox] = None
     search_input: Optional[QLineEdit] = None
+    filter_combo: Optional[QComboBox] = None
 
 
 @dataclass
@@ -42,7 +43,8 @@ def create_video_section(
     on_add_to_blacklist: Optional[Callable] = None,
     on_check_missing: Optional[Callable] = None,
     on_sort_changed: Optional[Callable] = None,
-    on_search_changed: Optional[Callable] = None
+    on_search_changed: Optional[Callable] = None,
+    on_filter_changed: Optional[Callable] = None
 ) -> VideoSection:
     """
     Create a video list section with optional buttons.
@@ -77,8 +79,14 @@ def create_video_section(
 
     sort_combo = None
     search_input = None
-    if on_sort_changed or on_search_changed:
+    filter_combo = None
+    if on_filter_changed or on_sort_changed or on_search_changed:
         filter_layout = QHBoxLayout()
+        if on_filter_changed:
+            filter_combo = QComboBox()
+            filter_combo.addItem("All Collections", "")
+            filter_combo.currentIndexChanged.connect(on_filter_changed)
+            filter_layout.addWidget(filter_combo)
         if on_sort_changed:
             sort_combo = QComboBox()
             sort_combo.addItem("Added Order", "added_asc")
@@ -140,7 +148,7 @@ def create_video_section(
             btn_layout.addWidget(blacklist_btn)
     vbox.addLayout(btn_layout)
 
-    return VideoSection(widget=widget, videos_list=videos_list, count_label=count_label, sort_combo=sort_combo, search_input=search_input)
+    return VideoSection(widget=widget, videos_list=videos_list, count_label=count_label, sort_combo=sort_combo, search_input=search_input, filter_combo=filter_combo)
 
 
 def create_blacklist_section(

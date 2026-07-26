@@ -61,6 +61,8 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
         self.covers_root = Path('.')
         self.sort_mode = "name_asc"
         self.search_text = ""
+        self.collection_filter = ""
+        self.collection_search_text = ""
         self.setup_common_ui()
 
     def setup_common_ui(self):
@@ -87,7 +89,9 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
             on_video_selected=self._internal_video_selected,
             on_select_all=self.select_all_videos,
             on_clear=self.clear_selection,
-            on_add=self.add_selected_videos
+            on_add=self.add_selected_videos,
+            on_filter_changed=self._on_collection_filter_changed,
+            on_search_changed=self._on_collection_search_changed
         )
         self.added_section = create_video_section(
             "Added Videos", False,
@@ -125,9 +129,11 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
     # --- Video list management ---
     def _internal_video_selected(self, item):
         row = self.videos_list.row(item)
-        if 0 <= row < len(self.collection_videos):
-            video = self.collection_videos[row]
-            self._on_video_selected(video)
+        if 0 <= row < self.videos_list.count():
+            path = item.data(Qt.UserRole)
+            video = next((v for v in self.collection_videos if v.get('path') == path), None)
+            if video:
+                self._on_video_selected(video)
 
     def _on_video_selected(self, video: dict):
         """Override to handle video selection from collection."""
@@ -155,10 +161,9 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
 
     def add_selected_videos(self):
         for item in self.videos_list.selectedItems():
-            row = self.videos_list.row(item)
-            if 0 <= row < len(self.collection_videos):
-                video = self.collection_videos[row]
-            else:
+            path = item.data(Qt.UserRole)
+            video = next((v for v in self.collection_videos if v.get('path') == path), None)
+            if video is None:
                 text = item.text()
                 video_name = text.split(' (')[0]
                 video = {'name': video_name}
@@ -246,6 +251,50 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
         self.search_text = text
         self.refresh_added_list()
 
+    def _on_collection_filter_changed(self, index):
+        combo = self.collection_section.filter_combo
+        if combo:
+            self.collection_filter = combo.itemData(index)
+            self.refresh_collection_list()
+
+    def _on_collection_search_changed(self, text):
+        self.collection_search_text = text
+        self.refresh_collection_list()
+
+    def _populate_collection_filter_combo(self):
+        combo = self.collection_section.filter_combo
+        if not combo:
+            return
+        combo.blockSignals(True)
+        current = combo.currentData()
+        combo.clear()
+        combo.addItem("All Collections", "")
+        sources = sorted({v.get('_source_name', '') for v in self.collection_videos if v.get('_source_name')})
+        for src in sources:
+            combo.addItem(src, src)
+        idx = combo.findData(current)
+        if idx >= 0:
+            combo.setCurrentIndex(idx)
+        combo.blockSignals(False)
+
+    def refresh_collection_list(self):
+        self.videos_list.clear()
+
+        filtered = self.collection_videos
+        if self.collection_filter:
+            filtered = [v for v in filtered if v.get('_source_name') == self.collection_filter]
+        if self.collection_search_text:
+            search_lower = self.collection_search_text.lower()
+            filtered = [v for v in filtered if search_lower in get_video_display_name(v).lower()]
+
+        for video in filtered:
+            src = video.get('_source_name', '')
+            prefix = f"{src}: " if src else ""
+            item = QListWidgetItem(f"{prefix}{get_video_display_name(video)} ({format_duration(video.get('duration', 0))})")
+            item.setData(Qt.UserRole, video.get('path', ''))
+            self.videos_list.addItem(item)
+        self.update_counts()
+
     def refresh_added_list(self):
         self.added_list.clear()
 
@@ -315,7 +364,6 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
         """Load collection JSON and populate video list. Optionally load blacklist."""
         collection_videos, collection_info_dict = load_collection_json(file_path)
         self.collection_path.setText(file_path)
-        self.videos_list.clear()
         self.collection_videos = []
         self.added_videos = []
         if load_blacklist:
@@ -344,17 +392,16 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
 
         # Populate collection videos
         for video in collection_videos:
-            path = video.get('path', '')
-            duration = video.get('duration', 0)
             video_data = video.copy()
             if 'name' not in video_data:
                 video_data['name'] = get_video_display_name(video)
             self.collection_videos.append(video_data)
-            self.videos_list.addItem(f"{video_data['name']} ({format_duration(duration)})")
             if load_blacklist and is_video_in_blacklist(video_data, blacklist_data):
                 self.blacklist.append(video_data)
 
         self.refresh_blacklist_list()
+        self._populate_collection_filter_combo()
+        self.refresh_collection_list()
 
         # Auto-add non-blacklisted videos if applicable
         if load_blacklist and self._should_auto_add():

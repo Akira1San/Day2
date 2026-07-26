@@ -633,7 +633,6 @@ class RandomFillDialog(CollectionDialogBase):
     def _reload_all_collections(self):
         """Load videos from all collection paths in the table, merging into collection_videos."""
         self.collection_videos = []
-        self.videos_list.clear()
         self.collection_info_dict = {}
 
         for row in range(self.collection_table.rowCount()):
@@ -657,7 +656,6 @@ class RandomFillDialog(CollectionDialogBase):
                     if 'name' not in v:
                         v['name'] = get_video_display_name(v)
                     self.collection_videos.append(v)
-                    self.videos_list.addItem(f"{coll_name}: {v['name']} ({format_duration(v.get('duration', 0))})")
                 self.collection_info_dict.update(info)
 
         # Keep self.collection_path in sync with the first row
@@ -668,7 +666,8 @@ class RandomFillDialog(CollectionDialogBase):
                 first_path = first_widget.text()
         self.collection_path.setText(first_path)
 
-        self.update_counts()
+        self._populate_collection_filter_combo()
+        self.refresh_collection_list()
         self._on_collection_loaded()
 
     def _find_blacklist_for_collection(self, collection_path: str) -> str:
