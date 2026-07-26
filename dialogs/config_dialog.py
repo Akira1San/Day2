@@ -56,6 +56,17 @@ class ConfigDialog(QDialog):
         covers_layout.addWidget(browse_cov_btn)
         layout.addLayout(covers_layout)
 
+        # Save path
+        layout.addWidget(QLabel("Save Path (where schedules/tags are saved):"))
+        save_layout = QHBoxLayout()
+        self.save_path_edit = QLineEdit()
+        self.save_path_edit.setPlaceholderText("Leave empty for current directory")
+        save_layout.addWidget(self.save_path_edit)
+        browse_save_btn = QPushButton("Browse")
+        browse_save_btn.clicked.connect(self.browse_save_path)
+        save_layout.addWidget(browse_save_btn)
+        layout.addLayout(save_layout)
+
         # Schedule profiles
         layout.addWidget(QLabel("Schedule Profiles (comma-separated names):"))
         self.schedule_profiles_edit = QLineEdit()
@@ -122,6 +133,11 @@ class ConfigDialog(QDialog):
         if path:
             self.covers_path_edit.setText(path)
 
+    def browse_save_path(self):
+        path = QFileDialog.getExistingDirectory(self, "Select Save Directory", "")
+        if path:
+            self.save_path_edit.setText(path)
+
     def load_config(self):
         if Path(self.config_path).exists():
             config = configparser.ConfigParser()
@@ -130,6 +146,7 @@ class ConfigDialog(QDialog):
                 self.collection_path_edit.setText(config['Paths'].get('collection_path', ''))
                 self.blacklist_path_edit.setText(config['Paths'].get('blacklist_path', ''))
                 self.covers_path_edit.setText(config['Paths'].get('covers_path', ''))
+                self.save_path_edit.setText(config['Paths'].get('save_path', ''))
             if 'ScheduleProfiles' in config:
                 self.schedule_profiles_edit.setText(config['ScheduleProfiles'].get('profiles', ''))
             if 'RandomFill' in config:
@@ -146,7 +163,8 @@ class ConfigDialog(QDialog):
         config['Paths'] = {
             'collection_path': self.collection_path_edit.text(),
             'blacklist_path': self.blacklist_path_edit.text(),
-            'covers_path': self.covers_path_edit.text()
+            'covers_path': self.covers_path_edit.text(),
+            'save_path': self.save_path_edit.text(),
         }
         profiles = self.schedule_profiles_edit.text().strip()
         if profiles:

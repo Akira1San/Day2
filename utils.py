@@ -292,6 +292,19 @@ def get_randomfill_config(config_file: str = "config.ini") -> bool:
     return False
 
 
+def get_save_path(config_file: str = "config.ini") -> str:
+    """Read save_path from [Paths] section. Defaults to empty string (current directory)."""
+    try:
+        config = configparser.ConfigParser()
+        config.read(config_file)
+        if 'Paths' in config:
+            p = config['Paths'].get('save_path', '').strip()
+            return p if p else ''
+    except Exception:
+        pass
+    return ''
+
+
 def get_font_config(config_file: str = "config.ini") -> dict:
     try:
         config = configparser.ConfigParser()
