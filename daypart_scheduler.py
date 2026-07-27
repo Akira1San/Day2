@@ -353,6 +353,8 @@ class MainWindow(QMainWindow):
 
     def generate_new_preview(self):
         self.tag_manager.clear_cache()
+        import random
+        self.schedule_generator._generate_count = random.randint(1, 999)
         self.schedule_generator.video_order_mode = self.video_order_combo.currentText().lower().replace(" ", "_")
         
         if self.weekly_radio.isChecked():
