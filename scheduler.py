@@ -215,8 +215,7 @@ class ScheduleGenerator:
             cycle_num = effective_idx // pool_size
             local_idx = effective_idx % pool_size
             rng = random.Random(f"{seed_str}_cycle_{cycle_num}")
-            shuffled_idx = list(pool_idx)
-            rng.shuffle(shuffled_idx)
+            shuffled_idx = sorted(pool_idx, key=lambda i: rng.random() / (eligible[i]['video'].get('_rate', 50) + 1e-9))
             take = min(video_count, pool_size)
             selected_idx = shuffled_idx[local_idx : local_idx + take]
             result = [eligible[i] for i in selected_idx]
@@ -272,7 +271,12 @@ class ScheduleGenerator:
             groups = group_videos_by_movie(videos)
             if not groups:
                 return videos.copy()
-            movie_numbers = sorted(groups.keys())
+            # Sort movie groups by average _rate descending so higher-rated groups
+            # are picked first in the rotation.
+            def group_avg_rate(m):
+                vs = groups[m]
+                return sum(v.get('_rate', 50) for v in vs) / len(vs) if vs else 50
+            movie_numbers = sorted(groups.keys(), key=lambda m: -group_avg_rate(m))
             # Bug 3 fix: rotate the starting movie by _generate_count so re-Generate
             # gives a visibly different preview while preserving day→movie mapping.
             num_movies = len(movie_numbers)
@@ -281,9 +285,8 @@ class ScheduleGenerator:
             day_videos = groups[selected_movie].copy()
             return day_videos
         else:
-            # Random mode: shuffle
-            shuffled = videos.copy()
-            random.shuffle(shuffled)
+            # Random mode: weighted shuffle by _rate
+            shuffled = sorted(videos.copy(), key=lambda v: random.random() / (v.get('_rate', 50) + 1e-9))
             return shuffled
 
     def _place_tag_videos(self, ct, start: int, end: int, final: List[ScheduleEntry], day_offset: int = 0) -> int:
@@ -384,9 +387,8 @@ class ScheduleGenerator:
             return entries
 
         if self.video_order_mode != 'movie_sequence':
-            # Original random behavior: single shuffle, continuous across range
-            vids = videos.copy()
-            random.shuffle(vids)
+            # Weighted shuffle: higher _rate videos tend to appear earlier
+            vids = sorted(videos.copy(), key=lambda v: random.random() / (v.get('_rate', 50) + 1e-9))
             pos = start_pos
             vid_idx = 0
             while pos < end_pos:
@@ -453,7 +455,11 @@ class ScheduleGenerator:
             groups = group_videos_by_movie(vids)
             ordered = []
             if groups:
-                movie_numbers = sorted(groups.keys())
+                # Sort movie groups by average _rate descending
+                def group_avg_rate(m):
+                    vs = groups[m]
+                    return sum(v.get('_rate', 50) for v in vs) / len(vs) if vs else 50
+                movie_numbers = sorted(groups.keys(), key=lambda m: -group_avg_rate(m))
                 for mnum in movie_numbers:
                     ordered.extend(groups[mnum])
             else:
@@ -476,9 +482,8 @@ class ScheduleGenerator:
                 current_second = end_second
                 video_index += 1
         else:
-            # Random mode: single shuffle across entire span
-            shuffled = collection_videos.copy()
-            random.shuffle(shuffled)
+            # Random mode: weighted shuffle across entire span
+            shuffled = sorted(collection_videos.copy(), key=lambda v: random.random() / (v.get('_rate', 50) + 1e-9))
             current_second = 0
             video_index = 0
             while current_second < remaining_seconds:
@@ -726,7 +731,8 @@ class ScheduleGenerator:
                 else:
                     rf_videos = rf_videos_base
             else:
-                rf_videos = rf_videos_base
+                # Weighted shuffle
+                rf_videos = sorted(rf_videos_base, key=lambda v: random.random() / (v.get('_rate', 50) + 1e-9))
 
             pos = rf_start
             if continuation_pos > rf_start:

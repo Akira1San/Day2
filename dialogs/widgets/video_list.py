@@ -1,14 +1,38 @@
-from PySide6.QtWidgets import QListWidget, QWidget, QVBoxLayout, QLabel, QPushButton, QHBoxLayout, QComboBox, QLineEdit
+from PySide6.QtWidgets import QTableWidget, QTableWidgetItem, QWidget, QVBoxLayout, QLabel, QPushButton, QHBoxLayout, QComboBox, QLineEdit, QHeaderView, QAbstractItemView
 from PySide6.QtCore import Qt
 from dataclasses import dataclass
 from typing import List, Dict, Any, Optional, Callable
 
 
-class VideoListWidget(QListWidget):
-    """List widget with ExtendedSelection: plain click selects one, Ctrl toggles, Shift ranges."""
-    def __init__(self, parent=None):
+class VideoListWidget(QTableWidget):
+    """Table widget with ExtendedSelection: plain click selects one, Ctrl toggles, Shift ranges.
+    Modes: 1=name only (blacklist), 2=name+duration (collection), 3=name+duration+rate (added).
+    """
+    def __init__(self, parent=None, columns: int = 2):
         super().__init__(parent)
-        self.setSelectionMode(QListWidget.ExtendedSelection)
+        self.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.setShowGrid(False)
+        self.setAlternatingRowColors(True)
+        self.verticalHeader().setVisible(False)
+        self._setup_columns(columns)
+
+    def _setup_columns(self, columns: int):
+        self.setColumnCount(columns)
+        if columns == 3:
+            self.setHorizontalHeaderLabels(["Video Name", "Duration", "Rate (%)"])
+            self.horizontalHeader().setStretchLastSection(False)
+            self.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+            self.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+            self.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        elif columns == 2:
+            self.setHorizontalHeaderLabels(["Video Name", "Duration"])
+            self.horizontalHeader().setStretchLastSection(False)
+            self.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+            self.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        else:
+            self.setHorizontalHeaderLabels(["Video Name"])
+            self.horizontalHeader().setStretchLastSection(True)
 
 
 @dataclass
@@ -44,7 +68,8 @@ def create_video_section(
     on_check_missing: Optional[Callable] = None,
     on_sort_changed: Optional[Callable] = None,
     on_search_changed: Optional[Callable] = None,
-    on_filter_changed: Optional[Callable] = None
+    on_filter_changed: Optional[Callable] = None,
+    columns: int = 3
 ) -> VideoSection:
     """
     Create a video list section with optional buttons.
@@ -60,6 +85,7 @@ def create_video_section(
         on_remove_all: Callback for Remove All button
         on_clear_selection: Callback for Clear Selection button
         on_add_to_blacklist: Callback for Add to Blacklist button
+        show_rate_column: If True, show Rate (%) column
 
     Returns:
         VideoSection container with widget, videos_list, and count_label
@@ -102,7 +128,7 @@ def create_video_section(
             filter_layout.addWidget(search_input)
         vbox.addLayout(filter_layout)
 
-    videos_list = VideoListWidget()
+    videos_list = VideoListWidget(columns=columns)
     videos_list.setMinimumHeight(200)
     if on_video_selected:
         videos_list.itemClicked.connect(on_video_selected)
@@ -178,7 +204,7 @@ def create_blacklist_section(
     count_label = QLabel("Count: 0")
     vbox.addWidget(count_label)
 
-    blacklist_list = VideoListWidget()
+    blacklist_list = VideoListWidget(columns=1)
     blacklist_list.setMinimumHeight(200)
     if on_video_selected:
         blacklist_list.itemClicked.connect(on_video_selected)

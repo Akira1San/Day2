@@ -2,8 +2,8 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import List, Dict, Any, Optional
-from PySide6.QtWidgets import QWidget, QLabel, QHBoxLayout, QVBoxLayout, QComboBox, QLineEdit, QPushButton, QMessageBox, QListWidgetItem
+from typing import List, Dict, Any, Optional, Set
+from PySide6.QtWidgets import QWidget, QLabel, QHBoxLayout, QVBoxLayout, QComboBox, QLineEdit, QPushButton, QMessageBox, QTableWidgetItem, QDoubleSpinBox, QHeaderView
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 
@@ -11,7 +11,7 @@ from .base import BaseTagDialog
 from .profile_mixin import SeriesProfileMixin
 from .widgets.video_list import create_video_section, create_blacklist_section
 from utils import (
-    load_collection_json, load_blacklist_json,
+    load_collection_json, load_blacklist_json, load_rates_json, save_rates_json,
     get_video_display_name, format_duration,
     filter_videos_by_blacklist, is_video_in_blacklist,
     get_randomfill_config
@@ -49,6 +49,7 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
     collection_info_dict: Dict[str, dict]
     collection_dir: Path
     covers_root: Path
+    _rates: Dict[str, int]
 
     def __init__(self, parent=None, tag=None):
         super().__init__(parent, tag)
@@ -59,6 +60,7 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
         self.collection_info_dict = {}
         self.collection_dir = Path('.')
         self.covers_root = Path('.')
+        self._rates = {}
         self.sort_mode = "name_asc"
         self.search_text = ""
         self.collection_filter = ""
@@ -91,7 +93,8 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
             on_clear=self.clear_selection,
             on_add=self.add_selected_videos,
             on_filter_changed=self._on_collection_filter_changed,
-            on_search_changed=self._on_collection_search_changed
+            on_search_changed=self._on_collection_search_changed,
+            columns=2
         )
         self.added_section = create_video_section(
             "Added Videos", False,
@@ -126,10 +129,58 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
         self.cancel_btn = QPushButton("Cancel")
         self.cancel_btn.clicked.connect(self.reject)
 
+    # --- Rate management ---
+
+    def _on_rate_changed(self, video_path: str, value: float):
+        rate = int(value)
+        self._rates[video_path] = rate
+        for video in self.collection_videos:
+            if video.get('path') == video_path:
+                video['_rate'] = rate
+                break
+        for video in self.added_videos:
+            if video.get('path') == video_path:
+                video['_rate'] = rate
+                break
+
+    def accept(self):
+        self.save_rates_file()
+        super().accept()
+
+    def _load_rates_file(self, file_path: str):
+        self._rates = {}
+        collection_stem = Path(file_path).stem
+        rates_patterns = [
+            f"{collection_stem}_rates.json",
+            f"{collection_stem.replace('collections_', '')}_rates.json"
+        ]
+        collection_dir = Path(file_path).parent
+        for search_dir in [collection_dir, Path.cwd()]:
+            for pattern in rates_patterns:
+                for rates_file in search_dir.glob(pattern):
+                    self._rates = load_rates_json(str(rates_file))
+                    return
+
+    def save_rates_file(self):
+        if not self.collection_path.text():
+            return
+        rates_path = self.collection_path.text().replace('.json', '_rates.json')
+        rates_dict = {}
+        for video in self.collection_videos:
+            path = video.get('path', '')
+            if path:
+                rates_dict[path] = video.get('_rate', 50)
+        save_rates_json(rates_path, rates_dict)
+
     # --- Video list management ---
+
+    @staticmethod
+    def _selected_table_rows(table) -> Set[int]:
+        return set(item.row() for item in table.selectedItems())
+
     def _internal_video_selected(self, item):
         row = self.videos_list.row(item)
-        if 0 <= row < self.videos_list.count():
+        if 0 <= row < self.videos_list.rowCount():
             path = item.data(Qt.UserRole)
             video = next((v for v in self.collection_videos if v.get('path') == path), None)
             if video:
@@ -160,7 +211,11 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
         self.blacklist_list.clearSelection()
 
     def add_selected_videos(self):
-        for item in self.videos_list.selectedItems():
+        rows = self._selected_table_rows(self.videos_list)
+        for row in sorted(rows):
+            item = self.videos_list.item(row, 0)
+            if not item:
+                continue
             path = item.data(Qt.UserRole)
             video = next((v for v in self.collection_videos if v.get('path') == path), None)
             if video is None:
@@ -169,27 +224,31 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
                 video = {'name': video_name}
             if video not in self.added_videos:
                 if not is_video_in_blacklist(video, self.blacklist):
-                    self.added_videos.append(video.copy())
+                    video_copy = video.copy()
+                    video_copy['_rate'] = self._rates.get(path, 50)
+                    self.added_videos.append(video_copy)
         self.refresh_added_list()
 
     def remove_selected_added(self):
         scroll_bar = self.added_list.verticalScrollBar()
         scroll_pos = scroll_bar.value() if scroll_bar else 0
-        selected_rows = sorted(
-            self.added_list.row(item) for item in self.added_list.selectedItems()
-        )
-        first_row = selected_rows[0] if selected_rows else None
+        rows = sorted(self._selected_table_rows(self.added_list))
+        first_row = rows[0] if rows else None
 
-        for item in self.added_list.selectedItems():
-            path = item.data(Qt.UserRole)
-            self.added_videos = [v for v in self.added_videos if v.get('path', '') != path]
+        paths_to_remove = set()
+        for row in rows:
+            item = self.added_list.item(row, 0)
+            if item:
+                paths_to_remove.add(item.data(Qt.UserRole))
+
+        self.added_videos = [v for v in self.added_videos if v.get('path', '') not in paths_to_remove]
         self.refresh_added_list()
 
-        if first_row is not None and self.added_list.count() > 0:
-            restore_row = min(first_row, self.added_list.count() - 1)
-            item = self.added_list.item(restore_row)
+        if first_row is not None and self.added_list.rowCount() > 0:
+            restore_row = min(first_row, self.added_list.rowCount() - 1)
+            item = self.added_list.item(restore_row, 0)
             if item:
-                self.added_list.setCurrentRow(restore_row)
+                self.added_list.setCurrentCell(restore_row, 0)
                 self.added_list.scrollToItem(item)
         elif scroll_bar:
             scroll_bar.setValue(min(scroll_pos, scroll_bar.maximum()))
@@ -199,7 +258,13 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
         self.refresh_added_list()
 
     def add_to_blacklist(self):
-        for item in self.added_list.selectedItems():
+        rows = sorted(self._selected_table_rows(self.added_list))
+        first_row = rows[0] if rows else None
+
+        for row in rows:
+            item = self.added_list.item(row, 0)
+            if not item:
+                continue
             path = item.data(Qt.UserRole)
             for v in self.collection_videos:
                 if v.get('path', '') == path:
@@ -209,20 +274,16 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
 
         scroll_bar = self.added_list.verticalScrollBar()
         scroll_pos = scroll_bar.value() if scroll_bar else 0
-        selected_rows = sorted(
-            self.added_list.row(item) for item in self.added_list.selectedItems()
-        )
-        first_row = selected_rows[0] if selected_rows else None
 
         self.added_videos = filter_videos_by_blacklist(self.added_videos, self.blacklist)
         self.refresh_added_list()
         self.refresh_blacklist_list()
 
-        if first_row is not None and self.added_list.count() > 0:
-            restore_row = min(first_row, self.added_list.count() - 1)
-            item = self.added_list.item(restore_row)
+        if first_row is not None and self.added_list.rowCount() > 0:
+            restore_row = min(first_row, self.added_list.rowCount() - 1)
+            item = self.added_list.item(restore_row, 0)
             if item:
-                self.added_list.setCurrentRow(restore_row)
+                self.added_list.setCurrentCell(restore_row, 0)
                 self.added_list.scrollToItem(item)
         elif scroll_bar:
             scroll_bar.setValue(min(scroll_pos, scroll_bar.maximum()))
@@ -231,12 +292,18 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
         selected_items = self.blacklist_list.selectedItems()
         if not selected_items:
             return
-        paths_to_remove = {item.data(Qt.UserRole) for item in selected_items}
+        rows = set(item.row() for item in selected_items)
+        paths_to_remove = set()
+        for row in rows:
+            item = self.blacklist_list.item(row, 0)
+            if item:
+                paths_to_remove.add(item.data(Qt.UserRole))
         removed_videos = [v for v in self.blacklist if v.get('path') in paths_to_remove]
         self.blacklist = [v for v in self.blacklist if v.get('path') not in paths_to_remove]
         existing_paths = {v.get('path') for v in self.added_videos}
         for v in removed_videos:
             if v.get('path') not in existing_paths:
+                v['_rate'] = self._rates.get(v.get('path', ''), 50)
                 self.added_videos.append(v)
         self.refresh_added_list()
         self.refresh_blacklist_list()
@@ -278,7 +345,7 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
         combo.blockSignals(False)
 
     def refresh_collection_list(self):
-        self.videos_list.clear()
+        self.videos_list.setRowCount(0)
 
         filtered = self.collection_videos
         if self.collection_filter:
@@ -288,15 +355,22 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
             filtered = [v for v in filtered if search_lower in get_video_display_name(v).lower()]
 
         for video in filtered:
+            row = self.videos_list.rowCount()
+            self.videos_list.insertRow(row)
             src = video.get('_source_name', '')
             prefix = f"{src}: " if src else ""
-            item = QListWidgetItem(f"{prefix}{get_video_display_name(video)} ({format_duration(video.get('duration', 0))})")
-            item.setData(Qt.UserRole, video.get('path', ''))
-            self.videos_list.addItem(item)
+            name_item = QTableWidgetItem(f"{prefix}{get_video_display_name(video)}")
+            name_item.setData(Qt.UserRole, video.get('path', ''))
+            name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)
+            self.videos_list.setItem(row, 0, name_item)
+
+            dur_item = QTableWidgetItem(format_duration(video.get('duration', 0)))
+            dur_item.setFlags(dur_item.flags() & ~Qt.ItemIsEditable)
+            self.videos_list.setItem(row, 1, dur_item)
         self.update_counts()
 
     def refresh_added_list(self):
-        self.added_list.clear()
+        self.added_list.setRowCount(0)
 
         # Apply sort
         if self.sort_mode == "added_asc":
@@ -319,22 +393,42 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
             ]
 
         for video in sorted_videos:
+            row = self.added_list.rowCount()
+            self.added_list.insertRow(row)
             src = video.get('_source_name', '')
             prefix = f"{src}: " if src else ""
-            item = QListWidgetItem(f"{prefix}{get_video_display_name(video)} ({format_duration(video.get('duration', 0))})")
-            item.setData(Qt.UserRole, video.get('path', ''))
-            self.added_list.addItem(item)
+            name_item = QTableWidgetItem(f"{prefix}{get_video_display_name(video)}")
+            name_item.setData(Qt.UserRole, video.get('path', ''))
+            name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)
+            self.added_list.setItem(row, 0, name_item)
+
+            dur_item = QTableWidgetItem(format_duration(video.get('duration', 0)))
+            dur_item.setFlags(dur_item.flags() & ~Qt.ItemIsEditable)
+            self.added_list.setItem(row, 1, dur_item)
+
+            spinbox = QDoubleSpinBox()
+            spinbox.setRange(0, 100)
+            spinbox.setSuffix("%")
+            spinbox.setDecimals(0)
+            spinbox.setSingleStep(1)
+            spinbox.setValue(video.get('_rate', 50))
+            video_path = video.get('path', '')
+            spinbox.valueChanged.connect(lambda val, p=video_path: self._on_rate_changed(p, val))
+            self.added_list.setCellWidget(row, 2, spinbox)
         self.update_counts()
 
     def refresh_blacklist_list(self):
-        self.blacklist_list.clear()
+        self.blacklist_list.setRowCount(0)
         sorted_blacklist = sorted(self.blacklist, key=lambda v: v.get('path', '').split('/')[-1])
         for video in sorted_blacklist:
+            row = self.blacklist_list.rowCount()
+            self.blacklist_list.insertRow(row)
             src = video.get('_source_name', '')
             prefix = f"{src}: " if src else ""
-            item = QListWidgetItem(f"{prefix}{get_video_display_name(video)}")
-            item.setData(Qt.UserRole, video.get('path', ''))
-            self.blacklist_list.addItem(item)
+            name_item = QTableWidgetItem(f"{prefix}{get_video_display_name(video)}")
+            name_item.setData(Qt.UserRole, video.get('path', ''))
+            name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)
+            self.blacklist_list.setItem(row, 0, name_item)
         self.update_counts()
 
     def update_counts(self):
@@ -345,13 +439,15 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
     def check_missing_videos(self):
         """Check which added videos still exist on disk and mark missing ones in red."""
         missing_count = 0
-        for i in range(self.added_list.count()):
-            item = self.added_list.item(i)
+        for i in range(self.added_list.rowCount()):
+            item = self.added_list.item(i, 0)
+            if not item:
+                continue
             path = item.data(Qt.UserRole)
             if not path or not Path(path).exists():
                 item.setForeground(QColor("red"))
                 missing_count += 1
-        total = self.added_list.count()
+        total = self.added_list.rowCount()
         if missing_count:
             self.added_section.count_label.setText(f"Count: {total}  ({missing_count} missing)")
             QMessageBox.information(self, "Missing Videos",
@@ -371,6 +467,9 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
 
         self.collection_dir = Path(file_path).parent
         self.collection_info_dict = collection_info_dict
+
+        # Load rates file
+        self._load_rates_file(file_path)
 
         # Find matching blacklist file if needed
         blacklist_data = []
@@ -395,6 +494,8 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
             video_data = video.copy()
             if 'name' not in video_data:
                 video_data['name'] = get_video_display_name(video)
+            path = video_data.get('path', '')
+            video_data['_rate'] = self._rates.get(path, 50)
             self.collection_videos.append(video_data)
             if load_blacklist and is_video_in_blacklist(video_data, blacklist_data):
                 self.blacklist.append(video_data)

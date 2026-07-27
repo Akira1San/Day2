@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Optional, List, Dict
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QSpinBox,
-    QMessageBox, QListWidgetItem, QComboBox, QDialog, QTableWidget,
+    QMessageBox, QComboBox, QDialog, QTableWidget,
     QTableWidgetItem, QHeaderView, QPushButton, QFileDialog, QLineEdit
 )
 from PySide6.QtCore import Qt, QTime

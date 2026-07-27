@@ -202,6 +202,24 @@ def load_blacklist_json(file_path: str) -> List[Dict[str, Any]]:
         return []
 
 
+def load_rates_json(file_path: str) -> Dict[str, int]:
+    if not file_path or not Path(file_path).exists():
+        return {}
+    try:
+        with open(file_path, 'r') as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def save_rates_json(file_path: str, rates_dict: Dict[str, int]):
+    try:
+        with open(file_path, 'w') as f:
+            json.dump(rates_dict, f, indent=2)
+    except Exception:
+        pass
+
+
 def qtime_to_minutes(qtime: QTime) -> int:
     return qtime.hour() * 60 + qtime.minute()
 
