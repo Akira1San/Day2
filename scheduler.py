@@ -193,6 +193,9 @@ class ScheduleGenerator:
             # Keep full parsed structure (video + season + episode) for return
             eligible = parsed
 
+        # Exclude 0-rate videos
+        eligible = [e for e in eligible if e['video'].get('_rate', 50) != 0]
+
         total_eligible = len(eligible)
         if total_eligible == 0:
             logger.debug(f"[SERIES_SEL] {_get('name','?')} day_offset={day_offset} total_eligible=0 -> empty")
@@ -267,10 +270,20 @@ class ScheduleGenerator:
         if not videos:
             return []
 
+        # Exclude 0-rate videos
+        videos = [v for v in videos if v.get('_rate', 50) != 0]
+        if not videos:
+            return []
+
         if self.video_order_mode == 'movie_sequence':
             groups = group_videos_by_movie(videos)
             if not groups:
                 return videos.copy()
+            # Remove 0-rate videos from each group and drop empty groups
+            groups = {m: [v for v in vs if v.get('_rate', 50) != 0] for m, vs in groups.items()}
+            groups = {m: vs for m, vs in groups.items() if vs}
+            if not groups:
+                return []
             # Sort movie groups by average _rate descending so higher-rated groups
             # are picked first in the rotation.
             def group_avg_rate(m):
@@ -386,6 +399,13 @@ class ScheduleGenerator:
             entries.append(ScheduleEntry(1, start_pos, start_pos + 3600, placeholder))
             return entries
 
+        # Exclude 0-rate videos
+        videos = [v for v in videos if v.get('_rate', 50) != 0]
+        if not videos:
+            placeholder = f"{tag_name} - No videos" if tag_name else "No videos"
+            entries.append(ScheduleEntry(1, start_pos, start_pos + 3600, placeholder))
+            return entries
+
         if self.video_order_mode != 'movie_sequence':
             # Weighted shuffle: higher _rate videos tend to appear earlier
             vids = sorted(videos.copy(), key=lambda v: random.random() / (v.get('_rate', 50) + 1e-9))
@@ -406,6 +426,9 @@ class ScheduleGenerator:
         # movie_sequence mode: build continuous ordered list (movies in sequence) across all days
         vids = videos.copy()
         groups = group_videos_by_movie(vids)
+        # Remove 0-rate videos from each group and drop empty groups
+        groups = {m: [v for v in vs if v.get('_rate', 50) != 0] for m, vs in groups.items()}
+        groups = {m: vs for m, vs in groups.items() if vs}
         ordered = []
         if groups:
             movie_numbers = sorted(groups.keys())
@@ -447,12 +470,20 @@ class ScheduleGenerator:
         if not collection_videos:
             return []
 
+        # Exclude 0-rate videos
+        collection_videos = [v for v in collection_videos if v.get('_rate', 50) != 0]
+        if not collection_videos:
+            return []
+
         entries = []
 
         if self.video_order_mode == 'movie_sequence':
             # Build continuous ordered list (movies in sequence) across all days
             vids = collection_videos.copy()
             groups = group_videos_by_movie(vids)
+            # Remove 0-rate videos from each group and drop empty groups
+            groups = {m: [v for v in vs if v.get('_rate', 50) != 0] for m, vs in groups.items()}
+            groups = {m: vs for m, vs in groups.items() if vs}
             ordered = []
             if groups:
                 # Sort movie groups by average _rate descending
@@ -721,8 +752,15 @@ class ScheduleGenerator:
             rf_videos_base = rf.collection_videos.copy() if rf.collection_videos else []
             if not rf_videos_base:
                 return
+            # Exclude 0-rate videos
+            rf_videos_base = [v for v in rf_videos_base if v.get('_rate', 50) != 0]
+            if not rf_videos_base:
+                return
             if self.video_order_mode == 'movie_sequence':
                 groups = group_videos_by_movie(rf_videos_base)
+                # Remove 0-rate videos from each group and drop empty groups
+                groups = {m: [v for v in vs if v.get('_rate', 50) != 0] for m, vs in groups.items()}
+                groups = {m: vs for m, vs in groups.items() if vs}
                 rf_videos = []
                 if groups:
                     movie_numbers = sorted(groups.keys())
