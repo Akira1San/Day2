@@ -1027,7 +1027,7 @@ class MainWindow(QMainWindow):
             return
 
         with open(file_path, 'w') as f:
-            json.dump(schedule_data, f, indent=2)
+            json.dump(schedule_data, f, indent=2, ensure_ascii=False)
 
         QMessageBox.information(self, "Saved", f"Schedule saved to {file_path}")
         self.statusBar().showMessage(f"Schedule saved to {file_path}")

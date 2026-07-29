@@ -58,9 +58,9 @@ def serialize_tag_to_string(tag) -> str:
             {k: v for k, v in s.items() if k != 'collection_videos'}
             for s in tag.series_list
         ]
-        lines.append(f"series_list = {json.dumps(clean_series_list)}")
+        lines.append(f"series_list = {json.dumps(clean_series_list, ensure_ascii=False)}")
         lines.append(f"blacklist_profile = {getattr(tag, 'blacklist_profile', '')}")
-        lines.append(f"blacklist = {json.dumps(getattr(tag, 'blacklist', []))}")
+        lines.append(f"blacklist = {json.dumps(getattr(tag, 'blacklist', []), ensure_ascii=False)}")
         active_days = getattr(tag, 'active_days', None)
         lines.append(f"active_days = {','.join(str(d) for d in active_days) if active_days else ''}")
     
@@ -89,7 +89,7 @@ def serialize_tag_to_string(tag) -> str:
     elif getattr(tag, 'is_gap_filler', False) or tag.tag_type == "gap":
         lines.append(f"type = gap")
         lines.append(f"name = {tag.name}")
-        lines.append(f"gap_collections = {json.dumps(getattr(tag, 'gap_collections', []))}")
+        lines.append(f"gap_collections = {json.dumps(getattr(tag, 'gap_collections', []), ensure_ascii=False)}")
         gap_max = getattr(tag, 'gap_max_duration', None)
         lines.append(f"gap_max_duration = {gap_max if gap_max is not None else ''}")
         lines.append(f"gap_preserve_boundaries = {'true' if getattr(tag, 'gap_preserve_boundaries', False) else 'false'}")
@@ -119,7 +119,7 @@ def serialize_tag_to_string(tag) -> str:
                     serialized.append(e)
                 else:
                     serialized.append({"path": e, "blacklist_enabled": True})
-            lines.append(f"extra_collections = {json.dumps(serialized)}")
+            lines.append(f"extra_collections = {json.dumps(serialized, ensure_ascii=False)}")
 
         marathon_mode = getattr(tag, 'marathon_mode', False)
         if marathon_mode:

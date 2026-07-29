@@ -215,7 +215,7 @@ def load_rates_json(file_path: str) -> Dict[str, int]:
 def save_rates_json(file_path: str, rates_dict: Dict[str, int]):
     try:
         with open(file_path, 'w') as f:
-            json.dump(rates_dict, f, indent=2)
+            json.dump(rates_dict, f, indent=2, ensure_ascii=False)
     except Exception:
         pass
 

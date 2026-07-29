@@ -550,7 +550,7 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
         blacklist_data = {'blacklist': stripped}
         try:
             with open(blacklist_path, 'w') as f:
-                json.dump(blacklist_data, f, indent=2)
+                json.dump(blacklist_data, f, indent=2, ensure_ascii=False)
             QMessageBox.information(self, "Saved", f"Blacklist saved to {blacklist_path}")
         except Exception as e:
             QMessageBox.warning(self, "Error", f"Failed to save blacklist: {e}")
