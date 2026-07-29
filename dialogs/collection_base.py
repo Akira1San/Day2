@@ -308,8 +308,25 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
         existing_paths = {v.get('path') for v in self.added_videos}
         for v in removed_videos:
             if v.get('path') not in existing_paths:
-                v['_rate'] = self._rates.get(v.get('path', ''), 50)
-                self.added_videos.append(v)
+                vpath = v.get('path', '')
+                vcid = v.get('collection_id', '')
+                full_video = v
+                for cv in self.collection_videos:
+                    cvpath = cv.get('path', '')
+                    cvcid = cv.get('collection_id', '')
+                    if cvpath == vpath:
+                        full_video = cv
+                        break
+                    if vcid and cvcid and vcid == cvcid:
+                        full_video = cv
+                        break
+                    from os.path import basename
+                    if vpath and basename(vpath) == basename(cvpath):
+                        full_video = cv
+                        break
+                full_video = full_video.copy()
+                full_video['_rate'] = self._rates.get(vpath, 50)
+                self.added_videos.append(full_video)
         self.refresh_added_list()
         self.refresh_blacklist_list()
 

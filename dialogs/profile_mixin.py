@@ -135,7 +135,31 @@ class SeriesProfileMixin:
         if not file_path:
             return
         blacklist_data = load_blacklist_json(file_path)
-        self.blacklist = blacklist_data
+        enriched = []
+        for entry in blacklist_data:
+            entry_path = entry.get('path', '')
+            entry_cid = entry.get('collection_id', '')
+            # Try to match against collection_videos to preserve full metadata (duration, etc.)
+            match = None
+            if hasattr(self, 'collection_videos') and self.collection_videos:
+                for cv in self.collection_videos:
+                    cv_path = cv.get('path', '')
+                    cv_cid = cv.get('collection_id', '')
+                    if entry_path and cv_path == entry_path:
+                        match = cv
+                        break
+                    if entry_cid and cv_cid and entry_cid == cv_cid:
+                        match = cv
+                        break
+                    from os.path import basename
+                    if entry_path and basename(entry_path) == basename(cv_path):
+                        match = cv
+                        break
+            if match is not None:
+                enriched.append(match.copy())
+            else:
+                enriched.append(entry)
+        self.blacklist = enriched
         self.blacklist_path = file_path
         self.added_videos = filter_videos_by_blacklist(self.added_videos, self.blacklist)
         self.refresh_blacklist_list()
