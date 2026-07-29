@@ -15,7 +15,7 @@ from models import Tag
 from utils import (
     filter_videos_by_blacklist, get_video_display_name, format_duration,
     qtime_to_minutes, get_config_paths, get_covers_path, get_randomfill_config,
-    load_collection_json
+    load_collection_json, load_rates_json
 )
 
 logger = logging.getLogger(__name__)
@@ -627,6 +627,7 @@ class RandomFillDialog(CollectionDialogBase):
         """Load videos from all collection paths in the table, merging into collection_videos."""
         self.collection_videos = []
         self.collection_info_dict = {}
+        self._rates = {}
 
         for row in range(self.collection_table.rowCount()):
             path_widget = self.collection_table.cellWidget(row, 0)
@@ -636,11 +637,33 @@ class RandomFillDialog(CollectionDialogBase):
                 if coll_name.startswith('collections_'):
                     coll_name = coll_name.replace('collections_', '')
                 videos, info = load_collection_json(path)
+
+                # Load rates file for this collection
+                collection_stem = Path(path).stem
+                rates_patterns = [
+                    f"{collection_stem}_rates.json",
+                    f"{collection_stem.replace('collections_', '')}_rates.json"
+                ]
+                collection_dir = Path(path).parent
+                found = False
+                for search_dir in [collection_dir, Path.cwd()]:
+                    for pattern in rates_patterns:
+                        for rates_file in search_dir.glob(pattern):
+                            self._rates.update(load_rates_json(str(rates_file)))
+                            found = True
+                            break
+                        if found:
+                            break
+                    if found:
+                        break
+
                 for video in videos:
                     v = video.copy()
                     v['_source_name'] = coll_name
                     if 'name' not in v:
                         v['name'] = get_video_display_name(v)
+                    path_key = v.get('path', '')
+                    v['_rate'] = self._rates.get(path_key, 50)
                     self.collection_videos.append(v)
                 self.collection_info_dict.update(info)
 
