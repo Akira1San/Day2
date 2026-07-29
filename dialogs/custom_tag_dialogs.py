@@ -15,7 +15,7 @@ from models import Tag
 from utils import (
     filter_videos_by_blacklist, get_video_display_name, format_duration,
     qtime_to_minutes, get_config_paths, get_covers_path, get_randomfill_config,
-    load_collection_json, load_blacklist_json
+    load_collection_json
 )
 
 logger = logging.getLogger(__name__)
@@ -400,15 +400,13 @@ class RandomFillDialog(CollectionDialogBase):
         coll_label = QLabel("Collection Files:")
         right_layout.addWidget(coll_label)
 
-        self.collection_table = QTableWidget(0, 4)
-        self.collection_table.setHorizontalHeaderLabels(["Path", "", "", "Auto BL"])
+        self.collection_table = QTableWidget(0, 3)
+        self.collection_table.setHorizontalHeaderLabels(["Path", "", ""])
         self.collection_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         self.collection_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Fixed)
         self.collection_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Fixed)
-        self.collection_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.Fixed)
         self.collection_table.setColumnWidth(1, 80)
         self.collection_table.setColumnWidth(2, 80)
-        self.collection_table.setColumnWidth(3, 60)
         self.collection_table.verticalHeader().setVisible(False)
         right_layout.addWidget(self.collection_table)
 
@@ -492,14 +490,14 @@ class RandomFillDialog(CollectionDialogBase):
         # Load primary + extra collections
         all_entries = []
         if tag.collection_path:
-            all_entries.append({"path": tag.collection_path, "blacklist_enabled": True})
+            all_entries.append({"path": tag.collection_path})
         for entry in getattr(tag, 'extra_collections', []):
             if isinstance(entry, dict):
                 all_entries.append(entry)
             else:
-                all_entries.append({"path": entry, "blacklist_enabled": True})
+                all_entries.append({"path": entry})
         for entry in all_entries:
-            self._add_collection_row(entry["path"], entry.get("blacklist_enabled", True))
+            self._add_collection_row(entry["path"])
         if all_entries:
             self._reload_all_collections()
             self.added_videos = self.collection_videos.copy()
@@ -581,7 +579,7 @@ class RandomFillDialog(CollectionDialogBase):
             self.marathon_tag_combo.setCurrentIndex(idx)
         self.marathon_tag_combo.blockSignals(False)
 
-    def _add_collection_row(self, path: str = "", blacklist_enabled: bool = True):
+    def _add_collection_row(self, path: str = ""):
         """Add a row to the collection table, optionally with a pre-set path."""
         row = self.collection_table.rowCount()
         self.collection_table.insertRow(row)
@@ -598,11 +596,6 @@ class RandomFillDialog(CollectionDialogBase):
         remove_btn = QPushButton("Remove")
         remove_btn.clicked.connect(lambda: self._remove_collection_row(row))
         self.collection_table.setCellWidget(row, 2, remove_btn)
-
-        bl_check = QCheckBox()
-        bl_check.setChecked(blacklist_enabled)
-        bl_check.setToolTip("Auto-detect blacklist file alongside this collection")
-        self.collection_table.setCellWidget(row, 3, bl_check)
 
     def _browse_collection_row(self, row: int):
         """Open file dialog to select a collection JSON for the given row."""
@@ -643,13 +636,6 @@ class RandomFillDialog(CollectionDialogBase):
                 if coll_name.startswith('collections_'):
                     coll_name = coll_name.replace('collections_', '')
                 videos, info = load_collection_json(path)
-                # Apply per-row blacklist if auto-detect is enabled
-                bl_check = self.collection_table.cellWidget(row, 3)
-                if bl_check and bl_check.isChecked():
-                    bl_path = self._find_blacklist_for_collection(path)
-                    if bl_path:
-                        bl_data = load_blacklist_json(bl_path)
-                        videos = filter_videos_by_blacklist(videos, bl_data)
                 for video in videos:
                     v = video.copy()
                     v['_source_name'] = coll_name
@@ -669,20 +655,6 @@ class RandomFillDialog(CollectionDialogBase):
         self._populate_collection_filter_combo()
         self.refresh_collection_list()
         self._on_collection_loaded()
-
-    def _find_blacklist_for_collection(self, collection_path: str) -> str:
-        """Auto-detect blacklist file next to a collection JSON."""
-        coll_stem = Path(collection_path).stem
-        coll_dir = Path(collection_path).parent
-        patterns = [
-            f"{coll_stem}_blacklist.json",
-            f"{coll_stem.replace('collections_', '')}_blacklist.json",
-        ]
-        for pattern in patterns:
-            candidate = coll_dir / pattern
-            if candidate.exists():
-                return str(candidate.resolve())
-        return ""
 
     def _on_video_selected(self, video: dict):
         """Handle selection in collection list: update video info and cover."""
@@ -798,14 +770,12 @@ class RandomFillDialog(CollectionDialogBase):
             else:
                 active_days = [i + 1 for i, cb in enumerate(self.marathon_day_checkboxes) if cb.isChecked()]
 
-        # Collect all paths and blacklist settings from the table
+        # Collect all paths from the table
         all_entries = []
         for row in range(self.collection_table.rowCount()):
             w = self.collection_table.cellWidget(row, 0)
             if w and w.text():
-                bl_check = self.collection_table.cellWidget(row, 3)
-                bl_enabled = bl_check.isChecked() if bl_check else True
-                all_entries.append({"path": w.text(), "blacklist_enabled": bl_enabled})
+                all_entries.append({"path": w.text()})
         collection_path = all_entries[0]["path"] if all_entries else self.collection_path.text()
         extra_collections = all_entries[1:] if len(all_entries) > 1 else []
 
