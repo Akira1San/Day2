@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Set
 from PySide6.QtWidgets import QWidget, QLabel, QHBoxLayout, QVBoxLayout, QComboBox, QLineEdit, QPushButton, QMessageBox, QTableWidgetItem, QDoubleSpinBox, QHeaderView
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QColor
 
 from .base import BaseTagDialog
@@ -105,7 +105,8 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
             on_add_to_blacklist=self.add_to_blacklist,
             on_check_missing=self.check_missing_videos,
             on_sort_changed=self._on_added_sort_changed,
-            on_search_changed=self._on_added_search_changed
+            on_search_changed=self._on_added_search_changed,
+            on_save_rates=self._save_rates_with_status
         )
         self.blacklist_section = create_blacklist_section(
             on_video_selected=self.on_blacklist_video_selected,
@@ -144,7 +145,6 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
                 break
 
     def accept(self):
-        self.save_rates_file()
         super().accept()
 
     def _load_rates_file(self, file_path: str):
@@ -171,6 +171,11 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
             if path:
                 rates_dict[path] = video.get('_rate', 50)
         save_rates_json(rates_path, rates_dict)
+
+    def _save_rates_with_status(self):
+        self.save_rates_file()
+        self.added_section.rate_status_label.setText("✓ Rates saved")
+        QTimer.singleShot(3000, lambda: self.added_section.rate_status_label.setText(""))
 
     # --- Video list management ---
 

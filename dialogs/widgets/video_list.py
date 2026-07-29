@@ -44,6 +44,8 @@ class VideoSection:
     sort_combo: Optional[QComboBox] = None
     search_input: Optional[QLineEdit] = None
     filter_combo: Optional[QComboBox] = None
+    save_rates_btn: Optional[QPushButton] = None
+    rate_status_label: Optional[QLabel] = None
 
 
 @dataclass
@@ -69,6 +71,7 @@ def create_video_section(
     on_sort_changed: Optional[Callable] = None,
     on_search_changed: Optional[Callable] = None,
     on_filter_changed: Optional[Callable] = None,
+    on_save_rates: Optional[Callable] = None,
     columns: int = 3
 ) -> VideoSection:
     """
@@ -135,6 +138,8 @@ def create_video_section(
     vbox.addWidget(videos_list)
 
     btn_layout = QHBoxLayout()
+    save_rates_btn = None
+    rate_status_label = None
     if with_buttons:
         if on_select_all:
             select_all_btn = QPushButton("Select All")
@@ -172,9 +177,16 @@ def create_video_section(
             blacklist_btn.setToolTip("Move selected added videos to the blacklist")
             blacklist_btn.clicked.connect(on_add_to_blacklist)
             btn_layout.addWidget(blacklist_btn)
+        if on_save_rates:
+            save_rates_btn = QPushButton("Save Rates")
+            save_rates_btn.setToolTip("Save video rate percentages to file")
+            save_rates_btn.clicked.connect(on_save_rates)
+            btn_layout.addWidget(save_rates_btn)
+            rate_status_label = QLabel("")
+            btn_layout.addWidget(rate_status_label)
     vbox.addLayout(btn_layout)
 
-    return VideoSection(widget=widget, videos_list=videos_list, count_label=count_label, sort_combo=sort_combo, search_input=search_input, filter_combo=filter_combo)
+    return VideoSection(widget=widget, videos_list=videos_list, count_label=count_label, sort_combo=sort_combo, search_input=search_input, filter_combo=filter_combo, save_rates_btn=save_rates_btn, rate_status_label=rate_status_label)
 
 
 def create_blacklist_section(
