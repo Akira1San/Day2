@@ -323,6 +323,21 @@ def get_save_path(config_file: str = "config.ini") -> str:
     return ''
 
 
+def get_schedule_path(config_file: str = "config.ini") -> str:
+    try:
+        config = configparser.ConfigParser()
+        config.read(config_file)
+        if 'Paths' in config:
+            p = config['Paths'].get('schedule_path', '').strip()
+            if p:
+                return p
+            p = config['Paths'].get('save_path', '').strip()
+            return p if p else '/home/akira/akira/AkiraTV_NEW/user/schedules'
+    except Exception:
+        pass
+    return '/home/akira/akira/AkiraTV_NEW/user/schedules'
+
+
 def get_font_config(config_file: str = "config.ini") -> dict:
     try:
         config = configparser.ConfigParser()

@@ -40,7 +40,7 @@ from utils import (
     load_collection_json, load_blacklist_json,
     parse_series_episode, parse_videos_for_series,
     get_video_display_name, format_duration, get_config_paths, filter_videos_by_blacklist,
-    get_schedule_profiles, load_gap_collections, get_font_config, get_save_path
+    get_schedule_profiles, load_gap_collections, get_font_config, get_save_path, get_schedule_path
 )
 from models import Tag, ScheduleEntry, TagManager, ScheduleGenerator, compute_schedule_issues, mark_continuity_problems
 from dialogs import TagDialog, RandomFillDialog, SeriesDialog, ConfigDialog, SchedulePreviewDialog, DurationDebugDialog, GapTagDialog
@@ -1013,7 +1013,7 @@ class MainWindow(QMainWindow):
                 "entries": schedule_entries
             }
 
-        save_path = get_save_path()
+        save_path = get_schedule_path()
         file_path = os.path.join(save_path, f"schedule_{profile_name}.json") if save_path else f"schedule_{profile_name}.json"
 
         reply = QMessageBox.question(
@@ -1036,7 +1036,7 @@ class MainWindow(QMainWindow):
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             "Select Schedule File",
-            "",
+            get_schedule_path(),
             "JSON Files (*.json);;All Files (*)"
         )
         if not file_path:
