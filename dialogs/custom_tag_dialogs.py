@@ -415,6 +415,7 @@ class RandomFillDialog(CollectionDialogBase):
         right_layout.addWidget(add_coll_btn)
 
         # Video sections container
+        self.collection_section.videos_list.setMinimumWidth(450)
         video_container = QWidget()
         video_layout = QHBoxLayout(video_container)
         video_layout.addWidget(self.collection_section.widget)
