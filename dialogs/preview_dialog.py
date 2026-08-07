@@ -9,11 +9,13 @@ from utils import get_font_config
 class SchedulePreviewDialog(QDialog):
     """Modal dialog to preview a saved schedule (30-day calendar) with horizontal scrolling."""
 
-    def __init__(self, parent=None, profile_name: str = "", calendar_data: dict = None):
+    def __init__(self, parent=None, profile_name: str = "", calendar_data: dict = None,
+                 resolver: dict = None):
         super().__init__(parent)
         self._fonts = get_font_config()
         self.profile_name = profile_name
         self.calendar_data = calendar_data or {}
+        self.resolver = resolver or {}
         self.setWindowTitle(f"Schedule Preview - {profile_name}")
         self.setModal(True)
         self.resize(1400, 700)
@@ -125,7 +127,14 @@ class SchedulePreviewDialog(QDialog):
                 time_str = entry.get("time", "00:00:00")
                 video_name = entry.get("file", "").split("/")[-1]  # extract filename
                 if not video_name:
-                    video_name = entry.get("video_name", "Unknown")
+                    video_name = entry.get("video_name", "")
+                if not video_name:
+                    info = self.resolver.get(entry.get("collection_id", ""), {})
+                    if info:
+                        vids = list(info.get('videos', ()))
+                        video_name = vids[0] if len(vids) == 1 else info.get('name', 'Unknown')
+                    else:
+                        video_name = "Unknown"
                 entry_text = f"{time_str} {video_name}"
                 entries_list.addItem(entry_text)
 

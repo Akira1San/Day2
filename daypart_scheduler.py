@@ -1058,8 +1058,25 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Empty Schedule", "No calendar schedule data found in this file.")
             return
 
-        dialog = SchedulePreviewDialog(self, profile_name, calendar_data)
+        dialog = SchedulePreviewDialog(self, profile_name, calendar_data, self._build_schedule_resolver())
         dialog.exec()
+
+    def _build_schedule_resolver(self) -> dict:
+        """Map collection_id -> collection info (collection name + video names)
+        from the currently loaded tags, so the inspector can show real titles."""
+        resolver = {}
+        for tag in self.tag_manager.get_all_tags():
+            coll_path = getattr(tag, 'collection_path', '') or ''
+            coll_name = Path(coll_path).stem
+            if coll_name.startswith('collections_'):
+                coll_name = coll_name[len('collections_'):]
+            for vid in (getattr(tag, 'collection_videos', None) or []):
+                cid = vid.get('collection_id', '')
+                if not cid:
+                    continue
+                info = resolver.setdefault(cid, {'name': coll_name, 'videos': set()})
+                info['videos'].add(get_video_display_name(vid))
+        return resolver
 
 
     def run_approximate(self):
