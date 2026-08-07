@@ -350,6 +350,7 @@ def get_font_config(config_file: str = "config.ini") -> dict:
                 'tooltip_size': config['Font'].getint('tooltip_size', fallback=13),
                 'help_size': config['Font'].getint('help_size', fallback=13),
                 'debug_size': config['Font'].getint('debug_size', fallback=12),
+                'preview_size': config['Font'].getint('preview_size', fallback=16),
             }
     except Exception:
         pass
@@ -360,6 +361,7 @@ def get_font_config(config_file: str = "config.ini") -> dict:
         'tooltip_size': 13,
         'help_size': 13,
         'debug_size': 12,
+        'preview_size': 16,
     }
 
 

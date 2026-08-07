@@ -120,6 +120,7 @@ class SchedulePreviewDialog(QDialog):
                 QListWidget::item {
                     padding: 4px;
                     color: #a0a0b0;
+                    font-size: {self._fonts['preview_size']}px;
                 }
             """)
 

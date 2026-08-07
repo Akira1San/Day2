@@ -93,6 +93,7 @@ class ConfigDialog(QDialog):
             ("tooltip_size", "Tooltip Size:"),
             ("help_size", "Help Size:"),
             ("debug_size", "Debug Size:"),
+            ("preview_size", "Preview Size:"),
         ]
         self.font_spinboxes = {}
         for key, label_text in font_keys:
