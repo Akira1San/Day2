@@ -54,6 +54,7 @@ class BlacklistSection:
     widget: QWidget
     blacklist_list: VideoListWidget
     count_label: QLabel
+    search_input: Optional[QLineEdit] = None
 
 
 def create_video_section(
@@ -194,7 +195,8 @@ def create_blacklist_section(
     on_clear_selection: Optional[Callable] = None,
     on_load: Optional[Callable] = None,
     on_save: Optional[Callable] = None,
-    on_video_selected: Optional[Callable] = None
+    on_video_selected: Optional[Callable] = None,
+    on_search_changed: Optional[Callable] = None
 ) -> BlacklistSection:
     """
     Create a blacklist management section.
@@ -205,6 +207,7 @@ def create_blacklist_section(
         on_load: Callback for Load button
         on_save: Callback for Save button
         on_video_selected: Callback for video selection
+        on_search_changed: Callback for search text changes
 
     Returns:
         BlacklistSection container with widget, blacklist_list, and count_label
@@ -215,6 +218,13 @@ def create_blacklist_section(
 
     count_label = QLabel("Count: 0")
     vbox.addWidget(count_label)
+
+    search_input = None
+    if on_search_changed:
+        search_input = QLineEdit()
+        search_input.setPlaceholderText("Search...")
+        search_input.textChanged.connect(on_search_changed)
+        vbox.addWidget(search_input)
 
     blacklist_list = VideoListWidget(columns=1)
     blacklist_list.setMinimumHeight(200)
@@ -246,4 +256,4 @@ def create_blacklist_section(
 
     vbox.addLayout(btn_layout)
 
-    return BlacklistSection(widget=widget, blacklist_list=blacklist_list, count_label=count_label)
+    return BlacklistSection(widget=widget, blacklist_list=blacklist_list, count_label=count_label, search_input=search_input)

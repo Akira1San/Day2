@@ -65,6 +65,7 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
         self.search_text = ""
         self.collection_filter = ""
         self.collection_search_text = ""
+        self.blacklist_search_text = ""
         self.setup_common_ui()
 
     def setup_common_ui(self):
@@ -113,7 +114,8 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
             on_remove=self.remove_from_blacklist,
             on_clear_selection=self.clear_blacklist_selection,
             on_load=self.load_blacklist_file,
-            on_save=self.save_blacklist_file
+            on_save=self.save_blacklist_file,
+            on_search_changed=self._on_blacklist_search_changed
         )
 
         # Expose lists and count labels as direct attributes for compatibility
@@ -350,6 +352,10 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
         self.collection_search_text = text
         self.refresh_collection_list()
 
+    def _on_blacklist_search_changed(self, text):
+        self.blacklist_search_text = text
+        self.refresh_blacklist_list()
+
     def _populate_collection_filter_combo(self):
         combo = self.collection_section.filter_combo
         if not combo:
@@ -442,6 +448,12 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
     def refresh_blacklist_list(self):
         self.blacklist_list.setRowCount(0)
         sorted_blacklist = sorted(self.blacklist, key=lambda v: v.get('path', '').split('/')[-1])
+        if self.blacklist_search_text:
+            search_lower = self.blacklist_search_text.lower()
+            sorted_blacklist = [
+                v for v in sorted_blacklist
+                if search_lower in get_video_display_name(v).lower()
+            ]
         for video in sorted_blacklist:
             row = self.blacklist_list.rowCount()
             self.blacklist_list.insertRow(row)
