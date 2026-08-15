@@ -909,6 +909,10 @@ class MainWindow(QMainWindow):
                 time_str = f"{h:02d}:{m:02d}:{s:02d}"
 
                 video_name = entry.video_name
+                # Entries from tag placement are named "TagName - Filename.mp4";
+                # strip the prefix so exact filename matching works below.
+                if " - " in video_name:
+                    video_name = video_name.split(" - ", 1)[1]
 
                 video_info = {'time': time_str, 'collection_id': '', 'channel': '', 'source': 'random'}
 
@@ -919,19 +923,33 @@ class MainWindow(QMainWindow):
                         coll_info = get_collection_info(collection_path)
                         channel = coll_info.get('channel', '')
 
+                        # Prefer an exact filename match first; fall back to
+                        # substring only when no exact match exists. Substring
+                        # matching alone can mislabel e.g. "Predator.mp4" as
+                        # "AVP Alien Vs Predator.mp4", writing a shorter
+                        # collection into the schedule (gap -> buffer/standby).
+                        matched_vid = None
                         for vid in tag.collection_videos:
                             vid_name = get_video_display_name(vid)
-                            if vid_name in video_name or video_name in vid_name:
-                                video_info['channel'] = profile_name
-                                video_info['collection_id'] = vid.get('collection_id', '')
-                                primary_src = Path(collection_path).stem
-                                if primary_src.startswith('collections_'):
-                                    primary_src = primary_src.replace('collections_', '')
-                                vid_src = vid.get('_source_name', '')
-                                if vid_src and vid_src != primary_src:
-                                    video_info['collection_source'] = vid_src
-                                matched = True
+                            if vid_name == video_name:
+                                matched_vid = vid
                                 break
+                        if matched_vid is None:
+                            for vid in tag.collection_videos:
+                                vid_name = get_video_display_name(vid)
+                                if vid_name in video_name or video_name in vid_name:
+                                    matched_vid = vid
+                                    break
+                        if matched_vid is not None:
+                            video_info['channel'] = profile_name
+                            video_info['collection_id'] = matched_vid.get('collection_id', '')
+                            primary_src = Path(collection_path).stem
+                            if primary_src.startswith('collections_'):
+                                primary_src = primary_src.replace('collections_', '')
+                            vid_src = matched_vid.get('_source_name', '')
+                            if vid_src and vid_src != primary_src:
+                                video_info['collection_source'] = vid_src
+                            matched = True
                         if matched:
                             break
 
@@ -939,14 +957,22 @@ class MainWindow(QMainWindow):
                     for tag in self.tag_manager.get_all_tags():
                         if getattr(tag, 'is_gap_filler', False) and tag.gap_collections:
                             gap_videos = load_gap_collections(tag.gap_collections)
+                            matched_vid = None
                             for vid in gap_videos:
-                                vid_name = get_video_display_name(vid)
-                                if vid_name in video_name or video_name in vid_name:
-                                    video_info['channel'] = profile_name
-                                    video_info['collection_id'] = vid.get('collection_id', '')
-                                    video_info['source'] = 'gap'
-                                    matched = True
+                                if get_video_display_name(vid) == video_name:
+                                    matched_vid = vid
                                     break
+                            if matched_vid is None:
+                                for vid in gap_videos:
+                                    vid_name = get_video_display_name(vid)
+                                    if vid_name in video_name or video_name in vid_name:
+                                        matched_vid = vid
+                                        break
+                            if matched_vid is not None:
+                                video_info['channel'] = profile_name
+                                video_info['collection_id'] = matched_vid.get('collection_id', '')
+                                video_info['source'] = 'gap'
+                                matched = True
                             if matched:
                                 break
 
