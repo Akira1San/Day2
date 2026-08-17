@@ -73,6 +73,7 @@ def create_video_section(
     on_search_changed: Optional[Callable] = None,
     on_filter_changed: Optional[Callable] = None,
     on_save_rates: Optional[Callable] = None,
+    on_play: Optional[Callable] = None,
     columns: int = 3
 ) -> VideoSection:
     """
@@ -157,6 +158,11 @@ def create_video_section(
             add_btn.setToolTip("Add selected collection videos to the tag")
             add_btn.clicked.connect(on_add)
             btn_layout.addWidget(add_btn)
+        if on_play:
+            play_btn = QPushButton("Play ▶")
+            play_btn.setToolTip("Play the selected video with the default player")
+            play_btn.clicked.connect(on_play)
+            btn_layout.addWidget(play_btn)
     else:
         if on_remove:
             remove_btn = QPushButton("<< Remove")
@@ -185,6 +191,11 @@ def create_video_section(
             btn_layout.addWidget(save_rates_btn)
             rate_status_label = QLabel("")
             btn_layout.addWidget(rate_status_label)
+        if on_play:
+            play_btn = QPushButton("Play ▶")
+            play_btn.setToolTip("Play the selected video with the default player")
+            play_btn.clicked.connect(on_play)
+            btn_layout.addWidget(play_btn)
     vbox.addLayout(btn_layout)
 
     return VideoSection(widget=widget, videos_list=videos_list, count_label=count_label, sort_combo=sort_combo, search_input=search_input, filter_combo=filter_combo, save_rates_btn=save_rates_btn, rate_status_label=rate_status_label)

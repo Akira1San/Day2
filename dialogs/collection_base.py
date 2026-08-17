@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import subprocess
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Set
 from PySide6.QtWidgets import QWidget, QLabel, QHBoxLayout, QVBoxLayout, QComboBox, QLineEdit, QPushButton, QMessageBox, QTableWidgetItem, QDoubleSpinBox, QHeaderView
@@ -95,6 +96,7 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
             on_add=self.add_selected_videos,
             on_filter_changed=self._on_collection_filter_changed,
             on_search_changed=self._on_collection_search_changed,
+            on_play=self._play_collection_video,
             columns=2
         )
         self.added_section = create_video_section(
@@ -107,7 +109,8 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
             on_check_missing=self.check_missing_videos,
             on_sort_changed=self._on_added_sort_changed,
             on_search_changed=self._on_added_search_changed,
-            on_save_rates=self._save_rates_with_status
+            on_save_rates=self._save_rates_with_status,
+            on_play=self._play_added_video
         )
         self.blacklist_section = create_blacklist_section(
             on_video_selected=self.on_blacklist_video_selected,
@@ -469,6 +472,33 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
         self.collection_section.count_label.setText(f"Count: {len(self.collection_videos)}")
         self.added_section.count_label.setText(f"Count: {len(self.added_videos)}")
         self.blacklist_section.count_label.setText(f"Count: {len(self.blacklist)}")
+
+    def _play_collection_video(self):
+        self._play_selected(self.videos_list)
+
+    def _play_added_video(self):
+        self._play_selected(self.added_list)
+
+    def _play_selected(self, video_list):
+        rows = self._selected_table_rows(video_list)
+        if not rows and video_list.currentRow() >= 0:
+            rows = {video_list.currentRow()}
+        if not rows:
+            QMessageBox.information(self, "Play", "Select a video to play.")
+            return
+        item = video_list.item(sorted(rows)[0], 0)
+        path = item.data(Qt.UserRole) if item else None
+        if not path:
+            QMessageBox.warning(self, "Play", "The selected item has no video path.")
+            return
+        if not Path(path).exists():
+            QMessageBox.warning(self, "Play", f"Video not found:\n{path}")
+            return
+        try:
+            subprocess.Popen(["xdg-open", path])
+        except Exception as e:
+            QMessageBox.warning(self, "Play", f"Failed to open player: {e}")
+
 
     def check_missing_videos(self):
         """Check which added videos still exist on disk and mark missing ones in red."""
