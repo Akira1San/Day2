@@ -943,11 +943,8 @@ class MainWindow(QMainWindow):
                         if matched_vid is not None:
                             video_info['channel'] = profile_name
                             video_info['collection_id'] = matched_vid.get('collection_id', '')
-                            primary_src = Path(collection_path).stem
-                            if primary_src.startswith('collections_'):
-                                primary_src = primary_src.replace('collections_', '')
                             vid_src = matched_vid.get('_source_name', '')
-                            if vid_src and vid_src != primary_src:
+                            if vid_src:
                                 video_info['collection_source'] = vid_src
                             matched = True
                         if matched:
