@@ -207,7 +207,9 @@ def create_blacklist_section(
     on_load: Optional[Callable] = None,
     on_save: Optional[Callable] = None,
     on_video_selected: Optional[Callable] = None,
-    on_search_changed: Optional[Callable] = None
+    on_search_changed: Optional[Callable] = None,
+    on_check_missing: Optional[Callable] = None,
+    on_remove_missing: Optional[Callable] = None
 ) -> BlacklistSection:
     """
     Create a blacklist management section.
@@ -219,6 +221,8 @@ def create_blacklist_section(
         on_save: Callback for Save button
         on_video_selected: Callback for video selection
         on_search_changed: Callback for search text changes
+        on_check_missing: Callback for Check Missing button
+        on_remove_missing: Callback for Remove Missing button
 
     Returns:
         BlacklistSection container with widget, blacklist_list, and count_label
@@ -229,6 +233,20 @@ def create_blacklist_section(
 
     count_label = QLabel("Count: 0")
     vbox.addWidget(count_label)
+
+    if on_check_missing or on_remove_missing:
+        missing_layout = QHBoxLayout()
+        if on_check_missing:
+            check_missing_btn = QPushButton("Check Missing")
+            check_missing_btn.setToolTip("Check which blacklisted videos no longer exist on disk")
+            check_missing_btn.clicked.connect(on_check_missing)
+            missing_layout.addWidget(check_missing_btn)
+        if on_remove_missing:
+            remove_missing_btn = QPushButton("Remove Missing")
+            remove_missing_btn.setToolTip("Remove blacklisted videos that no longer exist on disk")
+            remove_missing_btn.clicked.connect(on_remove_missing)
+            missing_layout.addWidget(remove_missing_btn)
+        vbox.addLayout(missing_layout)
 
     search_input = None
     if on_search_changed:

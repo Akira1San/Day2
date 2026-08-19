@@ -118,7 +118,9 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
             on_clear_selection=self.clear_blacklist_selection,
             on_load=self.load_blacklist_file,
             on_save=self.save_blacklist_file,
-            on_search_changed=self._on_blacklist_search_changed
+            on_search_changed=self._on_blacklist_search_changed,
+            on_check_missing=self.check_missing_blacklist_videos,
+            on_remove_missing=self.remove_missing_blacklist_videos
         )
 
         # Expose lists and count labels as direct attributes for compatibility
@@ -518,6 +520,39 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
                 f"{missing_count} of {total} added videos are missing on disk.")
         else:
             self.added_section.count_label.setText(f"Count: {total}")
+
+    def check_missing_blacklist_videos(self):
+        """Check which blacklisted videos still exist on disk and mark missing ones in red."""
+        missing_count = 0
+        for i in range(self.blacklist_list.rowCount()):
+            item = self.blacklist_list.item(i, 0)
+            if not item:
+                continue
+            path = item.data(Qt.UserRole)
+            if not path or not Path(path).exists():
+                item.setForeground(QColor("red"))
+                missing_count += 1
+        total = self.blacklist_list.rowCount()
+        if missing_count:
+            self.blacklist_section.count_label.setText(f"Count: {total}  ({missing_count} missing)")
+            QMessageBox.information(self, "Missing Videos",
+                f"{missing_count} of {total} blacklisted videos are missing on disk.")
+        else:
+            self.blacklist_section.count_label.setText(f"Count: {total}")
+
+    def remove_missing_blacklist_videos(self):
+        """Remove blacklisted videos that no longer exist on disk."""
+        missing = [v for v in self.blacklist
+                   if not v.get('path') or not Path(v.get('path', '')).exists()]
+        if not missing:
+            QMessageBox.information(self, "Remove Missing",
+                "No missing videos in the blacklist.")
+            return
+        self.blacklist = [v for v in self.blacklist
+                          if v.get('path') and Path(v.get('path')).exists()]
+        self.refresh_blacklist_list()
+        QMessageBox.information(self, "Remove Missing",
+            f"Removed {len(missing)} missing video(s) from the blacklist.")
 
     # --- Collection loading ---
     def load_collection(self, file_path: str, load_blacklist: bool = True):
