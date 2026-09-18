@@ -129,7 +129,7 @@ class DurationDebugDialog(QDialog):
         if overlap_count:
             parts.append(f"{overlap_count} OVERLAP")
         summary.setText(" | ".join(parts))
-        summary.setFont(QFont("", self._fonts['debug_size'], QFont.Bold))
+        summary.setFont(QFont(self._fonts['family'], self._fonts['debug_size'], QFont.Bold))
         layout.addWidget(summary)
 
         self.table = QTreeWidget()

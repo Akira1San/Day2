@@ -76,12 +76,12 @@ class MainWindow(QMainWindow):
         tags_layout = QVBoxLayout(self.tags_panel)
 
         tags_title = QLabel("Daypart Tags")
-        tags_title.setFont(QFont("", self._fonts['title_size'], QFont.Bold))
+        tags_title.setFont(QFont(self._fonts['family'], self._fonts['title_size'], QFont.Bold))
         tags_layout.addWidget(tags_title)
 
         self.tags_list = QListWidget()
         self.tags_list.setAlternatingRowColors(True)
-        self.tags_list.setFont(QFont("", self._fonts['body_size']))
+        self.tags_list.setFont(QFont(self._fonts['family'], self._fonts['body_size']))
         tags_layout.addWidget(self.tags_list)
 
         btn_layout = QHBoxLayout()
@@ -161,7 +161,7 @@ class MainWindow(QMainWindow):
         preview_layout = QVBoxLayout(self.preview_panel)
 
         self.preview_title = QLabel("24-Hour Schedule Preview")
-        self.preview_title.setFont(QFont("", self._fonts['title_size'], QFont.Bold))
+        self.preview_title.setFont(QFont(self._fonts['family'], self._fonts['title_size'], QFont.Bold))
         preview_layout.addWidget(self.preview_title)
 
         scroll = QScrollArea()
@@ -290,6 +290,27 @@ class MainWindow(QMainWindow):
             }}
             QTreeWidget::branch {{
                 background: transparent;
+            }}
+            QListWidget {{
+                background-color: #2a2a3e;
+                alternate-background-color: #252535;
+                border: 1px solid #3a3a4e;
+                border-radius: 6px;
+                padding: 4px;
+                selection-background-color: #7c3aed;
+            }}
+            QListWidget::item {{
+                padding: 4px;
+                margin: 1px;
+                border: 1px solid transparent;
+            }}
+            QListWidget::item:selected {{
+                background-color: #7c3aed;
+                border: 2px solid #a78bfa;
+                color: white;
+            }}
+            QListWidget::item:hover {{
+                background-color: #3a3a4e;
             }}
             QPushButton {{
                 background-color: #2a2a3e;
@@ -869,7 +890,7 @@ class MainWindow(QMainWindow):
             if not Path(collection_path).exists():
                 return {}
             try:
-                with open(collection_path, 'r') as f:
+                with open(collection_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                 collections = data.get('collections', [])
                 if collections:
@@ -946,6 +967,9 @@ class MainWindow(QMainWindow):
                             vid_src = matched_vid.get('_source_name', '')
                             if vid_src:
                                 video_info['collection_source'] = vid_src
+                            tc_mode = matched_vid.get('_transcoding_mode', '')
+                            if tc_mode in ('transcode', 'copy'):
+                                video_info['transcoding_mode'] = tc_mode
                             matched = True
                         if matched:
                             break
@@ -969,6 +993,9 @@ class MainWindow(QMainWindow):
                                 video_info['channel'] = profile_name
                                 video_info['collection_id'] = matched_vid.get('collection_id', '')
                                 video_info['source'] = 'gap'
+                                tc_mode = matched_vid.get('_transcoding_mode', '')
+                                if tc_mode in ('transcode', 'copy'):
+                                    video_info['transcoding_mode'] = tc_mode
                                 matched = True
                             if matched:
                                 break
@@ -1049,7 +1076,7 @@ class MainWindow(QMainWindow):
         if reply != QMessageBox.Ok:
             return
 
-        with open(file_path, 'w') as f:
+        with open(file_path, 'w', encoding='utf-8') as f:
             json.dump(schedule_data, f, indent=2, ensure_ascii=False)
 
         QMessageBox.information(self, "Saved", f"Schedule saved to {file_path}")
@@ -1070,7 +1097,7 @@ class MainWindow(QMainWindow):
             profile_name = profile_name[9:]  # Strip "schedule_" prefix
 
         try:
-            with open(file_path, 'r') as f:
+            with open(file_path, 'r', encoding='utf-8') as f:
                 schedule_data = json.load(f)
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to load schedule file:\n{e}")
@@ -1186,6 +1213,8 @@ class MainWindow(QMainWindow):
 
 def main():
     app = QApplication(sys.argv)
+    from dialogs.widgets.dark_theme import DARK_APP_STYLESHEET
+    app.setStyleSheet(DARK_APP_STYLESHEET)
     window = MainWindow()
     window.show()
     sys.exit(app.exec())

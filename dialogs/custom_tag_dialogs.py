@@ -11,6 +11,7 @@ from PySide6.QtCore import Qt, QTime
 
 from .collection_base import CollectionDialogBase
 from .widgets.info_panel import CollectionInfoPanel, VideoInfoDisplay
+from .widgets.dark_theme import DARK_TABLE_STYLESHEET
 from models import Tag
 from utils import (
     filter_videos_by_blacklist, get_video_display_name, format_duration,
@@ -164,7 +165,9 @@ class TagDialog(CollectionDialogBase):
         if tag.collection_path:
             self.load_collection(tag.collection_path, load_blacklist=False)
             # Override added_videos with tag's saved collection_videos
-            self.added_videos = tag.collection_videos.copy()
+            # (dict copies so dialog edits, incl. _transcoding_mode, don't
+            # mutate the original tag before Save).
+            self.added_videos = [v.copy() for v in tag.collection_videos]
 
         # Set profile combo boxes (triggers may load additional data)
         collection_profile = getattr(tag, 'collection_profile', '')
@@ -310,7 +313,7 @@ class TagDialog(CollectionDialogBase):
             name=self.name_input.text() or "Custom Video",
             start_time=self.start_time_edit.time(),
             end_time=self.end_time_edit.time(),
-            collection_videos=self.added_videos.copy(),
+            collection_videos=[v.copy() for v in self.added_videos],
             collection_path=self.collection_path.text(),
             randomize_videos=True,
             video_count=self.video_count_spin.value(),
@@ -401,6 +404,7 @@ class RandomFillDialog(CollectionDialogBase):
         right_layout.addWidget(coll_label)
 
         self.collection_table = QTableWidget(0, 3)
+        self.collection_table.setStyleSheet(DARK_TABLE_STYLESHEET)
         self.collection_table.setHorizontalHeaderLabels(["Path", "", ""])
         self.collection_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         self.collection_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Fixed)
@@ -501,7 +505,20 @@ class RandomFillDialog(CollectionDialogBase):
             self._add_collection_row(entry["path"])
         if all_entries:
             self._reload_all_collections()
-            self.added_videos = self.collection_videos.copy()
+            # Preserve session-only transcoding marks from the edited tag
+            # (freshly loaded collection dicts have no _transcoding_mode key).
+            saved_modes = {}
+            for v in getattr(tag, 'collection_videos', []) or []:
+                mode = v.get('_transcoding_mode', '')
+                if mode in ("transcode", "copy") and v.get('path'):
+                    saved_modes[v['path']] = mode
+            self.added_videos = []
+            for v in self.collection_videos:
+                v_copy = v.copy()
+                mode = saved_modes.get(v_copy.get('path', ''))
+                if mode:
+                    v_copy['_transcoding_mode'] = mode
+                self.added_videos.append(v_copy)
 
         collection_profile = getattr(tag, 'collection_profile', '')
         if collection_profile:
@@ -808,7 +825,7 @@ class RandomFillDialog(CollectionDialogBase):
             name=self.name_input.text() or "Random Fill",
             start_time=self.start_time_edit.time(),
             end_time=self.end_time_edit.time(),
-            collection_videos=self.added_videos.copy(),
+            collection_videos=[v.copy() for v in self.added_videos],
             collection_path=collection_path,
             extra_collections=extra_collections,
             blacklist=self.blacklist.copy(),
@@ -882,6 +899,7 @@ class GapTagDialog(QDialog):
         )
 
         self.collection_table = QTableWidget(0, 4)
+        self.collection_table.setStyleSheet(DARK_TABLE_STYLESHEET)
         self.collection_table.setHorizontalHeaderLabels(["", "Collection File", "Type", ""])
         self.collection_table.horizontalHeader().setStretchLastSection(False)
         self.collection_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Fixed)

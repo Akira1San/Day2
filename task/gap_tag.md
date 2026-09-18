@@ -242,7 +242,7 @@ visible by comparing start/end times alone.
 - `serialization.py` — save/load new fields
 - `Test/test_gap_filler.py` — 14 tests covering all features
 
-### 14. New approximation algorithm: No-Overlap — Planned (not yet implemented)
+### 14. New approximation algorithm: No-Overlap — X Done.
 
 **Concept:** Place tags at their original start times, right-shifting any that
 would overlap the previous tag. Produces a clean non-overlapping schedule with

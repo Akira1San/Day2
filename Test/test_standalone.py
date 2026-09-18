@@ -3,8 +3,9 @@ import sys
 import os
 import random
 
-os.chdir('/home/akira/akira/day2')
-sys.path.insert(0, '/home/akira/akira/day2')
+_PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+os.chdir(_PROJECT_DIR)
+sys.path.insert(0, _PROJECT_DIR)
 
 from PySide6.QtCore import QTime
 from models import ScheduleGenerator, TagManager, Tag, ScheduleEntry

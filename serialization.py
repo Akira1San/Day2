@@ -152,7 +152,7 @@ def save_tags_to_file(tags: List[Any], filepath: str = "tags.tag"):
         key = f"tag{i}"
         config['Tags'][key] = serialize_tag_to_string(tag)
     
-    with open(filepath, 'w') as f:
+    with open(filepath, 'w', encoding='utf-8') as f:
         config.write(f)
 
 
@@ -435,8 +435,8 @@ def load_tags_from_file(filepath: str, tag_class, qtime_from_string) -> List[Any
         return []
     
     config = configparser.ConfigParser()
-    config.read(filepath)
-    
+    config.read(filepath, encoding='utf-8')
+
     if 'Tags' not in config:
         return []
     
@@ -453,7 +453,7 @@ def save_single_tag_to_file(tag, filepath: str):
     config = configparser.ConfigParser()
     config['Tag'] = {'data': serialize_tag_to_string(tag)}
     
-    with open(filepath, 'w') as f:
+    with open(filepath, 'w', encoding='utf-8') as f:
         config.write(f)
 
 
@@ -462,8 +462,8 @@ def load_single_tag_from_file(filepath: str, tag_class, qtime_from_string) -> Op
         return None
     
     config = configparser.ConfigParser()
-    config.read(filepath)
-    
+    config.read(filepath, encoding='utf-8')
+
     if 'Tag' not in config:
         return None
     

@@ -4,10 +4,11 @@
 Identifies which cover files exist at the expected path and which
 exist at alternative locations, so we can fix the resolution logic.
 """
+import os
 import sys
 from pathlib import Path
 
-sys.path.insert(0, '/home/akira/akira/day2')
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils import load_collection_json, get_covers_path
 
 COLLECTION_FILE = '/home/akira/akira/AkiraTV_NEW/user/collections/collections_TatkoTV.json'

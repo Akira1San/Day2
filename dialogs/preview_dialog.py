@@ -28,7 +28,7 @@ class SchedulePreviewDialog(QDialog):
 
         # Title label with profile name
         title_label = QLabel(f"Schedule Preview - {self.profile_name}")
-        title_label.setFont(QFont("", self._fonts['title_size'], QFont.Bold))
+        title_label.setFont(QFont(self._fonts['family'], self._fonts['title_size'], QFont.Bold))
         layout.addWidget(title_label)
 
         # Scroll area with horizontal scrolling
@@ -96,7 +96,7 @@ class SchedulePreviewDialog(QDialog):
 
             # Day header (vertical orientation)
             header = QLabel(f"{date_str}\n{day_name}")
-            header.setFont(QFont("", self._fonts['button_size'], QFont.Bold))
+            header.setFont(QFont(self._fonts['family'], self._fonts['button_size'], QFont.Bold))
             is_weekend = day_name.lower() in ("saturday", "sunday")
             header_color = "#ef4444" if is_weekend else "#7c3aed"
             header.setStyleSheet(f"color: {header_color};")
@@ -111,17 +111,17 @@ class SchedulePreviewDialog(QDialog):
             # Entries for this day (vertical list)
             entries_list = QListWidget()
             entries_list.setFixedHeight(500)
-            entries_list.setStyleSheet("""
-                QListWidget {
+            entries_list.setStyleSheet(f"""
+                QListWidget {{
                     background-color: #1e1e2e;
                     border: 1px solid #3a3a4e;
                     border-radius: 4px;
-                }
-                QListWidget::item {
+                }}
+                QListWidget::item {{
                     padding: 4px;
                     color: #a0a0b0;
                     font-size: {self._fonts['preview_size']}px;
-                }
+                }}
             """)
 
             for entry in entries:

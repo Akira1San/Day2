@@ -142,7 +142,7 @@ class ConfigDialog(QDialog):
     def load_config(self):
         if Path(self.config_path).exists():
             config = configparser.ConfigParser()
-            config.read(self.config_path)
+            config.read(self.config_path, encoding='utf-8')
             if 'Paths' in config:
                 self.collection_path_edit.setText(config['Paths'].get('collection_path', ''))
                 self.blacklist_path_edit.setText(config['Paths'].get('blacklist_path', ''))
@@ -174,6 +174,6 @@ class ConfigDialog(QDialog):
             'auto_add': 'true' if self.auto_add_check.isChecked() else 'false'
         }
         config['Font'] = {key: str(self.font_spinboxes[key].value()) for key in self.font_spinboxes}
-        with open(self.config_path, 'w') as f:
+        with open(self.config_path, 'w', encoding='utf-8') as f:
             config.write(f)
         self.accept()

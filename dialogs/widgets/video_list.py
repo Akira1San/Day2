@@ -3,6 +3,8 @@ from PySide6.QtCore import Qt
 from dataclasses import dataclass
 from typing import List, Dict, Any, Optional, Callable
 
+from .dark_theme import DARK_LIST_STYLESHEET, DARK_TABLE_STYLESHEET
+
 
 class VideoListWidget(QTableWidget):
     """Table widget with ExtendedSelection: plain click selects one, Ctrl toggles, Shift ranges.
@@ -15,6 +17,7 @@ class VideoListWidget(QTableWidget):
         self.setShowGrid(False)
         self.setAlternatingRowColors(True)
         self.verticalHeader().setVisible(False)
+        self.setStyleSheet(DARK_TABLE_STYLESHEET)
         self._setup_columns(columns)
 
     def _setup_columns(self, columns: int):
@@ -74,6 +77,9 @@ def create_video_section(
     on_filter_changed: Optional[Callable] = None,
     on_save_rates: Optional[Callable] = None,
     on_play: Optional[Callable] = None,
+    on_transcode: Optional[Callable] = None,
+    on_copy: Optional[Callable] = None,
+    on_clear_transcoding: Optional[Callable] = None,
     columns: int = 3
 ) -> VideoSection:
     """
@@ -196,6 +202,25 @@ def create_video_section(
             play_btn.setToolTip("Play the selected video with the default player")
             play_btn.clicked.connect(on_play)
             btn_layout.addWidget(play_btn)
+        if on_transcode or on_copy or on_clear_transcoding:
+            transcode_layout = QHBoxLayout()
+            if on_transcode:
+                transcode_btn = QPushButton("Transcode")
+                transcode_btn.setToolTip("Mark selected added videos as transcode")
+                transcode_btn.clicked.connect(on_transcode)
+                transcode_layout.addWidget(transcode_btn)
+            if on_copy:
+                copy_btn = QPushButton("Copy")
+                copy_btn.setToolTip("Mark selected added videos as copy")
+                copy_btn.clicked.connect(on_copy)
+                transcode_layout.addWidget(copy_btn)
+            if on_clear_transcoding:
+                clear_tc_btn = QPushButton("Clear")
+                clear_tc_btn.setToolTip("Clear transcoding mode on selected added videos")
+                clear_tc_btn.clicked.connect(on_clear_transcoding)
+                transcode_layout.addWidget(clear_tc_btn)
+            transcode_layout.addStretch()
+            vbox.addLayout(transcode_layout)
     vbox.addLayout(btn_layout)
 
     return VideoSection(widget=widget, videos_list=videos_list, count_label=count_label, sort_combo=sort_combo, search_input=search_input, filter_combo=filter_combo, save_rates_btn=save_rates_btn, rate_status_label=rate_status_label)

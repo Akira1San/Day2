@@ -12,6 +12,7 @@ from PySide6.QtGui import QColor
 from .base import BaseTagDialog
 from .profile_mixin import SeriesProfileMixin
 from .widgets.info_panel import CollectionInfoPanel, VideoInfoDisplay
+from .widgets.dark_theme import DARK_LIST_STYLESHEET
 from models import Tag, MultiSeriesTag
 from utils import (
     load_collection_json, load_blacklist_json,
@@ -109,6 +110,7 @@ class SeriesDialog(BaseTagDialog, SeriesProfileMixin):
         # Videos list
         right_layout.addWidget(QLabel("Videos in Collection:"))
         self.videos_list = QListWidget()
+        self.videos_list.setStyleSheet(DARK_LIST_STYLESHEET)
         self.videos_list.setMinimumHeight(150)
         self.videos_list.itemSelectionChanged.connect(self._on_video_selection_changed)
         right_layout.addWidget(self.videos_list)
@@ -642,6 +644,7 @@ class MultiSeriesDialog(BaseTagDialog):
         # Series list section
         layout.addWidget(QLabel("Series List:"))
         self.series_list_widget = QListWidget()
+        self.series_list_widget.setStyleSheet(DARK_LIST_STYLESHEET)
         self.series_list_widget.setMinimumHeight(150)
         layout.addWidget(self.series_list_widget)
 

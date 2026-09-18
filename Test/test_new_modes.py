@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
+import os
 import sys
-sys.path.insert(0, '/home/akira/akira/day2')
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from PySide6.QtCore import QTime
 from models import TagManager, Tag
 

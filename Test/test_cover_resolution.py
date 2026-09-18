@@ -2,7 +2,7 @@
 """Test cover resolution logic."""
 from pathlib import Path
 import sys
-sys.path.insert(0, '/home/akira/akira/myencoder/MyEncoder/PySide6/venv/lib/python3.13/site-packages')
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from utils import get_config_paths, load_collection_json
 
 collection_path, _ = get_config_paths()

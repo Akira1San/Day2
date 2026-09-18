@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import subprocess
+import sys
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Set
 from PySide6.QtWidgets import QWidget, QLabel, QHBoxLayout, QVBoxLayout, QComboBox, QLineEdit, QPushButton, QMessageBox, QTableWidgetItem, QDoubleSpinBox, QHeaderView
@@ -110,7 +111,10 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
             on_sort_changed=self._on_added_sort_changed,
             on_search_changed=self._on_added_search_changed,
             on_save_rates=self._save_rates_with_status,
-            on_play=self._play_added_video
+            on_play=self._play_added_video,
+            on_transcode=self._mark_transcode,
+            on_copy=self._mark_copy,
+            on_clear_transcoding=self._clear_transcoding_mode
         )
         self.blacklist_section = create_blacklist_section(
             on_video_selected=self.on_blacklist_video_selected,
@@ -224,21 +228,24 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
 
     def add_selected_videos(self):
         rows = self._selected_table_rows(self.videos_list)
+        existing_paths = {v.get('path', '') for v in self.added_videos}
         for row in sorted(rows):
             item = self.videos_list.item(row, 0)
             if not item:
                 continue
             path = item.data(Qt.UserRole)
+            if path in existing_paths:
+                continue
             video = next((v for v in self.collection_videos if v.get('path') == path), None)
             if video is None:
                 text = item.text()
                 video_name = text.split(' (')[0]
                 video = {'name': video_name}
-            if video not in self.added_videos:
-                if not is_video_in_blacklist(video, self.blacklist):
-                    video_copy = video.copy()
-                    video_copy['_rate'] = self._rates.get(path, 50)
-                    self.added_videos.append(video_copy)
+            if not is_video_in_blacklist(video, self.blacklist):
+                video_copy = video.copy()
+                video_copy['_rate'] = self._rates.get(path, 50)
+                self.added_videos.append(video_copy)
+                existing_paths.add(path)
         self.refresh_added_list()
 
     def remove_selected_added(self):
@@ -267,6 +274,50 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
 
     def remove_all_added(self):
         self.added_videos = []
+        self.refresh_added_list()
+
+    # --- Transcoding mode (session-only, per-video) ---
+    # Stored as transient video-dict key "_transcoding_mode" ("transcode" | "copy"),
+    # same pattern as "_rate" / "_source_name". Not persisted to .tag files.
+
+    VALID_TRANSCODING_MODES = ("transcode", "copy")
+
+    def _selected_added_paths(self) -> Set[str]:
+        paths = set()
+        for row in self._selected_table_rows(self.added_list):
+            item = self.added_list.item(row, 0)
+            if item:
+                path = item.data(Qt.UserRole)
+                if path:
+                    paths.add(path)
+        return paths
+
+    def _set_transcoding_mode(self, mode: str):
+        if mode not in self.VALID_TRANSCODING_MODES:
+            return
+        paths = self._selected_added_paths()
+        if not paths:
+            QMessageBox.information(self, "Transcoding Mode", "Select at least one added video first.")
+            return
+        for video in self.added_videos:
+            if video.get('path', '') in paths:
+                video['_transcoding_mode'] = mode
+        self.refresh_added_list()
+
+    def _mark_transcode(self):
+        self._set_transcoding_mode("transcode")
+
+    def _mark_copy(self):
+        self._set_transcoding_mode("copy")
+
+    def _clear_transcoding_mode(self):
+        paths = self._selected_added_paths()
+        if not paths:
+            QMessageBox.information(self, "Transcoding Mode", "Select at least one added video first.")
+            return
+        for video in self.added_videos:
+            if video.get('path', '') in paths:
+                video.pop('_transcoding_mode', None)
         self.refresh_added_list()
 
     def add_to_blacklist(self):
@@ -411,11 +462,11 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
         elif self.sort_mode == "added_desc":
             sorted_videos = list(reversed(self.added_videos))
         elif self.sort_mode == "name_asc":
-            sorted_videos = sorted(self.added_videos, key=lambda v: v.get('path', '').split('/')[-1])
+            sorted_videos = sorted(self.added_videos, key=lambda v: get_video_display_name(v))
         elif self.sort_mode == "name_desc":
-            sorted_videos = sorted(self.added_videos, key=lambda v: v.get('path', '').split('/')[-1], reverse=True)
+            sorted_videos = sorted(self.added_videos, key=lambda v: get_video_display_name(v), reverse=True)
         else:
-            sorted_videos = sorted(self.added_videos, key=lambda v: v.get('path', '').split('/')[-1])
+            sorted_videos = sorted(self.added_videos, key=lambda v: get_video_display_name(v))
 
         # Apply search filter (case-insensitive on display name)
         if self.search_text:
@@ -430,7 +481,11 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
             self.added_list.insertRow(row)
             src = video.get('_source_name', '')
             prefix = f"{src}: " if src else ""
-            name_item = QTableWidgetItem(f"{prefix}{get_video_display_name(video)}")
+            display_name = f"{prefix}{get_video_display_name(video)}"
+            mode = video.get('_transcoding_mode', '')
+            if mode in self.VALID_TRANSCODING_MODES:
+                display_name = f"{display_name} [{mode}]"
+            name_item = QTableWidgetItem(display_name)
             name_item.setData(Qt.UserRole, video.get('path', ''))
             name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)
             self.added_list.setItem(row, 0, name_item)
@@ -452,7 +507,7 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
 
     def refresh_blacklist_list(self):
         self.blacklist_list.setRowCount(0)
-        sorted_blacklist = sorted(self.blacklist, key=lambda v: v.get('path', '').split('/')[-1])
+        sorted_blacklist = sorted(self.blacklist, key=lambda v: get_video_display_name(v))
         if self.blacklist_search_text:
             search_lower = self.blacklist_search_text.lower()
             sorted_blacklist = [
@@ -497,7 +552,12 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
             QMessageBox.warning(self, "Play", f"Video not found:\n{path}")
             return
         try:
-            subprocess.Popen(["xdg-open", path])
+            if sys.platform == "win32":
+                os.startfile(path)  # noqa: S606 - path comes from the collection file the user selected
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", path])
+            else:
+                subprocess.Popen(["xdg-open", path])
         except Exception as e:
             QMessageBox.warning(self, "Play", f"Failed to open player: {e}")
 
@@ -643,7 +703,7 @@ class CollectionDialogBase(BaseTagDialog, SeriesProfileMixin):
             stripped.append(entry)
         blacklist_data = {'blacklist': stripped}
         try:
-            with open(blacklist_path, 'w') as f:
+            with open(blacklist_path, 'w', encoding='utf-8') as f:
                 json.dump(blacklist_data, f, indent=2, ensure_ascii=False)
             QMessageBox.information(self, "Saved", f"Blacklist saved to {blacklist_path}")
         except Exception as e:

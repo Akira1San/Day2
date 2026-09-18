@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Test collection_id attachment."""
+import os
 import sys
-sys.path.insert(0, '/home/akira/akira/day2')
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils import load_collection_json
 
 videos, coll_dict = load_collection_json('/home/akira/akira/AkiraTV_NEW/user/collections/collections_akiratv.json')

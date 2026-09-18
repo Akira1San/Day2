@@ -15,7 +15,7 @@ def load_collection_json(file_path: str) -> Tuple[List[Dict[str, Any]], Dict[str
         return collection_videos, collection_info
 
     try:
-        with open(file_path, 'r') as f:
+        with open(file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
 
         collections = data.get('collections', [])
@@ -110,7 +110,7 @@ def load_collection_videos_only(file_path: str) -> List[Dict[str, Any]]:
         return []
 
     try:
-        with open(file_path, 'r') as f:
+        with open(file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
 
         collections = data.get('collections', [])
@@ -143,8 +143,13 @@ def load_collection_videos_only(file_path: str) -> List[Dict[str, Any]]:
         return []
 
 
+def _basename_cross_platform(path: str) -> str:
+    """Basename that handles both '/' and '\\' separators on any OS."""
+    return path.replace('\\', '/').split('/')[-1] if path else path
+
+
 def parse_series_episode(path: str) -> Tuple[int, int]:
-    name = path.split('/')[-1] if '/' in path else path
+    name = _basename_cross_platform(path)
     season, episode = 1, 1
 
     match = re.search(r'[Ss](\d+)[Ee](\d+)', name)
@@ -176,7 +181,7 @@ def parse_videos_for_series(videos: List[Dict[str, Any]], start_season: int = 1,
             'season': season,
             'episode': episode,
             'path': path,
-            'name': path.split('/')[-1] if '/' in path else path,
+            'name': _basename_cross_platform(path),
             'index': idx
         })
 
@@ -196,7 +201,7 @@ def load_blacklist_json(file_path: str) -> List[Dict[str, Any]]:
     if not file_path or not Path(file_path).exists():
         return []
     try:
-        with open(file_path, 'r') as f:
+        with open(file_path, 'r', encoding='utf-8') as f:
             return json.load(f).get('blacklist', [])
     except Exception:
         return []
@@ -206,7 +211,7 @@ def load_rates_json(file_path: str) -> Dict[str, int]:
     if not file_path or not Path(file_path).exists():
         return {}
     try:
-        with open(file_path, 'r') as f:
+        with open(file_path, 'r', encoding='utf-8') as f:
             return json.load(f)
     except Exception:
         return {}
@@ -214,7 +219,7 @@ def load_rates_json(file_path: str) -> Dict[str, int]:
 
 def save_rates_json(file_path: str, rates_dict: Dict[str, int]):
     try:
-        with open(file_path, 'w') as f:
+        with open(file_path, 'w', encoding='utf-8') as f:
             json.dump(rates_dict, f, indent=2, ensure_ascii=False)
     except Exception:
         pass
@@ -238,30 +243,36 @@ def seconds_to_qtime(seconds: int) -> QTime:
 
 def get_video_display_name(video: Dict[str, Any]) -> str:
     path = video.get('path', '')
-    return path.split('/')[-1] if '/' in path else path
+    return _basename_cross_platform(path)
 
 
 def format_duration(duration_seconds: int) -> str:
     return f"{int(duration_seconds)}s"
 
 
+# Portable defaults used when config.ini has no [Paths] entries.
+# The user picks the real folders via the Config dialog (Browse buttons).
+_DEFAULT_COLLECTION_DIR = str(Path("collections"))
+_DEFAULT_SCHEDULE_DIR = str(Path("schedules"))
+
+
 def get_config_paths(config_file: str = "config.ini") -> Tuple[str, str]:
     try:
         config = configparser.ConfigParser()
-        config.read(config_file)
-        collection_path = config.get('Paths', 'collection_path', fallback='/home/akira/akira/AkiraTV_NEW/user/collections')
-        blacklist_path = config.get('Paths', 'blacklist_path', fallback='/home/akira/akira/AkiraTV_NEW/user/collections')
+        config.read(config_file, encoding='utf-8')
+        collection_path = config.get('Paths', 'collection_path', fallback=_DEFAULT_COLLECTION_DIR)
+        blacklist_path = config.get('Paths', 'blacklist_path', fallback=_DEFAULT_COLLECTION_DIR)
     except Exception:
-        collection_path = '/home/akira/akira/AkiraTV_NEW/user/collections'
-        blacklist_path = '/home/akira/akira/AkiraTV_NEW/user/collections'
-    
+        collection_path = _DEFAULT_COLLECTION_DIR
+        blacklist_path = _DEFAULT_COLLECTION_DIR
+
     return collection_path, blacklist_path
 
 
 def get_schedule_profiles(config_file: str = "config.ini") -> List[str]:
     try:
         config = configparser.ConfigParser()
-        config.read(config_file)
+        config.read(config_file, encoding='utf-8')
         profiles = config.get('ScheduleProfiles', 'profiles', fallback='')
         if profiles:
             return [p.strip() for p in profiles.split(',') if p.strip()]
@@ -301,7 +312,7 @@ def get_randomfill_config(config_file: str = "config.ini") -> bool:
     """Read auto_add setting from [RandomFill] section. Default False."""
     try:
         config = configparser.ConfigParser()
-        config.read(config_file)
+        config.read(config_file, encoding='utf-8')
         if 'RandomFill' in config:
             val = config['RandomFill'].get('auto_add', 'false').lower()
             return val in ('true', '1', 'yes', 'on')
@@ -314,7 +325,7 @@ def get_save_path(config_file: str = "config.ini") -> str:
     """Read save_path from [Paths] section. Defaults to empty string (current directory)."""
     try:
         config = configparser.ConfigParser()
-        config.read(config_file)
+        config.read(config_file, encoding='utf-8')
         if 'Paths' in config:
             p = config['Paths'].get('save_path', '').strip()
             return p if p else ''
@@ -326,24 +337,32 @@ def get_save_path(config_file: str = "config.ini") -> str:
 def get_schedule_path(config_file: str = "config.ini") -> str:
     try:
         config = configparser.ConfigParser()
-        config.read(config_file)
+        config.read(config_file, encoding='utf-8')
         if 'Paths' in config:
             p = config['Paths'].get('schedule_path', '').strip()
             if p:
                 return p
             p = config['Paths'].get('save_path', '').strip()
-            return p if p else '/home/akira/akira/AkiraTV_NEW/user/schedules'
+            return p if p else _DEFAULT_SCHEDULE_DIR
     except Exception:
         pass
-    return '/home/akira/akira/AkiraTV_NEW/user/schedules'
+    return _DEFAULT_SCHEDULE_DIR
+
+
+# Never leave the Qt font family empty: on Windows an empty family resolves
+# to the legacy "MS Sans Serif" bitmap font, which DirectWrite cannot load
+# (CreateFontFaceFromHDC failed) and which renders poorly. "Segoe UI" ships
+# with Windows 10+; on Linux Qt silently substitutes a matching font.
+DEFAULT_FONT_FAMILY = "Segoe UI"
 
 
 def get_font_config(config_file: str = "config.ini") -> dict:
     try:
         config = configparser.ConfigParser()
-        config.read(config_file)
+        config.read(config_file, encoding='utf-8')
         if 'Font' in config:
             return {
+                'family': config['Font'].get('family', fallback=DEFAULT_FONT_FAMILY).strip() or DEFAULT_FONT_FAMILY,
                 'title_size': config['Font'].getint('title_size', fallback=16),
                 'body_size': config['Font'].getint('body_size', fallback=14),
                 'button_size': config['Font'].getint('button_size', fallback=11),
@@ -355,6 +374,7 @@ def get_font_config(config_file: str = "config.ini") -> dict:
     except Exception:
         pass
     return {
+        'family': DEFAULT_FONT_FAMILY,
         'title_size': 16,
         'body_size': 14,
         'button_size': 11,
@@ -369,7 +389,7 @@ def get_covers_path(config_file: str = "config.ini") -> Optional[Path]:
     """Read covers_path from [Paths] section. Returns None if not set."""
     try:
         config = configparser.ConfigParser()
-        config.read(config_file)
+        config.read(config_file, encoding='utf-8')
         if 'Paths' in config:
             p = config['Paths'].get('covers_path', '').strip()
             if p:
@@ -414,9 +434,9 @@ def extract_movie_sequence_key(video_or_path) -> Tuple[int, int]:
     else:
         name = str(video_or_path)
     
-    # Strip extension if this looks like a file path
-    if '/' in name or ('.' in name and '\\' not in name):
-        name = Path(name).stem
+    # Strip extension if this looks like a file path (either separator, any OS)
+    if '/' in name or '\\' in name or '.' in name:
+        name = Path(name.replace('\\', '/')).stem
     
     # 1. Check for explicit movie/film markers
     movie_match = re.search(r'(?:movie|film)\s*(\d+)', name, re.IGNORECASE)

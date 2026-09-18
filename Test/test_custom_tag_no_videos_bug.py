@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Test: 'No videos' placeholder should not overlap custom tag content when
 no random fill videos are available (linear strategy fallback path)."""
+import os
 import sys
-sys.path.insert(0, '/home/akira/akira/day2')
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import random
 random.seed(42)
 from PySide6.QtCore import QTime
