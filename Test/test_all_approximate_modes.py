@@ -36,7 +36,9 @@ def run_test(mode, num_days=2):
             make_video("custom_three", 55),
         ])
     tg.add_tag(custom_tag)
-    sg = ScheduleGenerator(tg)
+    # Fixture paths ("/p/...") don't exist on disk; opt out of the
+    # missing-file exclusion so this tests pure scheduling logic.
+    sg = ScheduleGenerator(tg, exclude_missing=False)
     entries = sg.apply_approximate(num_days=num_days, mode=mode)
 
     errors = []

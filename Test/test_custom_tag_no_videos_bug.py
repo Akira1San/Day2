@@ -37,7 +37,7 @@ tg.add_tag(Tag(
     randomize_videos=True, video_count=6, is_random_fill=False, is_series=False,
     collection_videos=VIDEOS,
 ))
-sg = ScheduleGenerator(tg)
+sg = ScheduleGenerator(tg, exclude_missing=False)
 sg.video_order_mode = "random"
 entries = sg.apply_approximate(num_days=1, mode="find_replace")
 assert not has_no_videos(entries), "No videos placeholder should not appear in linear fallback"
@@ -59,7 +59,7 @@ tg2.add_tag(Tag(
     collection_videos=VIDEOS,
 ))
 random.seed(42)
-sg2 = ScheduleGenerator(tg2)
+sg2 = ScheduleGenerator(tg2, exclude_missing=False)
 sg2.video_order_mode = "random"
 entries2 = sg2.apply_approximate(num_days=1, mode="find_replace")
 assert not has_no_videos(entries2), "No videos placeholder should not appear in find_replace"
@@ -75,7 +75,7 @@ tg3.add_tag(Tag(
     collection_videos=VIDEOS,
 ))
 random.seed(42)
-sg3 = ScheduleGenerator(tg3)
+sg3 = ScheduleGenerator(tg3, exclude_missing=False)
 sg3.video_order_mode = "random"
 entries3 = sg3.apply_approximate(num_days=1, mode="linear")
 assert not has_no_videos(entries3), "No videos placeholder should not appear in linear direct"
@@ -100,7 +100,7 @@ tg4.add_tag(Tag(
     collection_videos=VIDEOS,
 ))
 random.seed(42)
-sg4 = ScheduleGenerator(tg4)
+sg4 = ScheduleGenerator(tg4, exclude_missing=False)
 sg4.video_order_mode = "random"
 entries4 = sg4.apply_approximate(num_days=1, mode="linear")
 # With non-empty rf videos, No videos placeholder should NOT appear

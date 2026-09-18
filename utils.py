@@ -308,6 +308,32 @@ def filter_videos_by_blacklist(videos: List[Dict[str, Any]], blacklist: List[Dic
     return [v for v in videos if not is_video_in_blacklist(v, blacklist)]
 
 
+def is_video_missing(video: Dict[str, Any]) -> bool:
+    """Check if a video file no longer exists on disk.
+
+    Matches the semantics used by the "Check Missing" buttons in the tag
+    dialogs (see dialogs/collection_base.py): an empty/missing path counts as
+    missing, otherwise the path must exist on disk.
+    """
+    if not isinstance(video, dict):
+        return True
+    path = video.get('path', '')
+    if not path:
+        return True
+    return not Path(path).exists()
+
+
+def filter_available_videos(videos: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Return only videos whose files exist on disk (preview-only filter).
+
+    Does not mutate the input list. Gap fillers are intentionally NOT filtered
+    through this helper (see task_exclude_missing_videos.md).
+    """
+    if not videos:
+        return []
+    return [v for v in videos if not is_video_missing(v)]
+
+
 def get_randomfill_config(config_file: str = "config.ini") -> bool:
     """Read auto_add setting from [RandomFill] section. Default False."""
     try:

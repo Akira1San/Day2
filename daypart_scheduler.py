@@ -497,6 +497,9 @@ class MainWindow(QMainWindow):
             msg += f", {issues['overlaps']} overlap(s)"
         if issues['mismatches']:
             msg += f", {issues['mismatches']} mismatch(es)"
+        missing_excluded = getattr(self.schedule_generator, '_last_missing_excluded', 0)
+        if missing_excluded:
+            msg += f", {missing_excluded} missing excluded"
         if issues['gaps'] or issues['overlaps'] or issues['mismatches']:
             msg += " — check Debug for details"
         preview_log.info(f"Schedule issues: {msg}")

@@ -20,7 +20,9 @@ def test_marathon_filtering():
         ],
         is_random_fill=True, fill_24h=True,
         marathon_mode=True, marathon_tag_name='Episodic')
-    sg = ScheduleGenerator(tm)
+    # Fixture paths ("/videos/...") don't exist on disk; opt out of the
+    # missing-file exclusion so this tests pure scheduling logic.
+    sg = ScheduleGenerator(tm, exclude_missing=False)
     filtered = sg._get_marathon_videos(t, 0)
     assert len(filtered) == 1, f'Expected 1, got {len(filtered)}'
     assert filtered[0]['name'] == 'ep1'
@@ -52,7 +54,9 @@ def test_marathon_active_days_single_day():
         is_random_fill=True, fill_24h=True,
         marathon_mode=True, marathon_tag_name='Episodic',
         active_days=[1]))  # Monday
-    sg = ScheduleGenerator(tm)
+    # Fixture paths ("/videos/...") don't exist on disk; opt out of the
+    # missing-file exclusion so this tests pure scheduling logic.
+    sg = ScheduleGenerator(tm, exclude_missing=False)
     sg.schedule_start_weekday = 0  # Monday
     result = sg.apply_custom_tags(use_cache=False, num_days=3)
 
@@ -79,7 +83,9 @@ def test_marathon_no_custom_tags():
         is_random_fill=True, fill_24h=True,
         marathon_mode=True, marathon_tag_name='Episodic',
         active_days=[1]))
-    sg = ScheduleGenerator(tm)
+    # Fixture paths ("/videos/...") don't exist on disk; opt out of the
+    # missing-file exclusion so this tests pure scheduling logic.
+    sg = ScheduleGenerator(tm, exclude_missing=False)
     sg.schedule_start_weekday = 2  # Wednesday
     result = sg.apply_custom_tags(use_cache=False, num_days=2)
     from collections import defaultdict
@@ -108,7 +114,9 @@ def test_marathon_with_custom_tag():
     tm.add_tag(Tag('custom', 'Show', QTime(12,0), QTime(13,0),
         collection_videos=[make_video('show1', [])],
         video_count=1))
-    sg = ScheduleGenerator(tm)
+    # Fixture paths ("/videos/...") don't exist on disk; opt out of the
+    # missing-file exclusion so this tests pure scheduling logic.
+    sg = ScheduleGenerator(tm, exclude_missing=False)
     sg.schedule_start_weekday = 0  # Monday
     result = sg.apply_custom_tags(use_cache=False, num_days=4)
 
@@ -134,7 +142,9 @@ def test_marathon_all_days_default():
         ],
         is_random_fill=True, fill_24h=True,
         marathon_mode=True, marathon_tag_name='Episodic'))
-    sg = ScheduleGenerator(tm)
+    # Fixture paths ("/videos/...") don't exist on disk; opt out of the
+    # missing-file exclusion so this tests pure scheduling logic.
+    sg = ScheduleGenerator(tm, exclude_missing=False)
     result = sg.apply_custom_tags(use_cache=False, num_days=2)
     for e in result:
         name = e.video_name.split('/')[-1].split(' - ')[-1] if ' - ' in e.video_name else e.video_name
@@ -150,7 +160,9 @@ def test_non_marathon_unaffected():
             make_video('movie1', ['Movie']),
         ],
         is_random_fill=True, fill_24h=True))
-    sg = ScheduleGenerator(tm)
+    # Fixture paths ("/videos/...") don't exist on disk; opt out of the
+    # missing-file exclusion so this tests pure scheduling logic.
+    sg = ScheduleGenerator(tm, exclude_missing=False)
     result = sg.apply_custom_tags(use_cache=False, num_days=1)
     names = set(e.video_name for e in result)
     assert 'ep1.mp4' in names
@@ -178,7 +190,9 @@ def test_hero_collection():
 
     # Marathon filtering with real data
     tm = TagManager()
-    sg = ScheduleGenerator(tm)
+    # Fixture paths ("/videos/...") don't exist on disk; opt out of the
+    # missing-file exclusion so this tests pure scheduling logic.
+    sg = ScheduleGenerator(tm, exclude_missing=False)
     t = Tag('random', 'Hero', QTime(0,0), QTime(23,59),
         collection_videos=videos,
         is_random_fill=True, fill_24h=True,
@@ -194,7 +208,7 @@ def test_hero_collection():
         is_random_fill=True, fill_24h=True,
         marathon_mode=True, marathon_tag_name='HIRO',
         active_days=[1]))  # Monday only
-    sg2 = ScheduleGenerator(tm2)
+    sg2 = ScheduleGenerator(tm2, exclude_missing=False)
     sg2.schedule_start_weekday = 1  # Tuesday → Day1 = Tue (inactive), Day2 = Wed (inactive)
     result = sg2.apply_custom_tags(use_cache=False, num_days=2)
     assert len(result) > 0

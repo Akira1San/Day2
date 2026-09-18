@@ -17,7 +17,9 @@ def run_group_approx(tags, num_days=1, overlap_strategy="fragment"):
     tg = TagManager()
     for t in tags:
         tg.add_tag(t)
-    sg = ScheduleGenerator(tg)
+    # Fixture paths ("/p/...") don't exist on disk; opt out of the
+    # missing-file exclusion so this tests pure scheduling logic.
+    sg = ScheduleGenerator(tg, exclude_missing=False)
     entries = sg.apply_approximate(num_days=num_days, mode="group_approximate", overlap_strategy=overlap_strategy)
     return entries
 

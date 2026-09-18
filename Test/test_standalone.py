@@ -105,7 +105,9 @@ if __name__ == "__main__":
     print("=" * 70)
 
     tag_manager = create_test_custom_tag_at_zero()
-    generator = ScheduleGenerator(tag_manager)
+    # Fixture entries use a "file" key (no "path") so they would count as
+    # missing; opt out of the missing-file exclusion (pure scheduling logic).
+    generator = ScheduleGenerator(tag_manager, exclude_missing=False)
 
     print("\n--- LINEAR MODE ---")
     entries = generator.apply_approximate(num_days=1, mode="linear")
@@ -117,7 +119,7 @@ if __name__ == "__main__":
     print("=" * 70)
 
     tag_manager2 = create_test_series_at_zero()
-    generator2 = ScheduleGenerator(tag_manager2)
+    generator2 = ScheduleGenerator(tag_manager2, exclude_missing=False)
 
     print("\n--- LINEAR MODE ---")
     entries2 = generator2.apply_approximate(num_days=1, mode="linear")

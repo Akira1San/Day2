@@ -21,6 +21,7 @@ from utils import (
     group_videos_by_movie,
     extract_movie_sequence_key,
     normalize_tag_time_range,
+    filter_available_videos,
 )
 from data_models import Tag, MultiSeriesTag, ScheduleEntry, TagManager, FRAGMENT_TAG_TYPE
 from strategies import (
@@ -43,17 +44,44 @@ logger = logging.getLogger(__name__)
 
 
 class ScheduleGenerator:
-    def __init__(self, tag_manager: TagManager):
+    def __init__(self, tag_manager: TagManager, exclude_missing: bool = True):
         self.tag_manager = tag_manager
         self.video_order_mode = "random"  # "random" | "movie_sequence"
+        # When True (default), videos whose files no longer exist on disk are
+        # excluded from schedule previews (preview-only, non-mutating).
+        # Tests with fake fixture paths can pass exclude_missing=False to
+        # exercise the pure scheduling logic independent of the filesystem.
+        self.exclude_missing = exclude_missing
         # Bug 3 fix: counter that rotates the starting movie on each Generate click
         # so re-Generate produces visibly different previews in movie_sequence mode.
         # Reset only by explicit re-initialization; not bumped by per-tag/cached calls.
         self._generate_count = 0
         self._compact_carryover = 0
         self._prev_day_last_end = 0
+        # Count of missing-on-disk videos excluded during the last preview
+        # generation (preview-only, non-mutating). Surfaced in the statusbar.
+        self._last_missing_excluded = 0
         from datetime import date
         self.schedule_start_weekday = date.today().weekday()  # 0=Monday, 6=Sunday
+
+    def _exclude_missing(self, videos: List[dict], context: str = "") -> List[dict]:
+        """Filter out videos whose files no longer exist on disk.
+
+        Preview-only: works on a copy, never mutates tag.collection_videos.
+        Tracks the skipped count in _last_missing_excluded for statusbar/log
+        feedback. Gap fillers must NOT call this (out of scope by design).
+        When self.exclude_missing is False, returns the input unchanged.
+        """
+        if not videos:
+            return []
+        if not self.exclude_missing:
+            return list(videos)
+        available = filter_available_videos(videos)
+        skipped = len(videos) - len(available)
+        if skipped:
+            self._last_missing_excluded += skipped
+            logger.debug(f"[MISSING] {context}: excluded {skipped} missing video(s)")
+        return available
 
     def _create_video_entry(self, pos: int, duration: int, name: str, tag_name: str = "", tag_type: str = "") -> ScheduleEntry:
         video_name = f"{tag_name} - {name}" if tag_name else name
@@ -117,7 +145,7 @@ class ScheduleGenerator:
         Returns filtered list; repeats to fill the full day window is handled
         by the caller's fill_24h loop."""
         if not getattr(tag, 'marathon_mode', False) or not getattr(tag, 'marathon_tag_name', ''):
-            return tag.collection_videos or []
+            return self._exclude_missing(tag.collection_videos or [], context=f"marathon:{getattr(tag, 'name', '?')}")
         target = tag.marathon_tag_name
         filtered = [
             v for v in (tag.collection_videos or [])
@@ -125,7 +153,7 @@ class ScheduleGenerator:
         ]
         if not filtered:
             filtered = tag.collection_videos or []
-        return filtered
+        return self._exclude_missing(filtered, context=f"marathon:{getattr(tag, 'name', '?')}")
 
     def _select_series_videos(self, tag_or_config, day_offset: int) -> List[dict]:
         """Select videos for a series tag (Tag object or config dict) for given day_offset.
@@ -193,7 +221,15 @@ class ScheduleGenerator:
             # Keep full parsed structure (video + season + episode) for return
             eligible = parsed
 
-        # Exclude 0-rate videos
+        # Exclude missing-on-disk videos first (compact sequence: day_offset
+        # indexes into the available list), then exclude 0-rate videos.
+        if eligible:
+            available_videos = self._exclude_missing(
+                [e['video'] for e in eligible],
+                context=f"series:{_get('name', '?')}",
+            )
+            available_ids = {id(v) for v in available_videos}
+            eligible = [e for e in eligible if id(e['video']) in available_ids]
         eligible = [e for e in eligible if e['video'].get('_rate', 50) != 0]
 
         total_eligible = len(eligible)
@@ -267,6 +303,11 @@ class ScheduleGenerator:
         Returns:
             Ordered list of videos to use for this day
         """
+        if not videos:
+            return []
+
+        # Exclude missing-on-disk videos (preview-only, non-mutating)
+        videos = self._exclude_missing(list(videos), context="videos_for_day")
         if not videos:
             return []
 
@@ -399,6 +440,13 @@ class ScheduleGenerator:
             entries.append(ScheduleEntry(1, start_pos, start_pos + 3600, placeholder))
             return entries
 
+        # Exclude missing-on-disk videos (preview-only, non-mutating)
+        videos = self._exclude_missing(list(videos), context=f"random_entries:{tag_name or '?'}")
+        if not videos:
+            placeholder = f"{tag_name} - No videos" if tag_name else "No videos"
+            entries.append(ScheduleEntry(1, start_pos, start_pos + 3600, placeholder))
+            return entries
+
         # Exclude 0-rate videos
         videos = [v for v in videos if v.get('_rate', 50) != 0]
         if not videos:
@@ -467,6 +515,11 @@ class ScheduleGenerator:
         all_tags = self.tag_manager.get_all_tags()
         collection_videos = self._get_all_videos(all_tags)
 
+        if not collection_videos:
+            return []
+
+        # Exclude missing-on-disk videos (preview-only, non-mutating)
+        collection_videos = self._exclude_missing(collection_videos, context="random_fill")
         if not collection_videos:
             return []
 
@@ -752,6 +805,10 @@ class ScheduleGenerator:
             rf_videos_base = rf.collection_videos.copy() if rf.collection_videos else []
             if not rf_videos_base:
                 return
+            # Exclude missing-on-disk videos (preview-only, non-mutating)
+            rf_videos_base = self._exclude_missing(rf_videos_base, context=f"random_fill_tag:{getattr(rf, 'name', '?')}")
+            if not rf_videos_base:
+                return
             # Exclude 0-rate videos
             rf_videos_base = [v for v in rf_videos_base if v.get('_rate', 50) != 0]
             if not rf_videos_base:
@@ -798,6 +855,7 @@ class ScheduleGenerator:
         # in movie_sequence mode. We bump it even on cache hits, so the user gets
         # a fresh cycle start each click.
         self._generate_count += 1
+        self._last_missing_excluded = 0
         cached = self.tag_manager.get_cached_random_entries()
         strategy = CustomTagMergeStrategy(self)
         if use_cache and cached is not None:
@@ -810,6 +868,7 @@ class ScheduleGenerator:
         """Dispatch to the appropriate approximate scheduling strategy."""
         # Bug 3 fix: same rotation behavior in approximate mode.
         self._generate_count += 1
+        self._last_missing_excluded = 0
         self._overlap_strategy = overlap_strategy
         logger.info(f"[APPROX] Using mode: {mode}, overlap_strategy={overlap_strategy}")
         if mode == "linear":
