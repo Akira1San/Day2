@@ -29,7 +29,7 @@ from PySide6.QtWidgets import (
     QFileDialog, QSpinBox, QComboBox
 )
 from PySide6.QtCore import Qt, QTime
-from PySide6.QtGui import QClipboard, QColor, QFont
+from PySide6.QtGui import QClipboard, QColor, QFont, QKeySequence, QShortcut
 
 import logging
 preview_log = logging.getLogger("preview")
@@ -82,6 +82,13 @@ class MainWindow(QMainWindow):
         self.tags_list = QListWidget()
         self.tags_list.setAlternatingRowColors(True)
         self.tags_list.setFont(QFont(self._fonts['family'], self._fonts['body_size']))
+        self.tags_list.itemDoubleClicked.connect(self._on_tag_double_clicked)
+        self._delete_tag_shortcut = QShortcut(QKeySequence(Qt.Key_Backspace), self.tags_list)
+        self._delete_tag_shortcut.setContext(Qt.WidgetShortcut)
+        self._delete_tag_shortcut.activated.connect(self.delete_tag)
+        self._delete_key_shortcut = QShortcut(QKeySequence(Qt.Key_Delete), self.tags_list)
+        self._delete_key_shortcut.setContext(Qt.WidgetShortcut)
+        self._delete_key_shortcut.activated.connect(self.delete_tag)
         tags_layout.addWidget(self.tags_list)
 
         btn_layout = QHBoxLayout()
@@ -787,6 +794,66 @@ class MainWindow(QMainWindow):
             self.refresh_tags_list()
             self.refresh_preview()
 
+    def _on_tag_double_clicked(self, item):
+        """Open the double-clicked tag in its edit dialog (single tag only)."""
+        if item is None:
+            return
+        current_row = self.tags_list.row(item)
+        if current_row < 0 or current_row >= len(self.tag_manager.tags):
+            return
+        self._edit_tag_at_row(current_row)
+        self.refresh_tags_list()
+        self.refresh_preview()
+
+    def _edit_tag_at_row(self, current_row):
+        tag = self.tag_manager.tags[current_row]
+        if tag.is_gap_filler:
+            dialog = GapTagDialog(self, tag)
+            if dialog.exec():
+                self.tag_manager.tags[current_row] = dialog.get_tag()
+            return
+        if tag.is_random_fill:
+            dialog = RandomFillDialog(self, tag)
+        elif tag.is_series:
+            dialog = SeriesDialog(self, tag)
+        elif getattr(tag, 'is_multi_series', False):
+            from dialogs import MultiSeriesDialog
+            dialog = MultiSeriesDialog(self, tag)
+            if dialog.exec():
+                new_tag = dialog.get_tag()
+                self.tag_manager.tags[current_row] = new_tag
+            return
+        else:
+            dialog = TagDialog(self, tag)
+
+        if dialog.exec():
+            new_tag = dialog.get_tag()
+            self.tag_manager.edit_tag(
+                current_row, new_tag.name,
+                new_tag.start_time, new_tag.end_time,
+                new_tag.collection_videos,
+                new_tag.collection_path,
+                new_tag.video_count,
+                new_tag.is_series,
+                new_tag.start_season,
+                new_tag.start_episode,
+                new_tag.play_mode,
+                new_tag.is_random_fill if hasattr(new_tag, 'is_random_fill') else False,
+                new_tag.blacklist if hasattr(new_tag, 'blacklist') else [],
+                new_tag.blacklist_path if hasattr(new_tag, 'blacklist_path') else '',
+                new_tag.fill_24h if hasattr(new_tag, 'fill_24h') else False,
+                new_tag.collection_profile if hasattr(new_tag, 'collection_profile') else '',
+                new_tag.blacklist_profile if hasattr(new_tag, 'blacklist_profile') else '',
+                 new_tag.randomize_videos if hasattr(new_tag, 'randomize_videos') else False,
+                new_tag.series_end_behavior if hasattr(new_tag, 'series_end_behavior') else 'stop',
+                new_tag.series_repeat_season if hasattr(new_tag, 'series_repeat_season') else 0,
+                new_tag.series_random_season if hasattr(new_tag, 'series_random_season') else 0,
+                active_days=new_tag.active_days if hasattr(new_tag, 'active_days') else None,
+                marathon_mode=new_tag.marathon_mode if hasattr(new_tag, 'marathon_mode') else False,
+                marathon_tag_name=new_tag.marathon_tag_name if hasattr(new_tag, 'marathon_tag_name') else '',
+                extra_collections=getattr(new_tag, 'extra_collections', [])
+            )
+
     def edit_tag(self):
         items = self.tags_list.selectedItems()
         if not items:
@@ -795,53 +862,7 @@ class MainWindow(QMainWindow):
 
         for item in items:
             current_row = self.tags_list.row(item)
-            tag = self.tag_manager.tags[current_row]
-            if tag.is_gap_filler:
-                dialog = GapTagDialog(self, tag)
-                if dialog.exec():
-                    self.tag_manager.tags[current_row] = dialog.get_tag()
-                continue
-            if tag.is_random_fill:
-                dialog = RandomFillDialog(self, tag)
-            elif tag.is_series:
-                dialog = SeriesDialog(self, tag)
-            elif getattr(tag, 'is_multi_series', False):
-                from dialogs import MultiSeriesDialog
-                dialog = MultiSeriesDialog(self, tag)
-                if dialog.exec():
-                    new_tag = dialog.get_tag()
-                    self.tag_manager.tags[current_row] = new_tag
-                continue
-            else:
-                dialog = TagDialog(self, tag)
-
-            if dialog.exec():
-                new_tag = dialog.get_tag()
-                self.tag_manager.edit_tag(
-                    current_row, new_tag.name,
-                    new_tag.start_time, new_tag.end_time,
-                    new_tag.collection_videos,
-                    new_tag.collection_path,
-                    new_tag.video_count,
-                    new_tag.is_series,
-                    new_tag.start_season,
-                    new_tag.start_episode,
-                    new_tag.play_mode,
-                    new_tag.is_random_fill if hasattr(new_tag, 'is_random_fill') else False,
-                    new_tag.blacklist if hasattr(new_tag, 'blacklist') else [],
-                    new_tag.blacklist_path if hasattr(new_tag, 'blacklist_path') else '',
-                    new_tag.fill_24h if hasattr(new_tag, 'fill_24h') else False,
-                    new_tag.collection_profile if hasattr(new_tag, 'collection_profile') else '',
-                    new_tag.blacklist_profile if hasattr(new_tag, 'blacklist_profile') else '',
-                     new_tag.randomize_videos if hasattr(new_tag, 'randomize_videos') else False,
-                    new_tag.series_end_behavior if hasattr(new_tag, 'series_end_behavior') else 'stop',
-                    new_tag.series_repeat_season if hasattr(new_tag, 'series_repeat_season') else 0,
-                    new_tag.series_random_season if hasattr(new_tag, 'series_random_season') else 0,
-                    active_days=new_tag.active_days if hasattr(new_tag, 'active_days') else None,
-                    marathon_mode=new_tag.marathon_mode if hasattr(new_tag, 'marathon_mode') else False,
-                    marathon_tag_name=new_tag.marathon_tag_name if hasattr(new_tag, 'marathon_tag_name') else '',
-                    extra_collections=getattr(new_tag, 'extra_collections', [])
-                )
+            self._edit_tag_at_row(current_row)
         self.refresh_tags_list()
         self.refresh_preview()
 
