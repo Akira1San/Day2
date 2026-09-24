@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 from PySide6.QtWidgets import QFileDialog, QMessageBox
 
-from utils import get_config_paths, load_blacklist_json, filter_videos_by_blacklist
+from utils import get_config_paths, load_blacklist_json, filter_videos_by_blacklist, get_video_id
 
 logger = logging.getLogger(__name__)
 
@@ -137,22 +137,12 @@ class SeriesProfileMixin:
         blacklist_data = load_blacklist_json(file_path)
         enriched = []
         for entry in blacklist_data:
-            entry_path = entry.get('path', '')
-            entry_cid = entry.get('collection_id', '')
-            # Try to match against collection_videos to preserve full metadata (duration, etc.)
+            entry_vid = entry.get('video_id', '') if isinstance(entry, dict) else ''
+            # Match against collection_videos by video_id to preserve full metadata
             match = None
-            if hasattr(self, 'collection_videos') and self.collection_videos:
+            if entry_vid and hasattr(self, 'collection_videos') and self.collection_videos:
                 for cv in self.collection_videos:
-                    cv_path = cv.get('path', '')
-                    cv_cid = cv.get('collection_id', '')
-                    if entry_path and cv_path == entry_path:
-                        match = cv
-                        break
-                    if entry_cid and cv_cid and entry_cid == cv_cid:
-                        match = cv
-                        break
-                    from os.path import basename
-                    if entry_path and basename(entry_path) == basename(cv_path):
+                    if get_video_id(cv) == entry_vid:
                         match = cv
                         break
             if match is not None:

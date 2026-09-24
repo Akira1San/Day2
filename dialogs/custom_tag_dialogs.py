@@ -16,7 +16,7 @@ from models import Tag
 from utils import (
     filter_videos_by_blacklist, get_video_display_name, format_duration,
     qtime_to_minutes, get_config_paths, get_covers_path, get_randomfill_config,
-    load_collection_json, load_rates_json
+    load_collection_json, load_blacklist_json, load_rates_json, get_video_id
 )
 
 logger = logging.getLogger(__name__)
@@ -219,13 +219,7 @@ class TagDialog(CollectionDialogBase):
     def _on_video_selected(self, video: dict):
         """Handle selection in collection list: update video info and cover."""
         self.video_info.set_video_info(video)
-        coll_id = video.get('collection_id', '')
-        if not coll_id:
-            path = video.get('path', '')
-            for v in self.collection_videos:
-                if v.get('path', '') == path:
-                    coll_id = v.get('collection_id', '')
-                    break
+        coll_id = get_video_id(video)
         coll_info = self.collection_info_dict.get(coll_id, {})
         self.info_panel.set_collection_info(coll_info)
         cover_path = coll_info.get('cover', '')
@@ -233,34 +227,22 @@ class TagDialog(CollectionDialogBase):
 
     def on_added_video_selected(self, item):
         """Handle selection in added videos list."""
-        path = item.data(Qt.UserRole)
-        video = next((v for v in self.added_videos if v.get('path') == path), None)
+        vid = item.data(Qt.UserRole)
+        video = next((v for v in self.added_videos if get_video_id(v) == vid), None)
         if video:
             self.video_info.set_video_info(video)
-            coll_id = video.get('collection_id', '')
-            if not coll_id:
-                for v in self.collection_videos:
-                    if v.get('path', '') == path:
-                        coll_id = v.get('collection_id', '')
-                        break
-            coll_info = self.collection_info_dict.get(coll_id, {})
+            coll_info = self.collection_info_dict.get(get_video_id(video), {})
             self.info_panel.set_collection_info(coll_info)
             cover_path = coll_info.get('cover', '')
             self.info_panel.set_cover_image(cover_path)
 
     def on_blacklist_video_selected(self, item):
         """Handle selection in blacklist."""
-        path = item.data(Qt.UserRole)
-        video = next((v for v in self.blacklist if v.get('path') == path), None)
+        vid = item.data(Qt.UserRole)
+        video = next((v for v in self.blacklist if get_video_id(v) == vid), None)
         if video:
             self.video_info.set_video_info(video)
-            coll_id = video.get('collection_id', '')
-            if not coll_id:
-                for v in self.collection_videos:
-                    if v.get('path', '') == path:
-                        coll_id = v.get('collection_id', '')
-                        break
-            coll_info = self.collection_info_dict.get(coll_id, {})
+            coll_info = self.collection_info_dict.get(get_video_id(video), {})
             self.info_panel.set_collection_info(coll_info)
             cover_path = coll_info.get('cover', '')
             self.info_panel.set_cover_image(cover_path)
@@ -505,17 +487,34 @@ class RandomFillDialog(CollectionDialogBase):
             self._add_collection_row(entry["path"])
         if all_entries:
             self._reload_all_collections()
+            # Enrich tag blacklist entries against freshly loaded videos so
+            # matched entries show full metadata (name/duration). Raw
+            # video_id entries without a match are kept as-is (the
+            # blacklist list renders them via the video_id fallback).
+            # Skip when the reload already auto-loaded the blacklist file.
+            if self.blacklist and not self.blacklist_path:
+                enriched = []
+                seen = set()
+                for entry in self.blacklist:
+                    vid = get_video_id(entry) if isinstance(entry, dict) else ''
+                    if vid and vid in seen:
+                        continue
+                    if vid:
+                        seen.add(vid)
+                    match = next((cv for cv in self.collection_videos if get_video_id(cv) == vid), None) if vid else None
+                    enriched.append(match.copy() if match is not None else (dict(entry) if isinstance(entry, dict) else entry))
+                self.blacklist = enriched
             # Preserve session-only transcoding marks from the edited tag
             # (freshly loaded collection dicts have no _transcoding_mode key).
             saved_modes = {}
             for v in getattr(tag, 'collection_videos', []) or []:
                 mode = v.get('_transcoding_mode', '')
-                if mode in ("transcode", "copy") and v.get('path'):
-                    saved_modes[v['path']] = mode
+                if mode in ("transcode", "copy") and get_video_id(v):
+                    saved_modes[get_video_id(v)] = mode
             self.added_videos = []
             for v in self.collection_videos:
                 v_copy = v.copy()
-                mode = saved_modes.get(v_copy.get('path', ''))
+                mode = saved_modes.get(get_video_id(v_copy))
                 if mode:
                     v_copy['_transcoding_mode'] = mode
                 self.added_videos.append(v_copy)
@@ -680,10 +679,39 @@ class RandomFillDialog(CollectionDialogBase):
                     v['_source_name'] = coll_name
                     if 'name' not in v:
                         v['name'] = get_video_display_name(v)
-                    path_key = v.get('path', '')
-                    v['_rate'] = self._rates.get(path_key, 50)
+                    v['_rate'] = self._rates.get(get_video_id(v), 50)
                     self.collection_videos.append(v)
                 self.collection_info_dict.update(info)
+
+        # Auto-load stem-matching blacklist files for each collection row.
+        # Only replaces the current blacklist when at least one file is
+        # found, so adding a collection without its own blacklist file
+        # never wipes a manually loaded list.
+        from serialization import _find_blacklist_for_collection
+        discovered = []
+        discovered_path = ""
+        seen_bl_ids = set()
+        for row in range(self.collection_table.rowCount()):
+            path_widget = self.collection_table.cellWidget(row, 0)
+            path = path_widget.text() if path_widget else ""
+            if not path:
+                continue
+            bl_file = _find_blacklist_for_collection(path)
+            if not bl_file:
+                continue
+            if not discovered_path:
+                discovered_path = bl_file
+            for entry in load_blacklist_json(bl_file):
+                vid = entry.get('video_id', '') if isinstance(entry, dict) else ''
+                if not vid or vid in seen_bl_ids:
+                    continue
+                seen_bl_ids.add(vid)
+                match = next((cv for cv in self.collection_videos if get_video_id(cv) == vid), None)
+                discovered.append(match.copy() if match is not None else dict(entry))
+        if discovered_path:
+            self.blacklist = discovered
+            self.blacklist_path = discovered_path
+            self.added_videos = filter_videos_by_blacklist(self.added_videos, self.blacklist)
 
         # Keep self.collection_path in sync with the first row
         first_path = ""
@@ -695,19 +723,14 @@ class RandomFillDialog(CollectionDialogBase):
 
         self._populate_collection_filter_combo()
         self.refresh_collection_list()
+        self.refresh_blacklist_list()
+        self.refresh_added_list()
         self._on_collection_loaded()
 
     def _on_video_selected(self, video: dict):
         """Handle selection in collection list: update video info and cover."""
         self.video_info.set_video_info(video)
-        coll_id = video.get('collection_id', '')
-        if not coll_id:
-            path = video.get('path', '')
-            for v in self.collection_videos:
-                if v.get('path', '') == path:
-                    coll_id = v.get('collection_id', '')
-                    break
-        coll_info = self.collection_info_dict.get(coll_id, {})
+        coll_info = self.collection_info_dict.get(get_video_id(video), {})
         self.info_panel.set_collection_info(coll_info)
         cover_path = coll_info.get('cover', '')
         self.info_panel.set_cover_image(cover_path)
@@ -739,34 +762,22 @@ class RandomFillDialog(CollectionDialogBase):
 
     def on_added_video_selected(self, item):
         """Handle selection in added videos list."""
-        path = item.data(Qt.UserRole)
-        video = next((v for v in self.added_videos if v.get('path') == path), None)
+        vid = item.data(Qt.UserRole)
+        video = next((v for v in self.added_videos if get_video_id(v) == vid), None)
         if video:
             self.video_info.set_video_info(video)
-            coll_id = video.get('collection_id', '')
-            if not coll_id:
-                for v in self.collection_videos:
-                    if v.get('path', '') == path:
-                        coll_id = v.get('collection_id', '')
-                        break
-            coll_info = self.collection_info_dict.get(coll_id, {})
+            coll_info = self.collection_info_dict.get(get_video_id(video), {})
             self.info_panel.set_collection_info(coll_info)
             cover_path = coll_info.get('cover', '')
             self.info_panel.set_cover_image(cover_path)
 
     def on_blacklist_video_selected(self, item):
         """Handle selection in blacklist."""
-        path = item.data(Qt.UserRole)
-        video = next((v for v in self.blacklist if v.get('path') == path), None)
+        vid = item.data(Qt.UserRole)
+        video = next((v for v in self.blacklist if get_video_id(v) == vid), None)
         if video:
             self.video_info.set_video_info(video)
-            coll_id = video.get('collection_id', '')
-            if not coll_id:
-                for v in self.collection_videos:
-                    if v.get('path', '') == path:
-                        coll_id = v.get('collection_id', '')
-                        break
-            coll_info = self.collection_info_dict.get(coll_id, {})
+            coll_info = self.collection_info_dict.get(get_video_id(video), {})
             self.info_panel.set_collection_info(coll_info)
             cover_path = coll_info.get('cover', '')
             self.info_panel.set_cover_image(cover_path)

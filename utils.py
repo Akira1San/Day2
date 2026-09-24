@@ -1,10 +1,41 @@
 import json
 import os
 import re
+import sys
 import configparser
 from pathlib import Path
 from typing import List, Optional, Tuple, Dict, Any
 from PySide6.QtCore import QTime
+
+
+def get_effective_path(video: Dict[str, Any]) -> str:
+    """Resolve the playable path for a video dict (cross-platform).
+
+    New collection schema stores a path triple:
+        path (legacy/canonical), path_windows, path_linux.
+    On Windows prefer path_windows, on Linux prefer path_linux,
+    falling back to the other fields when empty.
+    """
+    if not isinstance(video, dict):
+        return ""
+    win_path = (video.get('path_windows', '') or '').strip()
+    linux_path = (video.get('path_linux', '') or '').strip()
+    legacy = (video.get('path', '') or '').strip()
+    if sys.platform == "win32":
+        return win_path or legacy or linux_path
+    return linux_path or legacy or win_path
+
+
+def get_video_id(video: Dict[str, Any]) -> str:
+    """Stable id for blacklist/rates matching (== collections[].id)."""
+    if not isinstance(video, dict):
+        return ""
+    return (
+        video.get('collection_id', '')
+        or video.get('id', '')
+        or video.get('video_id', '')
+        or ''
+    )
 
 
 def load_collection_json(file_path: str) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
@@ -50,6 +81,9 @@ def load_collection_json(file_path: str) -> Tuple[List[Dict[str, Any]], Dict[str
                 video_copy['_meta_movie'] = movie_num
                 video_copy['_meta_part'] = part_num
                 video_copy['_meta_tags'] = coll_tags
+                # Resolve cross-platform path into canonical 'path'
+                # (keeps downstream code unchanged on both OSes).
+                video_copy['path'] = get_effective_path(video_copy)
                 collection_videos.append(video_copy)
     except Exception:
         pass
@@ -136,6 +170,8 @@ def load_collection_videos_only(file_path: str) -> List[Dict[str, Any]]:
                 video_copy['_meta_movie'] = movie_num
                 video_copy['_meta_part'] = part_num
                 video_copy['_meta_tags'] = coll_tags
+                # Resolve cross-platform path into canonical 'path'.
+                video_copy['path'] = get_effective_path(video_copy)
                 videos.append(video_copy)
 
         return videos
@@ -198,16 +234,19 @@ def parse_videos_for_series(videos: List[Dict[str, Any]], start_season: int = 1,
 
 
 def load_blacklist_json(file_path: str) -> List[Dict[str, Any]]:
+    import logging as _logging
     if not file_path or not Path(file_path).exists():
         return []
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             return json.load(f).get('blacklist', [])
-    except Exception:
+    except Exception as e:
+        _logging.getLogger(__name__).warning(f"Failed to load blacklist {file_path}: {e}")
         return []
 
 
 def load_rates_json(file_path: str) -> Dict[str, int]:
+    """Load rates file. New schema: keys are collection ids (video_id)."""
     if not file_path or not Path(file_path).exists():
         return {}
     try:
@@ -282,24 +321,20 @@ def get_schedule_profiles(config_file: str = "config.ini") -> List[str]:
 
 
 def is_video_in_blacklist(video: Dict[str, Any], blacklist: List[Dict[str, Any]]) -> bool:
-    """Check if a video matches any blacklist entry.
+    """Check if a video matches any blacklist entry (new schema).
 
-    Matches by collection_id first (stable across file moves), then by
-    exact path, then by basename (catches files moved between directories).
+    New format only: blacklist entries are {"video_id": <collections[].id>}
+    and match against the video's collection_id. Old path/basename
+    matching was removed per schema migration.
     """
-    v_coll_id = video.get('collection_id', '')
-    vpath = video.get('path', '')
-    if not vpath:
+    vid = get_video_id(video)
+    if not vid:
         return False
-    vname = os.path.basename(vpath)
     for b in blacklist:
-        b_coll_id = b.get('collection_id', '') if isinstance(b, dict) else ''
-        if b_coll_id and v_coll_id and b_coll_id == v_coll_id:
-            return True
-        bpath = b.get('path', '') if isinstance(b, dict) else ''
-        if bpath == vpath:
-            return True
-        if bpath and os.path.basename(bpath) == vname:
+        if not isinstance(b, dict):
+            continue
+        b_vid = b.get('video_id', '') or b.get('collection_id', '') or b.get('id', '')
+        if b_vid and b_vid == vid:
             return True
     return False
 
@@ -317,7 +352,7 @@ def is_video_missing(video: Dict[str, Any]) -> bool:
     """
     if not isinstance(video, dict):
         return True
-    path = video.get('path', '')
+    path = get_effective_path(video) or video.get('path', '')
     if not path:
         return True
     return not Path(path).exists()

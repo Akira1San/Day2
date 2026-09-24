@@ -323,7 +323,15 @@ def deserialize_tag_from_string(data: str, tag_class, qtime_from_string):
         blacklist = []
         if blacklist_path:
             blacklist = load_blacklist_json(blacklist_path)
-        
+        if not blacklist and blacklist_profile:
+            # Fall back to the profile name (e.g. file moved): try the
+            # collection directory first, then the config blacklist dir.
+            bl_path = _resolve_blacklist_path(blacklist_profile, collection_path)
+            if not bl_path:
+                bl_path = _find_blacklist_for_collection(collection_path)
+            if bl_path:
+                blacklist = load_blacklist_json(bl_path)
+
         return tag_class('random', name, qtime_from_string(start, 'HH:mm'), qtime_from_string(end, 'HH:mm'),
                         collection_videos, collection_path, is_random_fill=True,
                         blacklist=blacklist, blacklist_path=blacklist_path, fill_24h=fill_24h,
