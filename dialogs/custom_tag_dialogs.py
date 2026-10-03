@@ -448,6 +448,7 @@ class RandomFillDialog(CollectionDialogBase):
         tag_combo_layout = QHBoxLayout()
         tag_combo_layout.addWidget(QLabel("Collection Tag:"))
         self.marathon_tag_combo = QComboBox()
+        self.marathon_tag_combo.setMinimumWidth(200)
         self.marathon_tag_combo.addItem("None", "")
         tag_combo_layout.addWidget(self.marathon_tag_combo)
         tag_combo_layout.addStretch()
