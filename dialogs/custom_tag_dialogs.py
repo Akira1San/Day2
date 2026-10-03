@@ -409,15 +409,17 @@ class RandomFillDialog(CollectionDialogBase):
         video_layout.addWidget(self.blacklist_section.widget)
         right_layout.addWidget(video_container)
 
-        # Time inputs
-        time_layout = QHBoxLayout()
+        # Time inputs (hidden: Random Fill is always 00:00-23:59)
+        time_container = QWidget()
+        time_container.setVisible(False)
+        time_layout = QHBoxLayout(time_container)
         self._setup_time_inputs(time_layout)
-        right_layout.addLayout(time_layout)
+        right_layout.addWidget(time_container)
 
-        # Fill 24h checkbox
+        # Fill 24h (hidden: Random Fill is always 24h fill)
         self.fill_24h_check = QCheckBox("Fill 24 Hours (loop videos to fill full day)")
         self.fill_24h_check.setChecked(True)
-        right_layout.addWidget(self.fill_24h_check)
+        self.fill_24h_check.setVisible(False)
 
         # Marathon Mode
         self.marathon_cb = QCheckBox("Marathon Mode (play all day on selected days)")
@@ -800,10 +802,10 @@ class RandomFillDialog(CollectionDialogBase):
             QMessageBox.warning(self, "No Videos", "Please add at least one video.")
             return None
 
-        fill_24h = self.fill_24h_check.isChecked()
-        if fill_24h:
-            self.start_time_edit.setTime(QTime(0, 0))
-            self.end_time_edit.setTime(QTime(23, 59))
+        # Always 24h fill: time controls are hidden (see build_ui).
+        fill_24h = True
+        self.start_time_edit.setTime(QTime(0, 0))
+        self.end_time_edit.setTime(QTime(23, 59))
 
         collection_profile = self.collection_profile_combo.currentText()
         if collection_profile == "-- None --":
