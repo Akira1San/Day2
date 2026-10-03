@@ -381,9 +381,15 @@ class RandomFillDialog(CollectionDialogBase):
         profile_layout.addStretch()
         right_layout.addWidget(profile_widget)
 
-        # Collection files table
-        coll_label = QLabel("Collection Files:")
-        right_layout.addWidget(coll_label)
+        # Collection files header: label left, compact button right
+        coll_header = QHBoxLayout()
+        coll_header.addWidget(QLabel("Collection Files:"))
+        coll_header.addStretch()
+        add_coll_btn = QPushButton("Add Collection")
+        add_coll_btn.setFixedWidth(130)
+        add_coll_btn.clicked.connect(lambda: self._add_collection_row())
+        coll_header.addWidget(add_coll_btn)
+        right_layout.addLayout(coll_header)
 
         self.collection_table = QTableWidget(0, 3)
         self.collection_table.setStyleSheet(DARK_TABLE_STYLESHEET)
@@ -395,10 +401,6 @@ class RandomFillDialog(CollectionDialogBase):
         self.collection_table.setColumnWidth(2, 80)
         self.collection_table.verticalHeader().setVisible(False)
         right_layout.addWidget(self.collection_table)
-
-        add_coll_btn = QPushButton("Add Collection")
-        add_coll_btn.clicked.connect(lambda: self._add_collection_row())
-        right_layout.addWidget(add_coll_btn)
 
         # Video sections container
         self.collection_section.videos_list.setMinimumWidth(450)
