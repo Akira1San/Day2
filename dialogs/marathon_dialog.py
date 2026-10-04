@@ -94,7 +94,20 @@ class MarathonScheduleDialog(QDialog):
                     combo.setCurrentIndex(idx)
                 combo.blockSignals(False)
 
-    def _add_row(self, tag_name: str = "", active_days: Optional[List[int]] = None):
+    _UNSET = object()
+    """Sentinel: fresh row with no days pre-checked; the user must pick days.
+
+    Loaded rules always pass an explicit value (None = all days, or a list),
+    so saved schedules keep rendering exactly as stored.
+    """
+
+    def _add_row(self, tag_name: str = "", active_days=_UNSET):
+        if active_days is self._UNSET:
+            preset_days = []
+        elif active_days is None:
+            preset_days = None  # all days (loaded rule)
+        else:
+            preset_days = list(active_days)
         row = self.table.rowCount()
         self.table.insertRow(row)
 
@@ -117,8 +130,10 @@ class MarathonScheduleDialog(QDialog):
         day_cbs = []
         for i, day_name in enumerate(DAY_NAMES_SHORT):
             cb = QCheckBox(day_name)
-            checked = True if active_days is None else (i + 1) in active_days
-            cb.setChecked(checked)
+            if preset_days is None:
+                cb.setChecked(True)
+            else:
+                cb.setChecked((i + 1) in preset_days)
             days_layout.addWidget(cb)
             day_cbs.append(cb)
         days_widget.setProperty("day_checkboxes", day_cbs)
