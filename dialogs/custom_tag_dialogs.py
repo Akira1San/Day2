@@ -744,8 +744,12 @@ class RandomFillDialog(CollectionDialogBase):
             self.marathon_summary_label.setText("Marathon off")
             return
         try:
-            from utils_marathon import summarize_marathon_schedule
+            from utils_marathon import summarize_marathon_schedule, count_rule_matches
             text = summarize_marathon_schedule(self.marathon_schedule)
+            counts = [f"{e.get('tag_name', '')}: {count_rule_matches(e.get('tag_name', ''), self.added_videos)} videos"
+                      for e in (self.marathon_schedule or []) if e.get('tag_name')]
+            if counts:
+                text += f" [{'; '.join(counts)}]"
         except Exception:
             text = f"Marathon: {len(self.marathon_schedule)} rules" if self.marathon_schedule else "Marathon: no rules"
         self.marathon_summary_label.setText(text)
@@ -815,6 +819,28 @@ class RandomFillDialog(CollectionDialogBase):
                                 "Marathon mode is on but no rules are configured. "
                                 "Click Configure... to add at least one rule.")
             return None
+        if marathon_mode:
+            # Validate each rule against the current (blacklist-filtered) videos:
+            # a 0-match rule would silently fall back to unfiltered fill, and a
+            # 1-match rule repeats that single video all day.
+            try:
+                from utils_marathon import validate_marathon_schedule
+                errors, warnings = validate_marathon_schedule(
+                    marathon_schedule, self.added_videos)
+            except Exception:
+                errors, warnings = [], []
+            if errors:
+                QMessageBox.warning(self, "Marathon Rule Matches Nothing",
+                                    "\n".join(errors) +
+                                    "\n\nFix the tag name or blacklist, then save again.")
+                return None
+            if warnings:
+                reply = QMessageBox.question(
+                    self, "Marathon Pool Very Small",
+                    "\n".join(warnings) + "\n\nSave anyway?",
+                    QMessageBox.Yes | QMessageBox.Cancel, QMessageBox.Cancel)
+                if reply != QMessageBox.Yes:
+                    return None
         if not marathon_mode:
             marathon_schedule = []
         # Legacy compat: first rule's tag + union of days.

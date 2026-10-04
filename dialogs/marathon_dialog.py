@@ -34,8 +34,8 @@ class MarathonScheduleDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.addWidget(QLabel(
             "Each row = one collection tag + days. "
-            "Rows covering the same day rotate (Sun week1 = row 1, Sun week2 = row 2, ...). "
-            "Use Up/Down to set rotation order."
+            "Each checked weekday fires only once (first occurrence in the preview, no repeat). "
+            "If several rows cover the same day, the topmost row wins."
         ))
 
         self.table = QTableWidget(0, 3)

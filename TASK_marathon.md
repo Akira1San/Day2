@@ -38,6 +38,22 @@ Cannot express: "this Sunday = TagA, next Sunday = TagB, then repeat".
 - Out of scope: explicit calendar-date overrides; approximate modes reuse day-0 tag pool (rotation applies on the main custom-merge path).
 - Pre-existing failures (clean tree too): `test_hero_collection` (missing fixture), `test_new_modes` linear ZeroDivisionError.
 
+## Change: single-day, no repeat (2026-10-04, user-confirmed)
+- A checked weekday fires only on its FIRST occurrence in the preview
+  (`_is_marathon_active_on_day`: inactive when `day_offset >= 7`); later
+  same weekdays fall back to unfiltered fill. Mon+Tue checked = first Mon
+  once + first Tue once.
+- Rotation removed: several rows on one weekday -> first row wins
+  (`_resolve_marathon_tag_name`, `utils_marathon.resolve_marathon_tag_name`).
+- Tag matching is case/whitespace-insensitive (`video_matches_marathon_tag`).
+- `RandomFillDialog.get_tag()` validates each rule via
+  `validate_marathon_schedule`: 0 matches -> error (abort save), 1 match ->
+  warning (confirm save); summary label shows per-rule video counts.
+- Root cause of the TatkoTV report: `collections_TatkoTV_blacklist.json`
+  excludes 14/15 Stallone videos, collapsing the pool to 1 video repeated
+  all day. Covered by `Test/test_marathon_single_day.py`
+  (`test_blacklist_collapse_repro`, `test_first_monday_only_30d`, ...).
+
 ## Notes
 - Out of scope: explicit calendar-date overrides.
 - Rotation is per-weekday occurrence count, deterministic (no RNG).

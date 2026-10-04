@@ -239,8 +239,8 @@ def test_marathon_schedule_weekday_map():
     assert sg._is_marathon_active_on_day(tm.tags[0], 1) is False
     print('  marathon_schedule_weekday_map OK')
 
-def test_marathon_schedule_sunday_rotation():
-    """Two Sunday-only rows rotate: Sun1=EpA, Sun2=EpB, Sun3=EpA."""
+def test_marathon_schedule_sunday_single_day():
+    """Two Sunday-only rows: no rotation, first row wins, only first Sunday fires."""
     tm = TagManager()
     tm.add_tag(Tag('random', 'M', QTime(0,0), QTime(23,59),
         collection_videos=[
@@ -256,9 +256,10 @@ def test_marathon_schedule_sunday_rotation():
     sg = ScheduleGenerator(tm, exclude_missing=False)
     sg.schedule_start_weekday = 0  # Monday; Sundays at offsets 6, 13, 20
     assert sg._resolve_marathon_tag_name(tm.tags[0], 6) == 'EpA'
-    assert sg._resolve_marathon_tag_name(tm.tags[0], 13) == 'EpB'
-    assert sg._resolve_marathon_tag_name(tm.tags[0], 20) == 'EpA'
-    # Full generation: each Sunday only its own tag's video.
+    assert sg._is_marathon_active_on_day(tm.tags[0], 6) is True
+    assert sg._is_marathon_active_on_day(tm.tags[0], 13) is False
+    assert sg._is_marathon_active_on_day(tm.tags[0], 20) is False
+    # Full generation: first Sunday only EpA; later Sundays normal fill.
     result = sg.apply_custom_tags(use_cache=False, num_days=21)
     from collections import defaultdict
     by_day = defaultdict(set)
@@ -267,9 +268,9 @@ def test_marathon_schedule_sunday_rotation():
         name = e.video_name.split('/')[-1].split(' - ')[-1] if ' - ' in e.video_name else e.video_name
         by_day[day].add(name)
     assert by_day[7] == {'a1.mp4'}, f'Sun1 expected a1, got {by_day[7]}'
-    assert by_day[14] == {'b1.mp4'}, f'Sun2 expected b1, got {by_day[14]}'
-    assert by_day[21] == {'a1.mp4'}, f'Sun3 expected a1, got {by_day[21]}'
-    print('  marathon_schedule_sunday_rotation OK')
+    assert 'b1.mp4' in by_day[14], f'Sun2 expected normal fill, got {by_day[14]}'
+    assert 'b1.mp4' in by_day[21], f'Sun3 expected normal fill, got {by_day[21]}'
+    print('  marathon_schedule_sunday_single_day OK')
 
 def test_marathon_schedule_serialization():
     """Schedule survives a serialize/deserialize round-trip; legacy migrates."""
@@ -309,7 +310,7 @@ if __name__ == '__main__':
         test_marathon_all_days_default,
         test_non_marathon_unaffected,
         test_marathon_schedule_weekday_map,
-        test_marathon_schedule_sunday_rotation,
+        test_marathon_schedule_sunday_single_day,
         test_marathon_schedule_serialization,
         test_hero_collection,
     ]

@@ -164,8 +164,16 @@ class ScheduleGenerator:
             return []
 
     def _is_marathon_active_on_day(self, tag, day_offset: int) -> bool:
-        """Marathon is active when any schedule rule covers this weekday."""
+        """Marathon is active only on the FIRST occurrence of a matching weekday.
+
+        Single-day semantics (no repeat): a checked weekday fires once, on
+        its first appearance in the preview. Offsets 0..6 cover each weekday
+        exactly once, so any repeat (day_offset >= 7) is inactive and falls
+        back to normal unfiltered fill.
+        """
         if not getattr(tag, 'marathon_mode', False):
+            return False
+        if day_offset >= 7:
             return False
         try:
             from utils_marathon import is_marathon_active_on_weekday
@@ -177,11 +185,7 @@ class ScheduleGenerator:
             return self._is_tag_active_on_day(tag, day_offset)
 
     def _resolve_marathon_tag_name(self, tag, day_offset: int) -> str:
-        """Resolve which collection tag applies for this day (with rotation).
-
-        When several rules cover the same weekday, rotate by the nth
-        occurrence of that weekday (Sun1 -> row1, Sun2 -> row2, ...).
-        """
+        """Resolve which collection tag applies for this day (first match wins)."""
         sched = self._effective_marathon_schedule(tag)
         if not sched:
             return ""
@@ -195,14 +199,7 @@ class ScheduleGenerator:
                        or weekday in (e.get("active_days", []) or [])]
         if not matches:
             return ""
-        if len(matches) == 1:
-            return matches[0].get("tag_name", "")
-        # Count how many times this weekday has occurred up to day_offset.
-        occurrence = 0
-        for d in range(day_offset):
-            if self._marathon_weekday(d) == weekday:
-                occurrence += 1
-        return matches[occurrence % len(matches)].get("tag_name", "")
+        return matches[0].get("tag_name", "")
 
     def _get_marathon_videos(self, tag, day_offset: int) -> List[dict]:
         """Filter collection_videos to only those whose collection tags
@@ -220,9 +217,14 @@ class ScheduleGenerator:
                 target = legacy
             else:
                 return self._exclude_missing(tag.collection_videos or [], context=f"marathon:{getattr(tag, 'name', '?')}")
+        try:
+            from utils_marathon import video_matches_marathon_tag as _matches
+        except Exception:
+            def _matches(video, name):
+                return name in (video.get('_meta_tags', []) or [])
         filtered = [
             v for v in (tag.collection_videos or [])
-            if target in v.get('_meta_tags', [])
+            if _matches(v, target)
         ]
         if not filtered:
             filtered = tag.collection_videos or []
