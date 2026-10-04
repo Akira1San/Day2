@@ -537,16 +537,12 @@ class RandomFillDialog(CollectionDialogBase):
         except Exception:
             sched = [dict(e) for e in (getattr(tag, 'marathon_schedule', []) or []) if isinstance(e, dict)]
         self.marathon_schedule = sched
-        # Block signals so _on_marathon_toggled doesn't wipe the summary.
+        # Block signals so setting the checkbox doesn't fire the handler;
+        # invoke it manually below so button/summary stay in sync.
         self.marathon_cb.blockSignals(True)
         self.marathon_cb.setChecked(marathon_mode)
         self.marathon_cb.blockSignals(False)
-        if marathon_mode:
-            self.fill_24h_check.setChecked(True)
-            self.fill_24h_check.setEnabled(False)
-            self.start_time_edit.setEnabled(False)
-            self.end_time_edit.setEnabled(False)
-        self._update_marathon_summary()
+        self._on_marathon_toggled(marathon_mode)
 
         # Ensure added videos are filtered by current blacklist
         self.added_videos = filter_videos_by_blacklist(self.added_videos, self.blacklist)
