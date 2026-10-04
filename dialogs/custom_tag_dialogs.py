@@ -16,7 +16,8 @@ from models import Tag
 from utils import (
     filter_videos_by_blacklist, get_video_display_name, format_duration,
     qtime_to_minutes, get_config_paths, get_covers_path, get_randomfill_config,
-    load_collection_json, load_blacklist_json, load_rates_json, get_video_id
+    load_collection_json, load_blacklist_json, load_rates_json, get_video_id,
+    is_video_in_blacklist,
 )
 
 logger = logging.getLogger(__name__)
@@ -431,6 +432,9 @@ class RandomFillDialog(CollectionDialogBase):
         marathon_row = QHBoxLayout()
         self.marathon_cb = QCheckBox("Marathon Mode (play all day on selected days)")
         self.marathon_cb.setChecked(False)
+        self.marathon_cb.setToolTip(
+            "Marathon ignores the blacklist (blacklist applies to normal days only).\n"
+            "To keep a movie out of the marathon, remove it from the Added list.")
         marathon_row.addWidget(self.marathon_cb)
         self.marathon_summary_label = QLabel("Marathon off")
         marathon_row.addWidget(self.marathon_summary_label)
@@ -737,6 +741,17 @@ class RandomFillDialog(CollectionDialogBase):
                 self.marathon_cb.setChecked(True)
             self._update_marathon_summary()
 
+    def _marathon_pool_videos(self):
+        """Effective marathon pool: Added + blacklist-excluded collection videos."""
+        try:
+            from utils_marathon import build_marathon_pool
+            return build_marathon_pool(
+                getattr(self, 'added_videos', []) or [],
+                getattr(self, 'collection_videos', []) or [],
+                getattr(self, 'blacklist', []) or [])
+        except Exception:
+            return [v.copy() for v in (getattr(self, 'added_videos', []) or [])]
+
     def _update_marathon_summary(self):
         if not hasattr(self, 'marathon_summary_label'):
             return
@@ -746,7 +761,8 @@ class RandomFillDialog(CollectionDialogBase):
         try:
             from utils_marathon import summarize_marathon_schedule, count_rule_matches
             text = summarize_marathon_schedule(self.marathon_schedule)
-            counts = [f"{e.get('tag_name', '')}: {count_rule_matches(e.get('tag_name', ''), self.added_videos)} videos"
+            pool = self._marathon_pool_videos()
+            counts = [f"{e.get('tag_name', '')}: {count_rule_matches(e.get('tag_name', ''), pool)} videos"
                       for e in (self.marathon_schedule or []) if e.get('tag_name')]
             if counts:
                 text += f" [{'; '.join(counts)}]"
@@ -820,13 +836,15 @@ class RandomFillDialog(CollectionDialogBase):
                                 "Click Configure... to add at least one rule.")
             return None
         if marathon_mode:
-            # Validate each rule against the current (blacklist-filtered) videos:
+            # Validate each rule against the effective marathon pool (Added +
+            # blacklist-excluded videos — marathon ignores the blacklist):
             # a 0-match rule would silently fall back to unfiltered fill, and a
             # 1-match rule repeats that single video all day.
+            pool_videos = self._marathon_pool_videos()
             try:
                 from utils_marathon import validate_marathon_schedule
                 errors, warnings = validate_marathon_schedule(
-                    marathon_schedule, self.added_videos)
+                    marathon_schedule, pool_videos)
             except Exception:
                 errors, warnings = [], []
             if errors:
@@ -872,12 +890,20 @@ class RandomFillDialog(CollectionDialogBase):
         collection_path = all_entries[0]["path"] if all_entries else self.collection_path.text()
         extra_collections = all_entries[1:] if len(all_entries) > 1 else []
 
+        # Marathon ignores the blacklist: save the full pool (Added +
+        # blacklist-excluded videos) so marathon days can reach blacklisted
+        # videos. Normal days filter by blacklist at schedule time.
+        if marathon_mode:
+            tag_videos = self._marathon_pool_videos()
+        else:
+            tag_videos = [v.copy() for v in self.added_videos]
+
         return Tag(
             tag_type="random",
             name=self.name_input.text() or "Random Fill",
             start_time=self.start_time_edit.time(),
             end_time=self.end_time_edit.time(),
-            collection_videos=[v.copy() for v in self.added_videos],
+            collection_videos=tag_videos,
             collection_path=collection_path,
             extra_collections=extra_collections,
             blacklist=self.blacklist.copy(),

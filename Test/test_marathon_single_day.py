@@ -165,6 +165,63 @@ def test_validate_marathon_schedule():
     print('  validate_marathon_schedule OK')
 
 
+def test_marathon_ignores_blacklist():
+    """Marathon day plays blacklisted-tag videos; normal days still exclude them."""
+    vids = [make_video(f's{i}', ['Stallone'], collection_id=f'stall_{i}') for i in range(15)]
+    vids += [make_video('movie1', ['Other'], collection_id='other_1')]
+    blacklist = [{'video_id': f'stall_{i}'} for i in range(14)]
+    # Constructor must NOT pre-filter marathon tags (full pool kept).
+    t = Tag('random', 'M', QTime(0, 0), QTime(23, 59),
+            collection_videos=list(vids), blacklist=list(blacklist),
+            is_random_fill=True, fill_24h=True,
+            marathon_mode=True, marathon_tag_name='Stallone',
+            marathon_schedule=[{'tag_name': 'Stallone', 'active_days': [1]}],
+            active_days=[1])
+    assert len(t.collection_videos) == 16, f'Marathon pool must stay full, got {len(t.collection_videos)}'
+    tm = TagManager()
+    tm.add_tag(t)
+    sg = ScheduleGenerator(tm, exclude_missing=False)
+    sg.schedule_start_weekday = 0  # Monday; offset 0 = marathon, 7+ = normal
+    result = sg.apply_custom_tags(use_cache=False, num_days=8)
+    by_day = distinct_by_day(result)
+    assert len(by_day[1]) == 15, f'Marathon Monday expected 15 Stallone, got {by_day[1]}'
+    assert 's0.mp4' not in by_day[8], f'Normal day must exclude blacklisted s0, got {by_day[8]}'
+    assert 's14.mp4' in by_day[1] and 'movie1.mp4' in by_day[8]
+    print('  marathon_ignores_blacklist OK')
+
+
+def test_build_marathon_pool():
+    """Helper: re-includes blacklist-excluded videos, no dupes, manual removals stay out."""
+    from utils_marathon import build_marathon_pool
+    full = [make_video(f's{i}', ['Stallone'], collection_id=f'stall_{i}') for i in range(15)]
+    full += [make_video('other', ['Other'], collection_id='other_1')]
+    blacklist = [{'video_id': f'stall_{i}'} for i in range(14)]
+    # Added: user kept s14 but manually removed other_1 (not blacklisted).
+    added = [v for v in full if v['collection_id'] == 'stall_14']
+    pool = build_marathon_pool(added, full, blacklist)
+    ids = {v.get('collection_id') for v in pool}
+    assert len(pool) == 15, f'Expected 15 (14 re-included + s14), got {len(pool)}'
+    assert 'stall_0' in ids and 'stall_14' in ids
+    assert 'other_1' not in ids, 'Manually removed video must stay out of marathon pool'
+    # Empty blacklist -> pool == added.
+    pool2 = build_marathon_pool(added, full, [])
+    assert len(pool2) == 1
+    print('  build_marathon_pool OK')
+
+
+def test_validate_uses_full_pool():
+    """Validation against the effective (blacklist-exempt) pool reports no warning."""
+    from utils_marathon import build_marathon_pool, validate_marathon_schedule
+    full = [make_video(f's{i}', ['Stallone'], collection_id=f'stall_{i}') for i in range(15)]
+    blacklist = [{'video_id': f'stall_{i}'} for i in range(14)]
+    added = [v for v in full if v['collection_id'] == 'stall_14']
+    pool = build_marathon_pool(added, full, blacklist)
+    errors, warnings = validate_marathon_schedule(
+        [{'tag_name': 'Stallone', 'active_days': [1]}], pool)
+    assert errors == [] and warnings == [], f'Expected clean, got {errors} {warnings}'
+    print('  validate_uses_full_pool OK')
+
+
 if __name__ == '__main__':
     tests = [
         test_first_monday_only_30d,
@@ -174,6 +231,9 @@ if __name__ == '__main__':
         test_normalized_tag_match,
         test_blacklist_collapse_repro,
         test_validate_marathon_schedule,
+        test_marathon_ignores_blacklist,
+        test_build_marathon_pool,
+        test_validate_uses_full_pool,
     ]
     failed = 0
     for t in tests:

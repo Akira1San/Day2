@@ -35,6 +35,38 @@ def count_rule_matches(tag_name: str, videos: List[dict]) -> int:
     return sum(1 for v in (videos or []) if video_matches_marathon_tag(v, tag_name))
 
 
+def build_marathon_pool(added_videos: List[dict],
+                        collection_videos: List[dict],
+                        blacklist: List[dict]) -> List[dict]:
+    """Effective marathon pool: Added videos + videos excluded only by blacklist.
+
+    Marathon ignores the blacklist (it applies to normal generation only),
+    so blacklisted collection videos are re-included. Videos the user removed
+    from the Added list manually stay removed — that is how a movie is kept
+    out of a marathon.
+    """
+    try:
+        from utils import is_video_in_blacklist, get_video_id
+    except Exception:
+        return [dict(v) for v in (added_videos or [])]
+    pool = [dict(v) for v in (added_videos or [])]
+    have = set()
+    for v in pool:
+        vid = get_video_id(v) or v.get('path', '')
+        if vid:
+            have.add(vid)
+    for v in (collection_videos or []):
+        if not is_video_in_blacklist(v, blacklist or []):
+            continue
+        key = get_video_id(v) or v.get('path', '')
+        if key and key in have:
+            continue
+        pool.append(dict(v))
+        if key:
+            have.add(key)
+    return pool
+
+
 def validate_marathon_schedule(schedule: Optional[List[dict]],
                                videos: List[dict]) -> Tuple[List[str], List[str]]:
     """Check each rule's video pool size.

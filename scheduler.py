@@ -201,6 +201,22 @@ class ScheduleGenerator:
             return ""
         return matches[0].get("tag_name", "")
 
+    def _blacklist_filtered_pool(self, tag) -> List[dict]:
+        """Tag pool minus blacklisted videos (for normal, non-marathon days).
+
+        No-op for tags whose pool is already pre-filtered (all non-marathon
+        tags); only marathon tags carry blacklisted videos in their pool.
+        """
+        base = tag.collection_videos or []
+        blacklist = getattr(tag, 'blacklist', None)
+        if not base or not blacklist:
+            return base.copy() if base else []
+        try:
+            from utils import filter_videos_by_blacklist
+            return filter_videos_by_blacklist(base, blacklist)
+        except Exception:
+            return base.copy()
+
     def _get_marathon_videos(self, tag, day_offset: int) -> List[dict]:
         """Filter collection_videos to only those whose collection tags
         include the resolved marathon tag for this day.
@@ -818,14 +834,16 @@ class ScheduleGenerator:
         rf_fill_24h = getattr(rf, 'fill_24h', False)
 
         if rf_fill_24h:
-            # Marathon mode: filter to scheduled tag, check schedule days
+            # Marathon mode: filter to scheduled tag, check schedule days.
+            # Marathon days ignore the blacklist; inactive (normal) days
+            # filter by it at schedule time (marathon tags keep the full pool).
             marathon_mode = getattr(rf, 'marathon_mode', False)
             if marathon_mode:
                 day_offset = start_offset // 86400
                 if self._is_marathon_active_on_day(rf, day_offset):
                     rf_videos_base = self._get_marathon_videos(rf, day_offset)
                 else:
-                    rf_videos_base = rf.collection_videos.copy() if rf.collection_videos else []
+                    rf_videos_base = self._blacklist_filtered_pool(rf)
             else:
                 rf_videos_base = rf.collection_videos.copy() if rf.collection_videos else []
             if not rf_videos_base:

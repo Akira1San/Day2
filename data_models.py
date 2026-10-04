@@ -90,8 +90,10 @@ class Tag:
         self.active_days = active_days
         self.extra_collections = extra_collections or []
         
-        # Apply blacklist filtering if both collection_videos and blacklist are present
-        if self.collection_videos and self.blacklist:
+        # Apply blacklist filtering if both collection_videos and blacklist are present.
+        # Marathon tags keep the full pool: the blacklist applies to normal
+        # generation only and is filtered at schedule time instead.
+        if self.collection_videos and self.blacklist and not self.marathon_mode:
             self.collection_videos = filter_videos_by_blacklist(self.collection_videos, self.blacklist)
 
         # Precompute season grouping for series tags with season metadata
@@ -596,9 +598,11 @@ class TagManager:
             t.gap_estimate_runtime_overlap = gap_estimate_runtime_overlap
             t.gap_shift_padding = gap_shift_padding
             t.extra_collections = extra_collections or []
-            # Apply blacklist filtering to collection_videos
+            # Apply blacklist filtering to collection_videos (skipped for
+            # marathon tags — the blacklist applies to normal days only and
+            # is filtered at schedule time instead).
             t.collection_videos = collection_videos or []
-            if t.collection_videos and t.blacklist:
+            if t.collection_videos and t.blacklist and not t.marathon_mode:
                 t.collection_videos = filter_videos_by_blacklist(t.collection_videos, t.blacklist)
             return True
         return False

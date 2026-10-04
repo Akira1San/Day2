@@ -54,6 +54,16 @@ Cannot express: "this Sunday = TagA, next Sunday = TagB, then repeat".
   all day. Covered by `Test/test_marathon_single_day.py`
   (`test_blacklist_collapse_repro`, `test_first_monday_only_30d`, ...).
 
+## Change: marathon ignores blacklist (2026-10-04, user-confirmed)
+- Blacklist applies to normal generation only. Marathon tags keep the full
+  pool (`Tag.__init__`/`edit_tag` skip pre-filtering when `marathon_mode`;
+  `RandomFillDialog.get_tag()` saves Added + blacklist-excluded videos via
+  `build_marathon_pool`; extra-collections load skips blacklist for marathon).
+- Non-marathon days filter by blacklist at schedule time
+  (`_blacklist_filtered_pool` in `_process_random_fill_tag` inactive branch).
+- To keep a movie out of a marathon, remove it from the Added list
+  (dialog tooltip). Validation/summary use the effective marathon pool.
+
 ## Notes
 - Out of scope: explicit calendar-date overrides.
 - Rotation is per-weekday occurrence count, deterministic (no RNG).

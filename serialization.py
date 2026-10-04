@@ -325,8 +325,9 @@ def deserialize_tag_from_string(data: str, tag_class, qtime_from_string):
                 continue
             if path:
                 extra_videos = load_collection_videos_only(path)
-                # Apply blacklist if enabled
-                if isinstance(entry, dict) and entry.get("blacklist_enabled", True):
+                # Apply blacklist if enabled (skipped for marathon tags:
+                # marathon ignores the blacklist, filtered at schedule time).
+                if not marathon_mode and isinstance(entry, dict) and entry.get("blacklist_enabled", True):
                     bl_path = _find_blacklist_for_collection(path)
                     if bl_path:
                         bl_data = load_blacklist_json(bl_path)
