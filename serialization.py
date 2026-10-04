@@ -127,6 +127,15 @@ def serialize_tag_to_string(tag) -> str:
             marathon_tag_name = getattr(tag, 'marathon_tag_name', '')
             if marathon_tag_name:
                 lines.append(f"marathon_tag_name = {marathon_tag_name}")
+            try:
+                from utils_marathon import normalize_marathon_schedule
+                sched = normalize_marathon_schedule(getattr(tag, 'marathon_schedule', []) or [])
+            except Exception:
+                sched = [e for e in (getattr(tag, 'marathon_schedule', []) or []) if isinstance(e, dict)]
+            if sched:
+                lines.append(f"marathon_schedule = {json.dumps(sched, ensure_ascii=False)}")
+        active_days = getattr(tag, 'active_days', None)
+        lines.append(f"active_days = {','.join(str(d) for d in active_days) if active_days else ''}")
     
     else:
         lines.append(f"type = custom")
@@ -288,6 +297,15 @@ def deserialize_tag_from_string(data: str, tag_class, qtime_from_string):
         blacklist_profile = tag_section.get('blacklist_profile', '')
         marathon_mode = tag_section.get('marathon_mode', 'false') == 'true'
         marathon_tag_name = tag_section.get('marathon_tag_name', '')
+        marathon_schedule_str = tag_section.get('marathon_schedule', '')
+        try:
+            marathon_schedule = json.loads(marathon_schedule_str) if marathon_schedule_str.strip() else []
+            if not isinstance(marathon_schedule, list):
+                marathon_schedule = []
+        except Exception:
+            marathon_schedule = []
+        active_days_str = tag_section.get('active_days', '')
+        active_days = [int(d) for d in active_days_str.split(',') if d.strip().isdigit()] if active_days_str.strip() else None
         
         extra_collections_str = tag_section.get('extra_collections', '[]')
         try:
@@ -337,6 +355,7 @@ def deserialize_tag_from_string(data: str, tag_class, qtime_from_string):
                         blacklist=blacklist, blacklist_path=blacklist_path, fill_24h=fill_24h,
                         collection_profile=collection_profile, blacklist_profile=blacklist_profile,
                         marathon_mode=marathon_mode, marathon_tag_name=marathon_tag_name,
+                        marathon_schedule=marathon_schedule, active_days=active_days,
                         extra_collections=extra_collections)
     
     else:

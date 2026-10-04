@@ -215,6 +215,90 @@ def test_hero_collection():
     print(f'  hero_active_days OK ({len(result)} entries across 2 inactive days)')
 
 
+def test_marathon_schedule_weekday_map():
+    """Schedule: Mon=Episodic, Sun=Movie — each weekday gets its own tag."""
+    tm = TagManager()
+    tm.add_tag(Tag('random', 'M', QTime(0,0), QTime(23,59),
+        collection_videos=[
+            make_video('ep1', ['Episodic']),
+            make_video('movie1', ['Movie']),
+        ],
+        is_random_fill=True, fill_24h=True,
+        marathon_mode=True,
+        marathon_schedule=[
+            {"tag_name": "Episodic", "active_days": [1]},
+            {"tag_name": "Movie", "active_days": [7]},
+        ],
+        active_days=[1, 7]))
+    sg = ScheduleGenerator(tm, exclude_missing=False)
+    sg.schedule_start_weekday = 0  # Monday
+    assert sg._resolve_marathon_tag_name(tm.tags[0], 0) == 'Episodic'  # Mon
+    assert sg._resolve_marathon_tag_name(tm.tags[0], 6) == 'Movie'  # Sun
+    assert sg._resolve_marathon_tag_name(tm.tags[0], 1) == ''  # Tue inactive
+    assert sg._is_marathon_active_on_day(tm.tags[0], 0) is True
+    assert sg._is_marathon_active_on_day(tm.tags[0], 1) is False
+    print('  marathon_schedule_weekday_map OK')
+
+def test_marathon_schedule_sunday_rotation():
+    """Two Sunday-only rows rotate: Sun1=EpA, Sun2=EpB, Sun3=EpA."""
+    tm = TagManager()
+    tm.add_tag(Tag('random', 'M', QTime(0,0), QTime(23,59),
+        collection_videos=[
+            make_video('a1', ['EpA']),
+            make_video('b1', ['EpB']),
+        ],
+        is_random_fill=True, fill_24h=True,
+        marathon_mode=True,
+        marathon_schedule=[
+            {"tag_name": "EpA", "active_days": [7]},
+            {"tag_name": "EpB", "active_days": [7]},
+        ]))
+    sg = ScheduleGenerator(tm, exclude_missing=False)
+    sg.schedule_start_weekday = 0  # Monday; Sundays at offsets 6, 13, 20
+    assert sg._resolve_marathon_tag_name(tm.tags[0], 6) == 'EpA'
+    assert sg._resolve_marathon_tag_name(tm.tags[0], 13) == 'EpB'
+    assert sg._resolve_marathon_tag_name(tm.tags[0], 20) == 'EpA'
+    # Full generation: each Sunday only its own tag's video.
+    result = sg.apply_custom_tags(use_cache=False, num_days=21)
+    from collections import defaultdict
+    by_day = defaultdict(set)
+    for e in result:
+        day = (e.start_seconds // 86400) + 1
+        name = e.video_name.split('/')[-1].split(' - ')[-1] if ' - ' in e.video_name else e.video_name
+        by_day[day].add(name)
+    assert by_day[7] == {'a1.mp4'}, f'Sun1 expected a1, got {by_day[7]}'
+    assert by_day[14] == {'b1.mp4'}, f'Sun2 expected b1, got {by_day[14]}'
+    assert by_day[21] == {'a1.mp4'}, f'Sun3 expected a1, got {by_day[21]}'
+    print('  marathon_schedule_sunday_rotation OK')
+
+def test_marathon_schedule_serialization():
+    """Schedule survives a serialize/deserialize round-trip; legacy migrates."""
+    from serialization import serialize_tag_to_string, deserialize_tag_from_string
+    t = Tag('random', 'RF', QTime(0,0), QTime(23,59),
+        collection_videos=[make_video('v', ['EpA'])],
+        is_random_fill=True, fill_24h=True,
+        marathon_mode=True,
+        marathon_schedule=[
+            {"tag_name": "EpA", "active_days": [7]},
+            {"tag_name": "EpB", "active_days": [1]},
+        ])
+    s = serialize_tag_to_string(t)
+    assert 'marathon_schedule' in s
+    loaded = deserialize_tag_from_string(s, Tag, QTime.fromString)
+    assert loaded.marathon_mode is True
+    sched = loaded.marathon_schedule
+    assert {"tag_name": "EpA", "active_days": [7]} in sched
+    assert {"tag_name": "EpB", "active_days": [1]} in sched
+    # Legacy file without schedule migrates to a 1-entry schedule.
+    legacy = "[Tag]\ntype = random\nname = RF\nstart_time = 00:00\nend_time = 23:59\nmarathon_mode = true\nmarathon_tag_name = EpA"
+    loaded2 = deserialize_tag_from_string(legacy, Tag, QTime.fromString)
+    from utils_marathon import migrate_legacy_marathon
+    eff = migrate_legacy_marathon(loaded2.marathon_tag_name, loaded2.active_days,
+                                  getattr(loaded2, 'marathon_schedule', []))
+    assert eff == [{"tag_name": "EpA", "active_days": None}]
+    print('  marathon_schedule_serialization OK')
+
+
 if __name__ == '__main__':
     tests = [
         test_marathon_filtering,
@@ -224,6 +308,9 @@ if __name__ == '__main__':
         test_marathon_with_custom_tag,
         test_marathon_all_days_default,
         test_non_marathon_unaffected,
+        test_marathon_schedule_weekday_map,
+        test_marathon_schedule_sunday_rotation,
+        test_marathon_schedule_serialization,
         test_hero_collection,
     ]
     for t in tests:

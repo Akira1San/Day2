@@ -139,14 +139,87 @@ class ScheduleGenerator:
         real_weekday = (self.schedule_start_weekday + day_offset) % 7  # 0=Monday
         return (real_weekday + 1) in active_days  # convert to 1-based (1=Monday)
 
+    def _marathon_weekday(self, day_offset: int) -> int:
+        """1-based weekday (1=Monday) for a day_offset."""
+        return (self.schedule_start_weekday + day_offset) % 7 + 1
+
+    def _effective_marathon_schedule(self, tag) -> List[dict]:
+        """Schedule list with legacy single-tag migration applied."""
+        try:
+            from utils_marathon import migrate_legacy_marathon, normalize_marathon_schedule
+            sched = normalize_marathon_schedule(getattr(tag, 'marathon_schedule', []) or [])
+            if not sched:
+                sched = migrate_legacy_marathon(
+                    getattr(tag, 'marathon_tag_name', ''),
+                    getattr(tag, 'active_days', None),
+                )
+            return sched
+        except Exception:
+            sched = getattr(tag, 'marathon_schedule', []) or []
+            if sched:
+                return [dict(e) for e in sched if isinstance(e, dict)]
+            name = getattr(tag, 'marathon_tag_name', '')
+            if name:
+                return [{"tag_name": name, "active_days": getattr(tag, 'active_days', None)}]
+            return []
+
+    def _is_marathon_active_on_day(self, tag, day_offset: int) -> bool:
+        """Marathon is active when any schedule rule covers this weekday."""
+        if not getattr(tag, 'marathon_mode', False):
+            return False
+        try:
+            from utils_marathon import is_marathon_active_on_weekday
+            return is_marathon_active_on_weekday(
+                self._effective_marathon_schedule(tag),
+                self._marathon_weekday(day_offset),
+            )
+        except Exception:
+            return self._is_tag_active_on_day(tag, day_offset)
+
+    def _resolve_marathon_tag_name(self, tag, day_offset: int) -> str:
+        """Resolve which collection tag applies for this day (with rotation).
+
+        When several rules cover the same weekday, rotate by the nth
+        occurrence of that weekday (Sun1 -> row1, Sun2 -> row2, ...).
+        """
+        sched = self._effective_marathon_schedule(tag)
+        if not sched:
+            return ""
+        weekday = self._marathon_weekday(day_offset)
+        try:
+            from utils_marathon import marathon_entries_for_weekday
+            matches = marathon_entries_for_weekday(sched, weekday)
+        except Exception:
+            matches = [e for e in sched
+                       if e.get("active_days", None) is None
+                       or weekday in (e.get("active_days", []) or [])]
+        if not matches:
+            return ""
+        if len(matches) == 1:
+            return matches[0].get("tag_name", "")
+        # Count how many times this weekday has occurred up to day_offset.
+        occurrence = 0
+        for d in range(day_offset):
+            if self._marathon_weekday(d) == weekday:
+                occurrence += 1
+        return matches[occurrence % len(matches)].get("tag_name", "")
+
     def _get_marathon_videos(self, tag, day_offset: int) -> List[dict]:
         """Filter collection_videos to only those whose collection tags
-        include marathon_tag_name.
+        include the resolved marathon tag for this day.
         Returns filtered list; repeats to fill the full day window is handled
         by the caller's fill_24h loop."""
-        if not getattr(tag, 'marathon_mode', False) or not getattr(tag, 'marathon_tag_name', ''):
+        if not getattr(tag, 'marathon_mode', False):
             return self._exclude_missing(tag.collection_videos or [], context=f"marathon:{getattr(tag, 'name', '?')}")
-        target = tag.marathon_tag_name
+        target = self._resolve_marathon_tag_name(tag, day_offset)
+        if not target:
+            # No rule covers this day (or legacy empty): fall back to
+            # unfiltered fill, preserving historic inactive-day behavior.
+            legacy = getattr(tag, 'marathon_tag_name', '')
+            if legacy:
+                target = legacy
+            else:
+                return self._exclude_missing(tag.collection_videos or [], context=f"marathon:{getattr(tag, 'name', '?')}")
         filtered = [
             v for v in (tag.collection_videos or [])
             if target in v.get('_meta_tags', [])
@@ -743,11 +816,11 @@ class ScheduleGenerator:
         rf_fill_24h = getattr(rf, 'fill_24h', False)
 
         if rf_fill_24h:
-            # Marathon mode: filter to specific tag/series, check active days
+            # Marathon mode: filter to scheduled tag, check schedule days
             marathon_mode = getattr(rf, 'marathon_mode', False)
             if marathon_mode:
                 day_offset = start_offset // 86400
-                if self._is_tag_active_on_day(rf, day_offset):
+                if self._is_marathon_active_on_day(rf, day_offset):
                     rf_videos_base = self._get_marathon_videos(rf, day_offset)
                 else:
                     rf_videos_base = rf.collection_videos.copy() if rf.collection_videos else []

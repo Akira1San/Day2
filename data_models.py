@@ -45,6 +45,7 @@ class Tag:
                    active_days: Optional[List[int]] = None,
                    marathon_mode: bool = False,
                    marathon_tag_name: str = "",
+                   marathon_schedule: Optional[List[dict]] = None,
                    is_gap_filler: bool = False,
                    gap_collections: Optional[List[dict]] = None,
                     gap_max_duration: Optional[int] = 14400,
@@ -61,6 +62,7 @@ class Tag:
         self.is_random_fill = is_random_fill
         self.marathon_mode = marathon_mode
         self.marathon_tag_name = marathon_tag_name
+        self.marathon_schedule = [dict(e) for e in marathon_schedule] if marathon_schedule else []
         self.is_gap_filler = is_gap_filler
         self.gap_collections = gap_collections or []
         self.gap_max_duration = gap_max_duration
@@ -148,8 +150,26 @@ class Tag:
             if blacklist_profile:
                 profile_info.append(f"blk:{blacklist_profile}")
             profile_str = f" ({', '.join(profile_info)})" if profile_info else ""
+            marathon_str = ""
+            if getattr(self, 'marathon_mode', False):
+                try:
+                    from utils_marathon import summarize_marathon_schedule
+                    marathon_str = summarize_marathon_schedule(
+                        getattr(self, 'marathon_schedule', []) or [],
+                        getattr(self, 'marathon_tag_name', ''),
+                        getattr(self, 'active_days', None),
+                    )
+                except Exception:
+                    sched = getattr(self, 'marathon_schedule', []) or []
+                    if sched:
+                        marathon_str = f"Marathon: {len(sched)} rules"
+                    elif getattr(self, 'marathon_tag_name', ''):
+                        marathon_str = f"Marathon: {self.marathon_tag_name}"
+                    else:
+                        marathon_str = "Marathon"
+                marathon_str = f" [{marathon_str}]"
             if fill_24h:
-                return f"[R] {self.name} (24h Fill){profile_str}"
+                return f"[R] {self.name} (24h Fill){profile_str}{marathon_str}"
             return f"[R] {self.name} ({self.start_time.toString('HH:mm')}-{self.end_time.toString('HH:mm')}){profile_str}"
         if self.is_series:
             collection_profile = getattr(self, 'collection_profile', '')
@@ -528,6 +548,7 @@ class TagManager:
                     active_days: Optional[List[int]] = None,
                     marathon_mode: bool = False,
                     marathon_tag_name: str = "",
+                    marathon_schedule: Optional[List[dict]] = None,
                     is_gap_filler: bool = False,
                     gap_collections: Optional[List[dict]] = None,
                     gap_max_duration: Optional[int] = 14400,
@@ -561,6 +582,11 @@ class TagManager:
             t.active_days = active_days
             t.marathon_mode = marathon_mode
             t.marathon_tag_name = marathon_tag_name
+            try:
+                from utils_marathon import normalize_marathon_schedule
+                t.marathon_schedule = normalize_marathon_schedule(marathon_schedule)
+            except Exception:
+                t.marathon_schedule = [dict(e) for e in (marathon_schedule or []) if isinstance(e, dict)]
             t.is_gap_filler = is_gap_filler
             t.gap_collections = gap_collections or []
             t.gap_max_duration = gap_max_duration

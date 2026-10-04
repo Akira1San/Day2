@@ -851,6 +851,7 @@ class MainWindow(QMainWindow):
                 active_days=new_tag.active_days if hasattr(new_tag, 'active_days') else None,
                 marathon_mode=new_tag.marathon_mode if hasattr(new_tag, 'marathon_mode') else False,
                 marathon_tag_name=new_tag.marathon_tag_name if hasattr(new_tag, 'marathon_tag_name') else '',
+                marathon_schedule=getattr(new_tag, 'marathon_schedule', []),
                 extra_collections=getattr(new_tag, 'extra_collections', [])
             )
 
