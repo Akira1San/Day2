@@ -222,6 +222,69 @@ def test_validate_uses_full_pool():
     print('  validate_uses_full_pool OK')
 
 
+def test_marathon_continuous_no_midnight_reset():
+    """No fixed-time tags: one continuous stream, days 2+ start mid-video, no gaps."""
+    vids = [make_video(f'm{i}', ['M'], duration=5500, collection_id=f'm_{i}') for i in range(3)]
+    vids += [make_video(f'v{i}', ['Other'], duration=5500, collection_id=f'o_{i}') for i in range(4)]
+    tm = TagManager()
+    tm.add_tag(marathon_tag(vids,
+                            [{'tag_name': 'M', 'active_days': [1]}],
+                            marathon_tag_name='M', active_days=[1]))
+    sg = ScheduleGenerator(tm, exclude_missing=False)
+    sg.video_order_mode = 'random'
+    sg.schedule_start_weekday = 6  # Sunday; offset 1 = Monday (marathon)
+    sg._generate_count = 0
+    result = sg.apply_custom_tags(use_cache=False, num_days=3)
+    assert len(result) > 0
+    # Zero gaps across the whole span (continuous like normal generation).
+    es = sorted(result, key=lambda e: e.start_seconds)
+    gaps = [(a, b) for a, b in zip(es, es[1:]) if b.start_seconds != a.end_seconds]
+    assert gaps == [], f'Expected continuous stream, found gaps at {[(a.end_seconds, b.start_seconds) for a, b in gaps[:3]]}'
+    # Days 2+ start mid-video (first entry starts after midnight).
+    for d in (1, 2):
+        day = sorted([e for e in result if e.start_seconds // 86400 == d],
+                     key=lambda e: e.start_seconds)
+        assert day, f'Day {d + 1} has no entries starting in it'
+        assert day[0].start_seconds - d * 86400 != 0, f'Day {d + 1} resets to 00:00'
+    # Marathon day (offset 1) plays ONLY marathon videos; normal days are mixed
+    # (inactive days use unfiltered fill, which may include tag videos by chance).
+    m_names = {f'm{i}.mp4' for i in range(3)}
+    mon = [e for e in result if e.start_seconds // 86400 == 1]
+    assert mon, 'Marathon day has no entries'
+    for e in mon:
+        name = e.video_name.split('/')[-1].split(' - ')[-1] if ' - ' in e.video_name else e.video_name
+        assert name in m_names, f'Non-marathon video {name} inside marathon day'
+    other_days = [e.video_name for e in result if e.start_seconds // 86400 != 1]
+    assert any(' - v' in n or n.startswith('v') for n in other_days), 'Normal days must use the normal pool'
+    print('  marathon_continuous_no_midnight_reset OK')
+
+
+def test_marathon_with_custom_stays_per_day():
+    """With a fixed-time custom tag present: legacy per-day packing preserved."""
+    vids = [make_video(f'm{i}', ['M'], duration=5500, collection_id=f'm_{i}') for i in range(3)]
+    vids += [make_video(f'v{i}', ['Other'], duration=5500, collection_id=f'o_{i}') for i in range(4)]
+    tm = TagManager()
+    tm.add_tag(marathon_tag(vids,
+                            [{'tag_name': 'M', 'active_days': [1]}],
+                            marathon_tag_name='M', active_days=[1]))
+    tm.add_tag(Tag('custom', 'Show', QTime(12, 0), QTime(13, 0),
+                   collection_videos=[make_video('show1', [], duration=3600)],
+                   video_count=1))
+    sg = ScheduleGenerator(tm, exclude_missing=False)
+    sg.video_order_mode = 'random'
+    sg.schedule_start_weekday = 6  # Sunday
+    sg._generate_count = 0
+    result = sg.apply_custom_tags(use_cache=False, num_days=3)
+    # Custom tag placed daily at 12:00.
+    shows = [e for e in result if 'show1' in e.video_name]
+    assert len(shows) == 3, f'Expected 3 custom placements, got {len(shows)}'
+    # Fill still resets per day around the fixed placement (legacy behavior).
+    day1 = sorted([e for e in result if e.start_seconds // 86400 == 1],
+                  key=lambda e: e.start_seconds)
+    assert day1[0].start_seconds - 86400 == 0, 'Per-day packing expected with custom tags'
+    print('  marathon_with_custom_stays_per_day OK')
+
+
 if __name__ == '__main__':
     tests = [
         test_first_monday_only_30d,
@@ -234,6 +297,8 @@ if __name__ == '__main__':
         test_marathon_ignores_blacklist,
         test_build_marathon_pool,
         test_validate_uses_full_pool,
+        test_marathon_continuous_no_midnight_reset,
+        test_marathon_with_custom_stays_per_day,
     ]
     failed = 0
     for t in tests:

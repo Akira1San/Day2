@@ -64,6 +64,15 @@ Cannot express: "this Sunday = TagA, next Sunday = TagB, then repeat".
 - To keep a movie out of a marathon, remove it from the Added list
   (dialog tooltip). Validation/summary use the effective marathon pool.
 
+## Change: marathon continuous flow (2026-10-04, user-confirmed)
+- With marathon, every preview day reset to 00:00 with trailing gaps. Now a
+  single marathon `fill_24h` tag (no fixed-time tags) builds one continuous
+  stream like normal generation (`generate_marathon_continuous_fill`;
+  pool switches at midnight: marathon pool on the active day, normal pool
+  otherwise; videos may span midnight, attributed by start time).
+- Unchanged: per-day packing with custom/series/multi tags, series paths,
+  Approximate strategies, non-marathon fast path.
+
 ## Notes
 - Out of scope: explicit calendar-date overrides.
 - Rotation is per-weekday occurrence count, deterministic (no RNG).

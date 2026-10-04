@@ -674,6 +674,57 @@ class ScheduleGenerator:
 
         return entries
 
+    def generate_marathon_continuous_fill(self, rf: Tag, num_days: int = 1) -> List[ScheduleEntry]:
+        """Continuous 24h fill for a single marathon random-fill tag.
+
+        Used only when no custom/series/multi-series tags exist. Builds one
+        stream from 0 to num_days*86400 with no fit-check, so videos may span
+        midnight exactly like normal generation (no trailing gaps, days after
+        the first start mid-video). The video pool switches at midnight: the
+        single marathon-active day uses the marathon pool, all other days the
+        blacklist-filtered normal pool. Per-day pools keep the standard
+        video_order_mode ordering (random shuffle / movie_sequence group).
+        """
+        total = num_days * 24 * 3600
+        tag_name = getattr(rf, 'name', '')
+        day_pools: List[list] = []
+        for day_offset in range(num_days):
+            if self._is_marathon_active_on_day(rf, day_offset):
+                base = self._get_marathon_videos(rf, day_offset)
+                if not base:
+                    base = self._blacklist_filtered_pool(rf)
+            else:
+                base = self._blacklist_filtered_pool(rf)
+            day_pools.append(self._get_videos_for_day(base, day_offset) or [])
+        if all(not pool for pool in day_pools):
+            return []
+
+        entries: List[ScheduleEntry] = []
+        vid_idx = [0] * num_days
+        pos = 0
+        guard = 0
+        while pos < total:
+            day = pos // 86400
+            pool = day_pools[day]
+            if not pool:
+                # Nothing playable this day: skip to next midnight (same as
+                # the legacy per-day loop, which leaves such days empty).
+                pos = (day + 1) * 86400
+                continue
+            video = pool[vid_idx[day] % len(pool)]
+            vid_idx[day] += 1
+            duration = int(video.get('duration', 90))
+            if duration < 1:
+                duration = 90
+            video_name = get_video_display_name(video)
+            end = min(pos + duration, total)
+            entries.append(self._create_video_entry(pos, end - pos, video_name, tag_name, "random_fill"))
+            pos = end
+            guard += 1
+            if guard > 1000000:
+                break
+        return entries
+
     def _process_custom_tag(self, ct: Tag, custom_entries: List[ScheduleEntry], occupied: set, start_offset: int = 0,
                             adjusted_start: Optional[QTime] = None,
                             adjusted_end: Optional[QTime] = None):

@@ -54,6 +54,17 @@ class CustomTagMergeStrategy:
         if rf_24h_tags and not custom_tags and not series_tags and not multi_series_tags and not has_marathon:
             return self.sg.generate_random_fill(24 * 3600 * num_days)
 
+        # Marathon continuous fast-path: a single fill_24h marathon tag and no
+        # fixed-time tags also builds one continuous stream (videos may span
+        # midnight, exactly like normal generation). The pool switches at
+        # midnight: marathon pool on the single active day, normal
+        # (blacklist-filtered) pool otherwise. Multiple fill tags keep the
+        # legacy per-day loop below.
+        if (len(rf_24h_tags) == 1 and len(random_fill_tags) == 1
+                and not custom_tags and not series_tags and not multi_series_tags
+                and has_marathon):
+            return self.sg.generate_marathon_continuous_fill(rf_24h_tags[0], num_days)
+
         occupied = set()
         custom_entries = []
         series_entries = []
