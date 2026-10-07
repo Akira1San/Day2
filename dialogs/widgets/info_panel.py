@@ -60,25 +60,78 @@ class CollectionInfoPanel(QWidget):
         self.info_genre.setText(f"Genre: {', '.join(info.get('genre', [])) if info.get('genre') else '-'}")
         self.info_year.setText(f"Year: {info.get('year', '-')}")
     
+    def _resolve_cover(self, cover_path: Optional[str]) -> Optional[Path]:
+        """Resolve a cover path against covers_root, accepting both config styles.
+
+        Collection JSON stores project-root-relative paths like
+        ``user/covers/akiratv/X.jpg`` (sometimes with backslashes), but the
+        configured ``covers_path`` may point either at the project root
+        (``.../akiratv``) or directly at the covers dir
+        (``.../akiratv/user/covers``). Try the direct join first, then walk
+        up parents of covers_root, plus stripped-prefix variants, and
+        return the first candidate that exists on disk.
+        """
+        if not cover_path:
+            return None
+        raw = str(cover_path).strip().strip('"').strip("'")
+        if not raw:
+            return None
+        # Absolute paths (incl. Windows drive) pass through when they exist.
+        abs_candidate = Path(raw)
+        if abs_candidate.is_absolute() and abs_candidate.exists():
+            return abs_candidate
+        # Normalize separators and avoid treating a leading slash as
+        # filesystem-absolute (covers are stored project-relative).
+        rel_str = raw.replace("\\", "/").lstrip("/")
+        if not rel_str:
+            return None
+        rel = Path(rel_str)
+        bases = [self.covers_root] + list(self.covers_root.parents[:6])
+        variants = [rel_str]
+        for prefix in ("user/covers/", "user/", "covers/"):
+            if rel_str.lower().startswith(prefix):
+                variants.append(rel_str[len(prefix):])
+        # Basename-only last resort (legacy flat layouts / fallback dirs).
+        variants.append(Path(rel_str).name)
+        seen = set()
+        for base in bases:
+            try:
+                base = Path(base)
+            except Exception:
+                continue
+            for v in variants:
+                key = str(base / v)
+                if key in seen:
+                    continue
+                seen.add(key)
+                candidate = base / v
+                try:
+                    if candidate.exists():
+                        return candidate
+                except Exception:
+                    continue
+        for alt_dir in self.fallback_dirs:
+            try:
+                candidate = Path(alt_dir) / rel.name
+            except Exception:
+                continue
+            try:
+                if candidate.exists():
+                    return candidate
+            except Exception:
+                continue
+        return None
+
     def set_cover_image(self, cover_path: Optional[str]):
         """Display cover image, resolved relative to covers_root."""
         if not cover_path:
             self.info_cover.setText("Cover:\n(No cover)")
             self.info_cover.setPixmap(QPixmap())
             return
-        
-        cover_full = Path(cover_path)
-        if not cover_full.is_absolute():
-            cover_full = self.covers_root / cover_path
-        
-        if not cover_full.exists():
-            for alt_dir in self.fallback_dirs:
-                candidate = alt_dir / Path(cover_path).name
-                if candidate.exists():
-                    cover_full = candidate
-                    break
-        
-        if cover_full.exists():
+
+        cover_full = self._resolve_cover(cover_path)
+
+        if cover_full is not None and cover_full.exists():
             pixmap = QPixmap(str(cover_full))
             if not pixmap.isNull():
                 scaled = pixmap.scaled(200, 280, Qt.KeepAspectRatio, Qt.SmoothTransformation)
