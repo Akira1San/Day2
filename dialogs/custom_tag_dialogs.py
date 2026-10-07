@@ -317,6 +317,8 @@ class RandomFillDialog(CollectionDialogBase):
         self.tag = tag
         self.setWindowTitle("Add Random Fill Tag" if not tag else "Edit Random Fill Tag")
         self.setModal(True)
+        # Source of truth for collection files (managed via CollectionFilesDialog).
+        self.collection_paths: List[str] = []
 
         # Determine covers root directory
         try:
@@ -382,27 +384,6 @@ class RandomFillDialog(CollectionDialogBase):
         profile_layout.addStretch()
         right_layout.addWidget(profile_widget)
 
-        # Collection files header: label left, compact button right
-        coll_header = QHBoxLayout()
-        coll_header.addWidget(QLabel("Collection Files:"))
-        coll_header.addStretch()
-        add_coll_btn = QPushButton("Add Collection")
-        add_coll_btn.setFixedWidth(130)
-        add_coll_btn.clicked.connect(lambda: self._add_collection_row())
-        coll_header.addWidget(add_coll_btn)
-        right_layout.addLayout(coll_header)
-
-        self.collection_table = QTableWidget(0, 3)
-        self.collection_table.setStyleSheet(DARK_TABLE_STYLESHEET)
-        self.collection_table.setHorizontalHeaderLabels(["Path", "", ""])
-        self.collection_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        self.collection_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Fixed)
-        self.collection_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Fixed)
-        self.collection_table.setColumnWidth(1, 80)
-        self.collection_table.setColumnWidth(2, 80)
-        self.collection_table.verticalHeader().setVisible(False)
-        right_layout.addWidget(self.collection_table)
-
         # Video sections container
         self.collection_section.videos_list.setMinimumWidth(450)
         video_container = QWidget()
@@ -438,12 +419,21 @@ class RandomFillDialog(CollectionDialogBase):
         marathon_row.addWidget(self.marathon_cb)
         self.marathon_summary_label = QLabel("Marathon off")
         marathon_row.addWidget(self.marathon_summary_label)
+        marathon_row.addWidget(QLabel("Collections:"))
+        self.collections_summary_label = QLabel("No collections")
+        marathon_row.addWidget(self.collections_summary_label)
+        marathon_row.addStretch()
+        self.manage_collections_btn = QPushButton("Add Collection")
+        self.manage_collections_btn.setFixedWidth(130)
+        self.manage_collections_btn.setToolTip(
+            "Open dialog to add/remove collection JSON files.")
+        self.manage_collections_btn.clicked.connect(self._open_collections_dialog)
+        marathon_row.addWidget(self.manage_collections_btn)
         self.marathon_config_btn = QPushButton("Configure...")
         self.marathon_config_btn.setFixedWidth(110)
         self.marathon_config_btn.setEnabled(False)
         self.marathon_config_btn.clicked.connect(self._open_marathon_dialog)
         marathon_row.addWidget(self.marathon_config_btn)
-        marathon_row.addStretch()
         right_layout.addLayout(marathon_row)
 
         # Connect marathon signals
@@ -475,12 +465,12 @@ class RandomFillDialog(CollectionDialogBase):
             all_entries.append({"path": tag.collection_path})
         for entry in getattr(tag, 'extra_collections', []):
             if isinstance(entry, dict):
-                all_entries.append(entry)
-            else:
+                if entry.get("path"):
+                    all_entries.append(entry)
+            elif entry:
                 all_entries.append({"path": entry})
-        for entry in all_entries:
-            self._add_collection_row(entry["path"])
-        if all_entries:
+        self.collection_paths = [e["path"] for e in all_entries if e.get("path")]
+        if self.collection_paths:
             self._reload_all_collections()
             # Enrich tag blacklist entries against freshly loaded videos so
             # matched entries show full metadata (name/duration). Raw
@@ -573,59 +563,33 @@ class RandomFillDialog(CollectionDialogBase):
         self._available_marathon_tags = sorted(all_tags)
         self._update_marathon_summary()
 
-    def _add_collection_row(self, path: str = ""):
-        """Add a row to the collection table, optionally with a pre-set path."""
-        row = self.collection_table.rowCount()
-        self.collection_table.insertRow(row)
-
-        path_widget = QLineEdit(path)
-        path_widget.setReadOnly(True)
-        path_widget.setPlaceholderText("Select collection JSON...")
-        self.collection_table.setCellWidget(row, 0, path_widget)
-
-        browse_btn = QPushButton("Browse")
-        browse_btn.clicked.connect(lambda: self._browse_collection_row(row))
-        self.collection_table.setCellWidget(row, 1, browse_btn)
-
-        remove_btn = QPushButton("Remove")
-        remove_btn.clicked.connect(lambda: self._remove_collection_row(row))
-        self.collection_table.setCellWidget(row, 2, remove_btn)
-
-    def _browse_collection_row(self, row: int):
-        """Open file dialog to select a collection JSON for the given row."""
-        file_path, _ = QFileDialog.getOpenFileName(
-            self, "Select Collection File", "",
-            "JSON Files (*.json);;All Files (*)"
-        )
-        if file_path:
-            path_widget = self.collection_table.cellWidget(row, 0)
-            if path_widget:
-                path_widget.setText(file_path)
+    def _open_collections_dialog(self):
+        """Open dialog to add/remove collection files (frees space in main dialog)."""
+        from .collection_files_dialog import CollectionFilesDialog
+        dlg = CollectionFilesDialog(self, paths=list(self.collection_paths))
+        if dlg.exec():
+            self.collection_paths = dlg.get_paths()
             self._reload_all_collections()
 
-    def _remove_collection_row(self, row: int):
-        """Remove a collection row and reload remaining collections."""
-        self.collection_table.removeRow(row)
-        # Reconnect browse/remove buttons since row indices shifted
-        for r in range(self.collection_table.rowCount()):
-            browse_btn = self.collection_table.cellWidget(r, 1)
-            browse_btn.clicked.disconnect()
-            browse_btn.clicked.connect(lambda checked, row=r: self._browse_collection_row(row))
-            remove_btn = self.collection_table.cellWidget(r, 2)
-            if remove_btn:
-                remove_btn.clicked.disconnect()
-                remove_btn.clicked.connect(lambda checked, row=r: self._remove_collection_row(row))
-        self._reload_all_collections()
+    def _update_collections_summary(self):
+        if not hasattr(self, 'collections_summary_label'):
+            return
+        if not self.collection_paths:
+            self.collections_summary_label.setText("No collections")
+            return
+        names = [Path(p).stem for p in self.collection_paths]
+        text = f"{len(self.collection_paths)} collection(s): " + ", ".join(names)
+        if len(text) > 100:
+            text = text[:97] + "..."
+        self.collections_summary_label.setText(text)
 
     def _reload_all_collections(self):
-        """Load videos from all collection paths in the table, merging into collection_videos."""
+        """Load videos from all collection paths, merging into collection_videos."""
         self.collection_videos = []
         self.collection_info_dict = {}
         self._rates = {}
 
-        for row in range(self.collection_table.rowCount()):
-            path_widget = self.collection_table.cellWidget(row, 0)
-            path = path_widget.text() if path_widget else ""
+        for path in self.collection_paths:
             if path and Path(path).exists():
                 coll_name = Path(path).stem
                 if coll_name.startswith('collections_'):
@@ -668,9 +632,7 @@ class RandomFillDialog(CollectionDialogBase):
         discovered = []
         discovered_path = ""
         seen_bl_ids = set()
-        for row in range(self.collection_table.rowCount()):
-            path_widget = self.collection_table.cellWidget(row, 0)
-            path = path_widget.text() if path_widget else ""
+        for path in self.collection_paths:
             if not path:
                 continue
             bl_file = _find_blacklist_for_collection(path)
@@ -690,18 +652,15 @@ class RandomFillDialog(CollectionDialogBase):
             self.blacklist_path = discovered_path
             self.added_videos = filter_videos_by_blacklist(self.added_videos, self.blacklist)
 
-        # Keep self.collection_path in sync with the first row
-        first_path = ""
-        if self.collection_table.rowCount() > 0:
-            first_widget = self.collection_table.cellWidget(0, 0)
-            if first_widget:
-                first_path = first_widget.text()
+        # Keep self.collection_path in sync with the first path
+        first_path = self.collection_paths[0] if self.collection_paths else ""
         self.collection_path.setText(first_path)
 
         self._populate_collection_filter_combo()
         self.refresh_collection_list()
         self.refresh_blacklist_list()
         self.refresh_added_list()
+        self._update_collections_summary()
         self._on_collection_loaded()
 
     def _on_video_selected(self, video: dict):
@@ -881,12 +840,8 @@ class RandomFillDialog(CollectionDialogBase):
                 if active_days is not None and len(active_days) == 7:
                     active_days = None
 
-        # Collect all paths from the table
-        all_entries = []
-        for row in range(self.collection_table.rowCount()):
-            w = self.collection_table.cellWidget(row, 0)
-            if w and w.text():
-                all_entries.append({"path": w.text()})
+        # Collect all paths from the dialog-managed list
+        all_entries = [{"path": p} for p in self.collection_paths if p]
         collection_path = all_entries[0]["path"] if all_entries else self.collection_path.text()
         extra_collections = all_entries[1:] if len(all_entries) > 1 else []
 

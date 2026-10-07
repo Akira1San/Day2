@@ -30,6 +30,8 @@ from .collection_base import CollectionDialogBase
 from .custom_tag_dialogs import TagDialog, RandomFillDialog, GapTagDialog
 from .series_dialogs import SeriesDialog, SeriesConfigDialog, MultiSeriesDialog
 from .config_dialog import ConfigDialog
+from .marathon_dialog import MarathonScheduleDialog
+from .collection_files_dialog import CollectionFilesDialog
 from .preview_dialog import SchedulePreviewDialog
 from .duration_debug_dialog import DurationDebugDialog
 
@@ -43,6 +45,8 @@ __all__ = [
     'ConfigDialog',
     'SchedulePreviewDialog',
     'DurationDebugDialog',
+    'MarathonScheduleDialog',
+    'CollectionFilesDialog',
     'BaseTagDialog',
     'CollectionDialogBase',
     'VideoListWidget',
