@@ -6,12 +6,13 @@ main dialog stays compact (same pattern as MarathonScheduleDialog).
 """
 
 from __future__ import annotations
-from pathlib import Path
 from typing import List, Optional
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QTableWidget, QHeaderView, QPushButton, QFileDialog,
+    QDialog, QVBoxLayout, QHBoxLayout, QLabel,
+    QTableWidget, QTableWidgetItem, QHeaderView, QPushButton, QFileDialog,
+    QAbstractItemView,
 )
+from PySide6.QtCore import Qt
 
 from .widgets.dark_theme import DARK_TABLE_STYLESHEET
 
@@ -19,11 +20,13 @@ from .widgets.dark_theme import DARK_TABLE_STYLESHEET
 class CollectionFilesDialog(QDialog):
     """Table editor: each row = one collection JSON path."""
 
+    _EMPTY_TEXT = "(no file selected)"
+
     def __init__(self, parent=None, paths: Optional[List[str]] = None):
         super().__init__(parent)
         self.setWindowTitle("Collection Files")
         self.setModal(True)
-        self.resize(620, 380)
+        self.resize(680, 380)
 
         layout = QVBoxLayout(self)
         layout.addWidget(QLabel(
@@ -40,6 +43,9 @@ class CollectionFilesDialog(QDialog):
         self.table.setColumnWidth(1, 80)
         self.table.setColumnWidth(2, 80)
         self.table.verticalHeader().setVisible(False)
+        self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.table.verticalHeader().setDefaultSectionSize(30)
         layout.addWidget(self.table)
 
         btn_row = QHBoxLayout()
@@ -65,14 +71,20 @@ class CollectionFilesDialog(QDialog):
         if self.table.rowCount() == 0:
             self._add_row()
 
+    def _set_path_item(self, row: int, path: str):
+        item = self.table.item(row, 0)
+        if item is None:
+            item = QTableWidgetItem()
+            item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+            self.table.setItem(row, 0, item)
+        item.setText(path if path else self._EMPTY_TEXT)
+        item.setToolTip(path if path else "Click Browse to select a collection JSON file")
+
     def _add_row(self, path: str = ""):
         row = self.table.rowCount()
         self.table.insertRow(row)
 
-        path_widget = QLineEdit(path)
-        path_widget.setReadOnly(True)
-        path_widget.setPlaceholderText("Select collection JSON...")
-        self.table.setCellWidget(row, 0, path_widget)
+        self._set_path_item(row, path)
 
         browse_btn = QPushButton("Browse")
         browse_btn.clicked.connect(lambda _=False, r=row: self._browse_row(r))
@@ -81,6 +93,7 @@ class CollectionFilesDialog(QDialog):
         remove_btn = QPushButton("Remove")
         remove_btn.clicked.connect(lambda _=False, r=row: self._remove_row(r))
         self.table.setCellWidget(row, 2, remove_btn)
+        self.table.resizeRowsToContents()
 
     def _browse_row(self, row: int):
         file_path, _ = QFileDialog.getOpenFileName(
@@ -88,9 +101,8 @@ class CollectionFilesDialog(QDialog):
             "JSON Files (*.json);;All Files (*)"
         )
         if file_path:
-            path_widget = self.table.cellWidget(row, 0)
-            if path_widget:
-                path_widget.setText(file_path)
+            self._set_path_item(row, file_path)
+            self.table.resizeRowsToContents()
 
     def _remove_row(self, row: int):
         self.table.removeRow(row)
@@ -114,9 +126,10 @@ class CollectionFilesDialog(QDialog):
     def get_paths(self) -> List[str]:
         result = []
         for row in range(self.table.rowCount()):
-            w = self.table.cellWidget(row, 0)
-            if w and w.text():
-                result.append(w.text())
+            item = self.table.item(row, 0)
+            text = item.text() if item else ""
+            if text and text != self._EMPTY_TEXT:
+                result.append(text)
         # De-duplicate while preserving order.
         seen = set()
         deduped = []
