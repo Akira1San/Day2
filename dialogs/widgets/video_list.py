@@ -60,6 +60,30 @@ class BlacklistSection:
     search_input: Optional[QLineEdit] = None
 
 
+def _connect_video_selection(table: VideoListWidget, on_video_selected: Callable) -> None:
+    """Wire mouse + keyboard selection to the same callback.
+
+    ``itemClicked`` fires only on mouse clicks, so arrow-key navigation
+    (which changes current cell / selection) never updated the cover.
+    ``itemSelectionChanged`` + ``currentItemChanged`` cover keyboard moves,
+    while ``itemClicked`` is kept so re-clicking the already-selected row
+    still refreshes.
+    """
+    table.itemClicked.connect(on_video_selected)
+
+    def _forward_selection(*_args):
+        row = table.currentRow()
+        if 0 <= row < table.rowCount():
+            item = table.item(row, 0)
+            if item is not None:
+                on_video_selected(item)
+
+    # itemSelectionChanged covers keyboard navigation (arrows, PgUp/Dn,
+    # Home/End); itemClicked above covers re-clicking the current row,
+    # which does not change selection and thus would not emit this.
+    table.itemSelectionChanged.connect(_forward_selection)
+
+
 def create_video_section(
     title: str,
     with_buttons: bool,
@@ -142,7 +166,7 @@ def create_video_section(
     videos_list = VideoListWidget(columns=columns)
     videos_list.setMinimumHeight(200)
     if on_video_selected:
-        videos_list.itemClicked.connect(on_video_selected)
+        _connect_video_selection(videos_list, on_video_selected)
     vbox.addWidget(videos_list)
 
     btn_layout = QHBoxLayout()
@@ -283,7 +307,7 @@ def create_blacklist_section(
     blacklist_list = VideoListWidget(columns=1)
     blacklist_list.setMinimumHeight(200)
     if on_video_selected:
-        blacklist_list.itemClicked.connect(on_video_selected)
+        _connect_video_selection(blacklist_list, on_video_selected)
     vbox.addWidget(blacklist_list)
 
     btn_layout = QHBoxLayout()
